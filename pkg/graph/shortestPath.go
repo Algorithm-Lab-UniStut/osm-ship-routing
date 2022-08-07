@@ -50,6 +50,10 @@ func (h *PriorityQueue) update(pqItem *PriorityQueueItem, newPriority int) {
 	heap.Fix(h, pqItem.index)
 }
 
+type Navigator interface {
+	shortestPath(g Graph, origin, destination int) ([]int, int)
+}
+
 func Dijkstra(g Graph, origin, destination int) ([]int, int) {
 	dijkstraItems := make([]*PriorityQueueItem, g.NodeCount(), g.NodeCount())
 	originItem := PriorityQueueItem{itemId: origin, priority: 0, predecessor: -1, index: -1}
