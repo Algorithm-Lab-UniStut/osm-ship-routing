@@ -2,6 +2,6 @@ additionalProperties:
   packageName: openapi_server
   sourceFolder: openapi_server
   outputAsLibrary: true
-gitUserId: dmholtz
+gitUserId: natevvv
 gitRepoId: osm-ship-routing
 

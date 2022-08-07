@@ -7,8 +7,8 @@ import (
 	"os"
 	"strconv"
 
-	cl "github.com/dmholtz/osm-ship-routing/pkg/coastline"
-	"github.com/dmholtz/osm-ship-routing/pkg/geometry"
+	cl "github.com/natevvv/osm-ship-routing/pkg/coastline"
+	"github.com/natevvv/osm-ship-routing/pkg/geometry"
 	"github.com/paulmach/orb"
 	"github.com/paulmach/orb/geojson"
 )

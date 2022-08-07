@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dmholtz/osm-ship-routing/internal/pbf"
-	"github.com/dmholtz/osm-ship-routing/pkg/coastline"
+	"github.com/natevvv/osm-ship-routing/internal/pbf"
+	"github.com/natevvv/osm-ship-routing/pkg/coastline"
 )
 
 const pbfFile string = "antarctica.osm.pbf"

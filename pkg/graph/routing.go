@@ -3,7 +3,7 @@ package graph
 import (
 	"math"
 
-	geo "github.com/dmholtz/osm-ship-routing/pkg/geometry"
+	geo "github.com/natevvv/osm-ship-routing/pkg/geometry"
 )
 
 type Route struct {

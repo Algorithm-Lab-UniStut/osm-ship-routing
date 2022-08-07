@@ -6,9 +6,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/dmholtz/osm-ship-routing/pkg/geometry"
-	"github.com/dmholtz/osm-ship-routing/pkg/graph"
-	"github.com/dmholtz/osm-ship-routing/pkg/grid"
+	"github.com/natevvv/osm-ship-routing/pkg/geometry"
+	"github.com/natevvv/osm-ship-routing/pkg/graph"
+	"github.com/natevvv/osm-ship-routing/pkg/grid"
 )
 
 const density = 710 // parameter for SimpleSphereGrid

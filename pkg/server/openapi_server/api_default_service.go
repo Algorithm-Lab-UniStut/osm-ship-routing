@@ -6,8 +6,8 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/dmholtz/osm-ship-routing/pkg/geometry"
-	"github.com/dmholtz/osm-ship-routing/pkg/graph"
+	"github.com/natevvv/osm-ship-routing/pkg/geometry"
+	"github.com/natevvv/osm-ship-routing/pkg/graph"
 )
 
 // DefaultApiService is a service that implements the logic for the DefaultApiServicer
