@@ -8,19 +8,20 @@ import (
 
 	"github.com/natevvv/osm-ship-routing/pkg/geometry"
 	"github.com/natevvv/osm-ship-routing/pkg/graph"
+	"github.com/natevvv/osm-ship-routing/pkg/routing"
 )
 
 // DefaultApiService is a service that implements the logic for the DefaultApiServicer
 // This service should implement the business logic for every endpoint for the DefaultApi API.
 // Include any external packages or services that will be required by this service.
 type DefaultApiService struct {
-	shipRouter *graph.ShipRouter
+	shipRouter *routing.ShipRouter
 }
 
 // NewDefaultApiService creates a default api service
 func NewDefaultApiService(graphFile string) DefaultApiServicer {
 	g := graph.NewAdjacencyArrayFromFmi(graphFile)
-	sr := graph.NewShipRouter(g)
+	sr := routing.NewShipRouter(g)
 	return &DefaultApiService{shipRouter: sr}
 }
 
