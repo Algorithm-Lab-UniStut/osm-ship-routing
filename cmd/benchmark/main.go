@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/dmholtz/osm-ship-routing/pkg/graph"
+	"github.com/natevvv/osm-ship-routing/pkg/graph"
 )
 
 const graphFile = "graphs/ocean_equi_4.fmi"
@@ -28,10 +28,7 @@ func benchmark(aag *graph.AdjacencyArrayGraph, n int) {
 		destination := rand.Intn(aag.NodeCount())
 
 		start := time.Now()
-		//path, length := graph.BidirectionalDijkstra(aag, origin, destination)
-		astar := graph.NewAStar(aag)
-		path, length := astar.ShortestPath(aag, origin, destination)
-		//path, length := graph.Dijkstra(aag, origin, destination)
+		path, length := graph.FindShortestPath(aag, origin, destination)
 		elapsed := time.Since(start)
 		fmt.Printf("[TIME-Navigate] = %s\n", elapsed)
 

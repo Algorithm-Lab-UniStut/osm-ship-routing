@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	geo "github.com/dmholtz/osm-ship-routing/pkg/geometry"
-	gr "github.com/dmholtz/osm-ship-routing/pkg/graph"
+	geo "github.com/natevvv/osm-ship-routing/pkg/geometry"
+	gr "github.com/natevvv/osm-ship-routing/pkg/graph"
 )
 
 type SimpleSphereGrid struct {

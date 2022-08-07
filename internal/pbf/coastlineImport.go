@@ -6,7 +6,7 @@ import (
 	"os"
 	"runtime"
 
-	cl "github.com/dmholtz/osm-ship-routing/pkg/coastline"
+	cl "github.com/natevvv/osm-ship-routing/pkg/coastline"
 	"github.com/paulmach/osm"
 	"github.com/paulmach/osm/osmpbf"
 )

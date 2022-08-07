@@ -3,7 +3,7 @@ package graph
 import (
 	"math"
 
-	geo "github.com/dmholtz/osm-ship-routing/pkg/geometry"
+	geo "github.com/natevvv/osm-ship-routing/pkg/geometry"
 )
 
 type Route struct {
@@ -44,7 +44,7 @@ func (sr ShipRouter) closestNodes(p1, p2 geo.Point) (n1, n2 int) {
 
 func (sr ShipRouter) ComputeRoute(origin, destination geo.Point) (route Route) {
 	originNode, desdestinationNode := sr.closestNodes(origin, destination)
-	nodePath, length := Dijkstra(sr.g, originNode, desdestinationNode)
+	nodePath, length := FindShortestPath(sr.g, originNode, desdestinationNode)
 
 	if length > -1 {
 		// shortest path exists

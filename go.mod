@@ -1,4 +1,4 @@
-module github.com/dmholtz/osm-ship-routing
+module github.com/natevvv/osm-ship-routing
 
 go 1.18
 

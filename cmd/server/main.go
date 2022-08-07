@@ -13,7 +13,7 @@ import (
 	"log"
 	"net/http"
 
-	server "github.com/dmholtz/osm-ship-routing/pkg/server/openapi_server"
+	server "github.com/natevvv/osm-ship-routing/pkg/server/openapi_server"
 )
 
 const fileName = "graphs/ocean_equi_4.fmi"

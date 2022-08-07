@@ -10,10 +10,10 @@ Beside that, an installation from source gives you access to every component of 
 
 ## Setup Using Docker
 
-1. Pull the image from [Dockerhub](https://hub.docker.com/repository/docker/dmholtz/osm-ship-routing): `docker pull dmholtz/osm-ship-routing:<TAG>`
-2. Start a container: `docker run -p 8081:8081 --name osm-server dmholtz/osm-ship-routing`
+1. Pull the image from [Dockerhub](https://hub.docker.com/repository/docker/natevvv/osm-ship-routing): `docker pull natevvv/osm-ship-routing:<TAG>`
+2. Start a container: `docker run -p 8081:8081 --name osm-server natevvv/osm-ship-routing`
 
-Note that `<TAG>` needs to be replaced by a valid tag. Please find all available tags on [Dockerhub](https://hub.docker.com/repository/docker/dmholtz/osm-ship-routing).
+Note that `<TAG>` needs to be replaced by a valid tag. Please find all available tags on [Dockerhub](https://hub.docker.com/repository/docker/natevvv/osm-ship-routing).
 Tag `1.0.0` refers to the first submission and tag `latest` referst to the most recent release on Dockerhub.
 
 ## Installation from Source
