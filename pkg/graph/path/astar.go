@@ -72,7 +72,7 @@ func estimatedDistance(g graph.Graph, originNodeId, destinationNodeId int) int {
 	return originPoint.IntHaversine(destinationPoint)
 }
 
-func (a AStar) ShortestPath(g graph.Graph, origin, destination int) ([]int, int) {
+func (a AStar) GetPath(g graph.Graph, origin, destination int) ([]int, int) {
 	dijkstraItems := make([]*AStarPriorityQueueItem, g.NodeCount(), g.NodeCount())
 	originItem := AStarPriorityQueueItem{PriorityQueueItem: queue.PriorityQueueItem{ItemId: origin, Priority: 0, Predecessor: -1, Index: -1}}
 	dijkstraItems[origin] = &originItem

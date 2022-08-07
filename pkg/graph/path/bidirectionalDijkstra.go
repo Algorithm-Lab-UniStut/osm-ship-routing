@@ -10,7 +10,7 @@ import (
 
 type BidirectionalDijkstra struct{}
 
-func (bd BidirectionalDijkstra) ShortestPath(g graph.Graph, origin, destination int) ([]int, int) {
+func (bd BidirectionalDijkstra) GetPath(g graph.Graph, origin, destination int) ([]int, int) {
 	forwardDijkstraItems := make([]*queue.PriorityQueueItem, g.NodeCount(), g.NodeCount())
 	originItem := queue.PriorityQueueItem{ItemId: origin, Priority: 0, Predecessor: -1, Index: -1}
 	forwardDijkstraItems[origin] = &originItem

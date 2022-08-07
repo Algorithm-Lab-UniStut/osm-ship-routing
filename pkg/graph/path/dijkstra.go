@@ -9,7 +9,7 @@ import (
 
 type Dijkstra struct{}
 
-func (d Dijkstra) ShortestPath(g graph.Graph, origin, destination int) ([]int, int) {
+func (d Dijkstra) GetPath(g graph.Graph, origin, destination int) ([]int, int) {
 	dijkstraItems := make([]*queue.PriorityQueueItem, g.NodeCount(), g.NodeCount())
 	originItem := queue.PriorityQueueItem{ItemId: origin, Priority: 0, Predecessor: -1, Index: -1}
 	dijkstraItems[origin] = &originItem
