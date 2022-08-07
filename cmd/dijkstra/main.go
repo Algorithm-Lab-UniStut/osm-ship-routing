@@ -28,7 +28,10 @@ func benchmark(aag *graph.AdjacencyArrayGraph, n int) {
 		destination := rand.Intn(aag.NodeCount())
 
 		start := time.Now()
-		path, length := graph.BidirectionalDijkstra(aag, origin, destination)
+		//path, length := graph.BidirectionalDijkstra(aag, origin, destination)
+		astar := graph.NewAStar(aag)
+		path, length := astar.ShortestPath(aag, origin, destination)
+		//path, length := graph.Dijkstra(aag, origin, destination)
 		elapsed := time.Since(start)
 		fmt.Printf("[TIME-Navigate] = %s\n", elapsed)
 
