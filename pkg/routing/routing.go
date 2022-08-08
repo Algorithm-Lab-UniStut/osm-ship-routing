@@ -1,9 +1,11 @@
-package graph
+package routing
 
 import (
 	"math"
 
 	geo "github.com/natevvv/osm-ship-routing/pkg/geometry"
+	"github.com/natevvv/osm-ship-routing/pkg/graph"
+	"github.com/natevvv/osm-ship-routing/pkg/graph/path"
 )
 
 type Route struct {
@@ -15,11 +17,12 @@ type Route struct {
 }
 
 type ShipRouter struct {
-	g Graph
+	g         graph.Graph
+	navigator path.Navigator
 }
 
-func NewShipRouter(g Graph) *ShipRouter {
-	return &ShipRouter{g: g}
+func NewShipRouter(g graph.Graph) *ShipRouter {
+	return &ShipRouter{g: g, navigator: path.GetNavigator(g)}
 }
 
 func (sr ShipRouter) closestNodes(p1, p2 geo.Point) (n1, n2 int) {
@@ -44,7 +47,7 @@ func (sr ShipRouter) closestNodes(p1, p2 geo.Point) (n1, n2 int) {
 
 func (sr ShipRouter) ComputeRoute(origin, destination geo.Point) (route Route) {
 	originNode, desdestinationNode := sr.closestNodes(origin, destination)
-	nodePath, length := FindShortestPath(sr.g, originNode, desdestinationNode)
+	nodePath, length := sr.navigator.GetPath(originNode, desdestinationNode)
 
 	if length > -1 {
 		// shortest path exists
@@ -60,6 +63,6 @@ func (sr ShipRouter) ComputeRoute(origin, destination geo.Point) (route Route) {
 	return route
 }
 
-func nodeToPoint(n Node) *geo.Point {
+func nodeToPoint(n graph.Node) *geo.Point {
 	return geo.NewPoint(n.Lat, n.Lon)
 }

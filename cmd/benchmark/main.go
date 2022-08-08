@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/natevvv/osm-ship-routing/pkg/graph"
+	"github.com/natevvv/osm-ship-routing/pkg/graph/path"
 )
 
 const graphFile = "graphs/ocean_equi_4.fmi"
@@ -27,8 +28,10 @@ func benchmark(aag *graph.AdjacencyArrayGraph, n int) {
 		origin := rand.Intn(aag.NodeCount())
 		destination := rand.Intn(aag.NodeCount())
 
+		navigator := path.GetNavigator(aag)
+
 		start := time.Now()
-		path, length := graph.FindShortestPath(aag, origin, destination)
+		path, length := navigator.GetPath(origin, destination)
 		elapsed := time.Since(start)
 		fmt.Printf("[TIME-Navigate] = %s\n", elapsed)
 
