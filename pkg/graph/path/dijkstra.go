@@ -7,10 +7,16 @@ import (
 	"github.com/natevvv/osm-ship-routing/pkg/queue"
 )
 
-type Dijkstra struct{}
+type Dijkstra struct {
+	g graph.Graph
+}
 
-func (d Dijkstra) GetPath(g graph.Graph, origin, destination int) ([]int, int) {
-	dijkstraItems := make([]*queue.PriorityQueueItem, g.NodeCount(), g.NodeCount())
+func NewDijkstra(g graph.Graph) Dijkstra {
+	return Dijkstra{g: g}
+}
+
+func (d Dijkstra) GetPath(origin, destination int) ([]int, int) {
+	dijkstraItems := make([]*queue.PriorityQueueItem, d.g.NodeCount(), d.g.NodeCount())
 	originItem := queue.PriorityQueueItem{ItemId: origin, Priority: 0, Predecessor: -1, Index: -1}
 	dijkstraItems[origin] = &originItem
 
@@ -22,7 +28,7 @@ func (d Dijkstra) GetPath(g graph.Graph, origin, destination int) ([]int, int) {
 		currentPqItem := heap.Pop(&pq).(*queue.PriorityQueueItem)
 		currentNodeId := currentPqItem.ItemId
 
-		for _, edge := range g.GetEdgesFrom(currentNodeId) {
+		for _, edge := range d.g.GetEdgesFrom(currentNodeId) {
 			successor := edge.To
 
 			if dijkstraItems[successor] == nil {

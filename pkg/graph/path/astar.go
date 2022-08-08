@@ -57,23 +57,24 @@ func (h *AStarPriorityQueue) update(pqItem *AStarPriorityQueueItem, newPriority 
 }
 
 type AStar struct {
+	g graph.Graph
 }
 
 func NewAStar(g graph.Graph) AStar {
-	return AStar{}
+	return AStar{g: g}
 }
 
-func estimatedDistance(g graph.Graph, originNodeId, destinationNodeId int) int {
-	origin := g.GetNode(originNodeId)
-	destination := g.GetNode(destinationNodeId)
+func (a AStar) estimatedDistance(originNodeId, destinationNodeId int) int {
+	origin := a.g.GetNode(originNodeId)
+	destination := a.g.GetNode(destinationNodeId)
 	//originPoint := geo.NewPoint(origin.Point.X, origin.Point.Y) // TODO: access point via node
 	originPoint := geo.NewPoint(origin.Lat, origin.Lon)
 	destinationPoint := geo.NewPoint(destination.Lat, destination.Lon)
 	return originPoint.IntHaversine(destinationPoint)
 }
 
-func (a AStar) GetPath(g graph.Graph, origin, destination int) ([]int, int) {
-	dijkstraItems := make([]*AStarPriorityQueueItem, g.NodeCount(), g.NodeCount())
+func (a AStar) GetPath(origin, destination int) ([]int, int) {
+	dijkstraItems := make([]*AStarPriorityQueueItem, a.g.NodeCount(), a.g.NodeCount())
 	originItem := AStarPriorityQueueItem{PriorityQueueItem: queue.PriorityQueueItem{ItemId: origin, Priority: 0, Predecessor: -1, Index: -1}}
 	dijkstraItems[origin] = &originItem
 
@@ -85,17 +86,17 @@ func (a AStar) GetPath(g graph.Graph, origin, destination int) ([]int, int) {
 		currentPqItem := heap.Pop(&pq).(*AStarPriorityQueueItem)
 		currentNodeId := currentPqItem.ItemId
 
-		for _, edge := range g.GetEdgesFrom(currentNodeId) {
+		for _, edge := range a.g.GetEdgesFrom(currentNodeId) {
 			successor := edge.To
 
 			if dijkstraItems[successor] == nil {
 				newDistance := currentPqItem.Distance + edge.Distance
-				newPriority := newDistance + estimatedDistance(g, successor, destination)
+				newPriority := newDistance + a.estimatedDistance(successor, destination)
 				pqItem := AStarPriorityQueueItem{PriorityQueueItem: queue.PriorityQueueItem{ItemId: successor, Priority: newPriority, Predecessor: currentNodeId, Index: -1}, Distance: newDistance}
 				dijkstraItems[successor] = &pqItem
 				heap.Push(&pq, &pqItem)
 			} else {
-				if updatedPriority := currentPqItem.Distance + edge.Distance + estimatedDistance(g, successor, destination); updatedPriority < dijkstraItems[successor].Priority {
+				if updatedPriority := currentPqItem.Distance + edge.Distance + a.estimatedDistance(successor, destination); updatedPriority < dijkstraItems[successor].Priority {
 					pq.update(dijkstraItems[successor], updatedPriority, currentPqItem.Distance+edge.Distance)
 					dijkstraItems[successor].Predecessor = currentNodeId
 				}

@@ -8,14 +8,20 @@ import (
 	"github.com/natevvv/osm-ship-routing/pkg/queue"
 )
 
-type BidirectionalDijkstra struct{}
+type BidirectionalDijkstra struct {
+	g graph.Graph
+}
 
-func (bd BidirectionalDijkstra) GetPath(g graph.Graph, origin, destination int) ([]int, int) {
-	forwardDijkstraItems := make([]*queue.PriorityQueueItem, g.NodeCount(), g.NodeCount())
+func NewBidirectionalDijkstra(g graph.Graph) BidirectionalDijkstra {
+	return BidirectionalDijkstra{g: g}
+}
+
+func (bd BidirectionalDijkstra) GetPath(origin, destination int) ([]int, int) {
+	forwardDijkstraItems := make([]*queue.PriorityQueueItem, bd.g.NodeCount(), bd.g.NodeCount())
 	originItem := queue.PriorityQueueItem{ItemId: origin, Priority: 0, Predecessor: -1, Index: -1}
 	forwardDijkstraItems[origin] = &originItem
 
-	backwardDijkstraItems := make([]*queue.PriorityQueueItem, g.NodeCount(), g.NodeCount())
+	backwardDijkstraItems := make([]*queue.PriorityQueueItem, bd.g.NodeCount(), bd.g.NodeCount())
 	destinationItem := queue.PriorityQueueItem{ItemId: destination, Priority: 0, Predecessor: -1, Index: -1}
 	backwardDijkstraItems[destination] = &destinationItem
 
@@ -40,7 +46,7 @@ func (bd BidirectionalDijkstra) GetPath(g graph.Graph, origin, destination int) 
 			break
 		}
 
-		for _, edge := range g.GetEdgesFrom(currentForwardNodeId) {
+		for _, edge := range bd.g.GetEdgesFrom(currentForwardNodeId) {
 			successor := edge.To
 
 			if forwardDijkstraItems[successor] == nil {
@@ -66,7 +72,7 @@ func (bd BidirectionalDijkstra) GetPath(g graph.Graph, origin, destination int) 
 			break
 		}
 
-		for _, edge := range g.GetEdgesFrom(currentBackwardNodeId) {
+		for _, edge := range bd.g.GetEdgesFrom(currentBackwardNodeId) {
 			successor := edge.To
 
 			if backwardDijkstraItems[successor] == nil {

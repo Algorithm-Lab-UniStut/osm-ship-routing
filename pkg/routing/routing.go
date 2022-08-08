@@ -17,11 +17,12 @@ type Route struct {
 }
 
 type ShipRouter struct {
-	g graph.Graph
+	g         graph.Graph
+	navigator path.Navigator
 }
 
 func NewShipRouter(g graph.Graph) *ShipRouter {
-	return &ShipRouter{g: g}
+	return &ShipRouter{g: g, navigator: path.GetNavigator(g)}
 }
 
 func (sr ShipRouter) closestNodes(p1, p2 geo.Point) (n1, n2 int) {
@@ -46,7 +47,7 @@ func (sr ShipRouter) closestNodes(p1, p2 geo.Point) (n1, n2 int) {
 
 func (sr ShipRouter) ComputeRoute(origin, destination geo.Point) (route Route) {
 	originNode, desdestinationNode := sr.closestNodes(origin, destination)
-	nodePath, length := path.FindShortestPath(sr.g, originNode, desdestinationNode)
+	nodePath, length := sr.navigator.GetPath(originNode, desdestinationNode)
 
 	if length > -1 {
 		// shortest path exists
