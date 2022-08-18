@@ -127,3 +127,23 @@ func (d *UniversalDijkstra) estimatedDistance(originNodeId, destinationNodeId in
 	destinationPoint := geo.NewPoint(destination.Lat, destination.Lon)
 	return originPoint.IntHaversine(destinationPoint)
 }
+
+func (d *UniversalDijkstra) GetNodes() []graph.Node {
+	nodes := make([]graph.Node, d.g.NodeCount())
+	for i := 0; i < len(nodes); i++ {
+		nodes[i] = d.g.GetNode(i)
+	}
+	return nodes
+}
+
+func (d *UniversalDijkstra) GetSearchSpace() []graph.Node {
+	searchSpace := make([]graph.Node, 0)
+	for i := 0; i < len(d.visitedNodes); i++ {
+		if d.visitedNodes[i] {
+			dijkstraItem := d.searchSpace[i]
+			node := d.g.GetNode(dijkstraItem.nodeId)
+			searchSpace = append(searchSpace, node)
+		}
+	}
+	return searchSpace
+}

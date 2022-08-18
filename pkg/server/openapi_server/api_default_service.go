@@ -47,3 +47,29 @@ func (s *DefaultApiService) ComputeRoute(ctx context.Context, routeRequest Route
 
 	return Response(http.StatusOK, routeResult), nil
 }
+
+func (s *DefaultApiService) GetNodes(ctx context.Context) (ImplResponse, error) {
+	points := s.shipRouter.GetNodes()
+
+	vertices := make([]Point, 0)
+	for _, point := range points {
+		p := Point{Lat: float32(point.Lat()), Lon: float32(point.Lon())}
+		vertices = append(vertices, p)
+	}
+	nodes := Nodes{Waypoints: vertices}
+
+	return Response(http.StatusOK, nodes), nil
+}
+
+func (s *DefaultApiService) GetSearchSpace(ctx context.Context) (ImplResponse, error) {
+	points := s.shipRouter.GetSearchSpace()
+
+	vertices := make([]Point, 0)
+	for _, point := range points {
+		p := Point{Lat: float32(point.Lat()), Lon: float32(point.Lon())}
+		vertices = append(vertices, p)
+	}
+	nodes := Nodes{Waypoints: vertices}
+
+	return Response(http.StatusOK, nodes), nil
+}

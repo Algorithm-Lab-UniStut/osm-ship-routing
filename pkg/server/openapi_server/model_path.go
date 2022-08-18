@@ -16,7 +16,7 @@ type Path struct {
 func AssertPathRequired(obj Path) error {
 	elements := map[string]interface{}{
 		"waypoints": obj.Waypoints,
-		"length": obj.Length,
+		"length":    obj.Length,
 	}
 	for name, el := range elements {
 		if isZero := IsZeroValue(el); isZero {

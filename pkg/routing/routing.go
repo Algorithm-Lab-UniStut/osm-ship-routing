@@ -63,6 +63,24 @@ func (sr ShipRouter) ComputeRoute(origin, destination geo.Point) (route Route) {
 	return route
 }
 
+func (sr ShipRouter) GetNodes() []geo.Point {
+	nodes := sr.navigator.GetNodes()
+	waypoints := make([]geo.Point, 0)
+	for _, node := range nodes {
+		waypoints = append(waypoints, *nodeToPoint(node))
+	}
+	return waypoints
+}
+
+func (sr ShipRouter) GetSearchSpace() []geo.Point {
+	nodes := sr.navigator.GetSearchSpace()
+	waypoints := make([]geo.Point, 0)
+	for _, node := range nodes {
+		waypoints = append(waypoints, *nodeToPoint(node))
+	}
+	return waypoints
+}
+
 func nodeToPoint(n graph.Node) *geo.Point {
 	return geo.NewPoint(n.Lat, n.Lon)
 }
