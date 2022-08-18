@@ -81,6 +81,18 @@ func (sr ShipRouter) GetSearchSpace() []geo.Point {
 	return waypoints
 }
 
+func (sr *ShipRouter) SetNavigator(navigator string) bool {
+	switch navigator {
+	case "dijkstra":
+		sr.navigator = path.NewUniversalDijkstra(sr.g, false)
+		return true
+	case "astar":
+		sr.navigator = path.NewUniversalDijkstra(sr.g, true)
+		return true
+	}
+	return false
+}
+
 func nodeToPoint(n graph.Node) *geo.Point {
 	return geo.NewPoint(n.Lat, n.Lon)
 }

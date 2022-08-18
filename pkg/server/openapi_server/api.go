@@ -14,6 +14,7 @@ type DefaultApiRouter interface {
 	ComputeRoute(http.ResponseWriter, *http.Request)
 	GetNodes(http.ResponseWriter, *http.Request)
 	GetSearchSpace(http.ResponseWriter, *http.Request)
+	SetNavigator(http.ResponseWriter, *http.Request)
 }
 
 // DefaultApiServicer defines the api actions for the DefaultApi service
@@ -24,4 +25,5 @@ type DefaultApiServicer interface {
 	ComputeRoute(context.Context, RouteRequest) (ImplResponse, error)
 	GetNodes(context.Context) (ImplResponse, error)
 	GetSearchSpace(context.Context) (ImplResponse, error)
+	SetNavigator(context.Context, NavigatorRequest) (ImplResponse, error)
 }

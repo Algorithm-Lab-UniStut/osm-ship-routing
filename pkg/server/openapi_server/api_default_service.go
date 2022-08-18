@@ -73,3 +73,12 @@ func (s *DefaultApiService) GetSearchSpace(ctx context.Context) (ImplResponse, e
 
 	return Response(http.StatusOK, nodes), nil
 }
+
+func (s *DefaultApiService) SetNavigator(ctx context.Context, navigatorRequest NavigatorRequest) (ImplResponse, error) {
+	success := s.shipRouter.SetNavigator(navigatorRequest.Navigator)
+
+	if !success {
+		return Response(http.StatusBadRequest, "Unknown Navigator"), nil
+	}
+	return Response(http.StatusOK, navigatorRequest.Navigator), nil
+}

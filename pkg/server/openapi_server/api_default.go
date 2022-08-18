@@ -59,6 +59,12 @@ func (c *DefaultApiController) Routes() Routes {
 			"/searchSpace",
 			c.GetSearchSpace,
 		},
+		{
+			"SetNavigator",
+			strings.ToUpper("Post"),
+			"/navigator",
+			c.SetNavigator,
+		},
 	}
 }
 
@@ -104,6 +110,31 @@ func (c *DefaultApiController) GetNodes(w http.ResponseWriter, r *http.Request) 
 
 func (c *DefaultApiController) GetSearchSpace(w http.ResponseWriter, r *http.Request) {
 	result, err := c.service.GetSearchSpace(r.Context())
+	// If an error occurred, encode the error with the status code
+	if err != nil {
+		c.errorHandler(w, r, err, &result)
+		return
+	}
+	// If no error, encode the body and the result code
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	EncodeJSONResponse(result.Body, &result.Code, w)
+}
+
+func (c *DefaultApiController) SetNavigator(w http.ResponseWriter, r *http.Request) {
+	navigatorRequestParam := NavigatorRequest{}
+	d := json.NewDecoder(r.Body)
+	d.DisallowUnknownFields()
+	if err := d.Decode(&navigatorRequestParam); err != nil {
+		c.errorHandler(w, r, &ParsingError{Err: err}, nil)
+		return
+	}
+	if err := AssertNavigatorRequestRequired(navigatorRequestParam); err != nil {
+		c.errorHandler(w, r, err, nil)
+		return
+	}
+	result, err := c.service.SetNavigator(r.Context(), navigatorRequestParam)
 	// If an error occurred, encode the error with the status code
 	if err != nil {
 		c.errorHandler(w, r, err, &result)
