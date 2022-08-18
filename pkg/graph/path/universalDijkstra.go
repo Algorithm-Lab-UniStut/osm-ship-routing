@@ -20,39 +20,46 @@ func NewUniversalDijkstra(g graph.Graph) *UniversalDijkstra {
 	return &UniversalDijkstra{g: g, visitedNodes: make([]bool, g.NodeCount())}
 }
 
-func (dijkstra *UniversalDijkstra) GetShortestPath(origin, destination graph.NodeId) int {
-	// Initialize new search
-	dijkstra.visitedNodes = make([]bool, dijkstra.g.NodeCount())
-	dijkstra.searchSpace = make([]*queue.PriorityQueueItem, dijkstra.g.NodeCount())
+func (d *UniversalDijkstra) InitializeSearch() {
+	d.visitedNodes = make([]bool, d.g.NodeCount())
+	d.searchSpace = make([]*queue.PriorityQueueItem, d.g.NodeCount())
+}
 
-	startNode := queue.NewPriorityQueueItem(origin, 0, -1)
-	dijkstra.searchSpace[origin] = startNode
-	pq := queue.NewPriorityQueue(startNode)
+func (d *UniversalDijkstra) SettleNode(node *queue.PriorityQueueItem) {
+	d.searchSpace[node.ItemId] = node
+	d.visitedNodes[node.ItemId] = true
+}
+
+func (d *UniversalDijkstra) RelaxEdges(node *queue.PriorityQueueItem, pq *queue.PriorityQueue) {
+	for _, arc := range d.g.GetArcsFrom(node.ItemId) {
+		successor := arc.Destination()
+		if d.searchSpace[successor] == nil {
+			newPriority := node.Priority + arc.Cost()
+			nextNode := queue.NewPriorityQueueItem(successor, newPriority, node.ItemId)
+			d.searchSpace[successor] = nextNode
+			heap.Push(pq, nextNode)
+		} else {
+			if updatedCost := node.Priority + arc.Cost(); updatedCost < d.searchSpace[successor].Priority {
+				pq.Update(d.searchSpace[successor], updatedCost)
+				d.searchSpace[successor].Predecessor = node.ItemId
+			}
+		}
+	}
+}
+
+func (dijkstra *UniversalDijkstra) GetShortestPath(origin, destination graph.NodeId) int {
+	dijkstra.InitializeSearch()
+	pq := queue.NewPriorityQueue(queue.NewPriorityQueueItem(origin, 0, -1))
 
 	for pq.Len() > 0 {
 		currentNode := heap.Pop(pq).(*queue.PriorityQueueItem)
-		dijkstra.searchSpace[currentNode.ItemId] = currentNode
-		dijkstra.visitedNodes[currentNode.ItemId] = true
+		dijkstra.SettleNode(currentNode)
 
 		if destination != -1 && currentNode.ItemId == destination {
 			break
 		}
 
-		for _, arc := range dijkstra.g.GetArcsFrom(currentNode.ItemId) {
-			successor := arc.Destination()
-			if dijkstra.searchSpace[successor] == nil {
-				newPriority := currentNode.Priority + arc.Cost()
-				nextNode := queue.NewPriorityQueueItem(successor, newPriority, currentNode.ItemId)
-				dijkstra.searchSpace[successor] = nextNode
-				heap.Push(pq, nextNode)
-			} else {
-				if updatedCost := currentNode.Priority + arc.Cost(); updatedCost < dijkstra.searchSpace[successor].Priority {
-					pq.Update(dijkstra.searchSpace[successor], updatedCost)
-					dijkstra.searchSpace[successor].Predecessor = currentNode.ItemId
-				}
-			}
-		}
-
+		dijkstra.RelaxEdges(currentNode, pq)
 	}
 
 	if destination == -1 {
