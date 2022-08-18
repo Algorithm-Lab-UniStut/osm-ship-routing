@@ -1,11 +1,14 @@
 package graph
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // Implementation for dynamic graphs
 type AdjacencyListGraph struct {
 	Nodes     []Node
-	Edges     [][]outgoingEdge
+	Edges     [][]OutgoingEdge // TODO: use interface Arc
 	edgeCount int
 }
 
@@ -16,31 +19,59 @@ func (alg *AdjacencyListGraph) GetNode(id NodeId) Node {
 	return alg.Nodes[id]
 }
 
-func (alg *AdjacencyListGraph) GetEdgesFrom(id NodeId) []Edge {
+func (alg *AdjacencyListGraph) GetArcsFrom(id NodeId) []Arc {
 	if id < 0 || id >= alg.NodeCount() {
 		panic(id)
 	}
-	outgoingEdges := make([]Edge, 0)
-	for _, outgoingEdge := range alg.Edges[id] {
-		outgoingEdges = append(outgoingEdges, outgoingEdge.toEdge(id))
+	arcs := make([]Arc, 0)
+	for _, arc := range alg.Edges[id] {
+		arcs = append(arcs, arc)
 	}
-	return outgoingEdges
+	return arcs
 }
 
 func (alg *AdjacencyListGraph) NodeCount() int {
 	return len(alg.Nodes)
 }
 
+/*
 func (alg *AdjacencyListGraph) EdgeCount() int {
 	return alg.edgeCount
+}
+*/
+
+func (alg *AdjacencyListGraph) ArcCount() int {
+	return alg.edgeCount
+}
+
+func (alg *AdjacencyListGraph) AsString() string {
+	var sb strings.Builder
+
+	// write number of nodes and number of edges
+	sb.WriteString(fmt.Sprintf("%v\n", alg.NodeCount()))
+	sb.WriteString(fmt.Sprintf("%v\n", alg.ArcCount()))
+
+	// list all nodes structured as "id lat lon"
+	for i := 0; i < alg.NodeCount(); i++ {
+		node := alg.GetNode(i)
+		sb.WriteString(fmt.Sprintf("%v %v %v\n", i, node.Lat, node.Lon))
+	}
+
+	// list all edges structured as "fromId targetId distance"
+	for i := 0; i < alg.NodeCount(); i++ {
+		for _, arc := range alg.GetArcsFrom(i) {
+			sb.WriteString(fmt.Sprintf("%v %v %v\n", i, arc.Destination(), arc.Cost()))
+		}
+	}
+	return sb.String()
 }
 
 func (alg *AdjacencyListGraph) AddNode(n Node) {
 	alg.Nodes = append(alg.Nodes, n)
-	alg.Edges = append(alg.Edges, make([]outgoingEdge, 0))
+	alg.Edges = append(alg.Edges, make([]OutgoingEdge, 0))
 }
 
-func (alg *AdjacencyListGraph) AddEdge(e Edge) {
+func (alg *AdjacencyListGraph) AddArc(e Edge) {
 	// Check if both source and target node exit
 	if e.From >= alg.NodeCount() || e.To >= alg.NodeCount() {
 		panic(fmt.Sprintf("Edge out of range %v", e))

@@ -17,8 +17,8 @@ func NewDijkstra(g graph.Graph) Dijkstra {
 
 func (d Dijkstra) GetPath(origin, destination int) ([]int, int) {
 	dijkstraItems := make([]*queue.PriorityQueueItem, d.g.NodeCount(), d.g.NodeCount())
-	originItem := queue.PriorityQueueItem{ItemId: origin, Priority: 0, Predecessor: -1, Index: -1}
-	dijkstraItems[origin] = &originItem
+	originItem := queue.NewPriorityQueueItem(origin, 0, -1) //{ItemId: origin, Priority: 0, Predecessor: -1, Index: -1}
+	dijkstraItems[origin] = originItem
 
 	pq := make(queue.PriorityQueue, 0)
 	heap.Init(&pq)
@@ -28,16 +28,16 @@ func (d Dijkstra) GetPath(origin, destination int) ([]int, int) {
 		currentPqItem := heap.Pop(&pq).(*queue.PriorityQueueItem)
 		currentNodeId := currentPqItem.ItemId
 
-		for _, edge := range d.g.GetEdgesFrom(currentNodeId) {
-			successor := edge.To
+		for _, arc := range d.g.GetArcsFrom(currentNodeId) {
+			successor := arc.Destination()
 
 			if dijkstraItems[successor] == nil {
-				newPriority := dijkstraItems[currentNodeId].Priority + edge.Distance
-				pqItem := queue.PriorityQueueItem{ItemId: successor, Priority: newPriority, Predecessor: currentNodeId, Index: -1}
-				dijkstraItems[successor] = &pqItem
-				heap.Push(&pq, &pqItem)
+				newPriority := dijkstraItems[currentNodeId].Priority + arc.Cost()
+				pqItem := queue.NewPriorityQueueItem(successor, newPriority, currentNodeId) //{ItemId: successor, Priority: newPriority, Predecessor: currentNodeId, Index: -1}
+				dijkstraItems[successor] = pqItem
+				heap.Push(&pq, pqItem)
 			} else {
-				if updatedDistance := dijkstraItems[currentNodeId].Priority + edge.Distance; updatedDistance < dijkstraItems[successor].Priority {
+				if updatedDistance := dijkstraItems[currentNodeId].Priority + arc.Cost(); updatedDistance < dijkstraItems[successor].Priority {
 					pq.Update(dijkstraItems[successor], updatedDistance)
 					dijkstraItems[successor].Predecessor = currentNodeId
 				}

@@ -14,6 +14,19 @@ type PriorityQueueItem struct {
 // A PriorityQueue implements the heap.Interface and hold PriorityQueueItems
 type PriorityQueue []*PriorityQueueItem
 
+func NewPriorityQueueItem(itemId int, priority int, predecessor int) *PriorityQueueItem {
+	return &PriorityQueueItem{ItemId: itemId, Priority: priority, Predecessor: predecessor, Index: -1}
+}
+
+func NewPriorityQueue(initialItem *PriorityQueueItem) *PriorityQueue {
+	pq := make(PriorityQueue, 0)
+	heap.Init(&pq)
+	if initialItem != nil {
+		heap.Push(&pq, initialItem)
+	}
+	return &pq
+}
+
 func (h PriorityQueue) Len() int {
 	return len(h)
 }

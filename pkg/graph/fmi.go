@@ -15,25 +15,10 @@ func WriteFmi(g Graph, filename string) {
 	if cErr != nil {
 		log.Fatal(cErr)
 	}
+
+	graphAsString := g.AsString()
 	writer := bufio.NewWriter(file)
-
-	// write number of nodes and number of edges
-	writer.WriteString(fmt.Sprintf("%d\n", g.NodeCount()))
-	writer.WriteString(fmt.Sprintf("%d\n", g.EdgeCount()))
-
-	// list all nodes structured as "id lat lon"
-	for i := 0; i < g.NodeCount(); i++ {
-		node := g.GetNode(i)
-		writer.WriteString(fmt.Sprintf("%d %f %f\n", i, node.Lat, node.Lon))
-	}
-
-	// list all edges structured as "fromId targetId distance"
-	for i := 0; i < g.NodeCount(); i++ {
-		for _, edge := range g.GetEdgesFrom(i) {
-			writer.WriteString(fmt.Sprintf("%d %d %d\n", edge.From, edge.To, edge.Distance))
-		}
-	}
-
+	writer.WriteString(graphAsString)
 	writer.Flush()
 }
 
@@ -94,7 +79,7 @@ func NewAdjacencyListFromFmi(filename string) *AdjacencyListGraph {
 		case PARSE_EDGES:
 			var from, to, distance int
 			fmt.Sscanf(line, "%d %d %d", &from, &to, &distance)
-			alg.AddEdge(Edge{From: id2index[from], To: id2index[to], Distance: distance})
+			alg.AddArc(Edge{From: id2index[from], To: id2index[to], Distance: distance})
 		}
 	}
 

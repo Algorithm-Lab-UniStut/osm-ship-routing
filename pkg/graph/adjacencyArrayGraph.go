@@ -1,17 +1,22 @@
 package graph
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // Implementation for static graphs
 type AdjacencyArrayGraph struct {
-	Nodes   []Node
-	Edges   []outgoingEdge
-	Offsets []int
+	Nodes         []Node
+	Arcs          []Arc
+	outgoingEdges []OutgoingEdge
+	Offsets       []int
 }
 
 func NewAdjacencyArrayFromGraph(g Graph) *AdjacencyArrayGraph {
 	nodes := make([]Node, 0)
-	edges := make([]outgoingEdge, 0)
+	arcs := make([]Arc, 0)
+	outgoingEdges := make([]OutgoingEdge, 0)
 	offsets := make([]int, g.NodeCount()+1, g.NodeCount()+1)
 
 	for i := 0; i < g.NodeCount(); i++ {
@@ -19,15 +24,16 @@ func NewAdjacencyArrayFromGraph(g Graph) *AdjacencyArrayGraph {
 		nodes = append(nodes, g.GetNode(i))
 
 		// add all edges of node
-		for _, edge := range g.GetEdgesFrom(i) {
-			edges = append(edges, edge.toOutgoingEdge())
+		for _, arc := range g.GetArcsFrom(i) {
+			arcs = append(arcs, arc)
+			outgoingEdges = append(outgoingEdges, OutgoingEdge{To: arc.Destination(), Distance: arc.Cost()})
 		}
 
 		// set stop-offset
-		offsets[i+1] = len(edges)
+		offsets[i+1] = len(arcs)
 	}
 
-	aag := AdjacencyArrayGraph{Nodes: nodes, Edges: edges, Offsets: offsets}
+	aag := AdjacencyArrayGraph{Nodes: nodes, Arcs: arcs, outgoingEdges: outgoingEdges, Offsets: offsets}
 	return &aag
 }
 
@@ -38,21 +44,56 @@ func (aag *AdjacencyArrayGraph) GetNode(id NodeId) Node {
 	return aag.Nodes[id]
 }
 
-func (aag *AdjacencyArrayGraph) GetEdgesFrom(id NodeId) []Edge {
+func (aag *AdjacencyArrayGraph) GetArcsFrom(id NodeId) []Arc {
 	if id < 0 || id >= aag.NodeCount() {
 		panic(fmt.Sprintf("NodeId %d is not contained in the graph.", id))
 	}
-	edges := make([]Edge, 0)
+	arcs := make([]Arc, 0)
 	for i := aag.Offsets[id]; i < aag.Offsets[id+1]; i++ {
-		edges = append(edges, aag.Edges[i].toEdge(id))
+		arcs = append(arcs, aag.outgoingEdges[i])
 	}
-	return edges
+	/*
+		arcs := make([]Arc, 0)
+		for i := aag.Offsets[id]; i < aag.Offsets[id+1]; i++ {
+			arcs = append(arcs, aag.Arcs[i])
+		}
+	*/
+	return arcs
 }
 
+// Returns the number of Nodes in the graph
 func (aag *AdjacencyArrayGraph) NodeCount() int {
 	return len(aag.Nodes)
 }
 
+/*
 func (aag *AdjacencyArrayGraph) EdgeCount() int {
-	return len(aag.Edges)
+	return len(aag.Arcs)
+}
+*/
+
+func (aag *AdjacencyArrayGraph) ArcCount() int {
+	return len(aag.Arcs)
+}
+
+func (aag *AdjacencyArrayGraph) AsString() string {
+	var sb strings.Builder
+
+	// write number of nodes and number of edges
+	sb.WriteString(fmt.Sprintf("%v\n", aag.NodeCount()))
+	sb.WriteString(fmt.Sprintf("%v\n", aag.ArcCount()))
+
+	// list all nodes structured as "id lat lon"
+	for i := 0; i < aag.NodeCount(); i++ {
+		node := aag.GetNode(i)
+		sb.WriteString(fmt.Sprintf("%v %v %v\n", i, node.Lat, node.Lon))
+	}
+
+	// list all edges structured as "fromId targetId distance"
+	for i := 0; i < aag.NodeCount(); i++ {
+		for _, arc := range aag.GetArcsFrom(i) {
+			sb.WriteString(fmt.Sprintf("%v %v %v\n", i, arc.Destination(), arc.Cost()))
+		}
+	}
+	return sb.String()
 }

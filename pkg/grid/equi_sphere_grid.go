@@ -201,7 +201,7 @@ func (esg *EquiSphereGrid) ToGraph() gr.Graph {
 		alg.AddNode(node)
 	}
 	for _, edge := range esg.edges {
-		alg.AddEdge(edge)
+		alg.AddArc(edge)
 	}
 	return alg
 }
