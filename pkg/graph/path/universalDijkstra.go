@@ -10,48 +10,45 @@ import (
 type UniversalDijkstra struct {
 	// check if pointers are needed/better
 	g            graph.Graph
-	visitedNodes []graph.NodeId
+	visitedNodes []bool
+	searchSpace  []*queue.PriorityQueueItem // search space, a map really reduces performance. If node is also visited, this can be seen as "settled"
 	heuristic    []int
-	path         []int                      // contains the shortest path of the last calculation
-	settledNodes []*queue.PriorityQueueItem // search space, maybe make this a pointer?
 }
 
 func NewUniversalDijkstra(g graph.Graph) *UniversalDijkstra {
 	// heuristic is initially "nil"
-	return &UniversalDijkstra{g: g, visitedNodes: make([]graph.NodeId, g.NodeCount())}
+	return &UniversalDijkstra{g: g, visitedNodes: make([]bool, g.NodeCount())}
 }
 
 func (dijkstra *UniversalDijkstra) GetShortestPath(origin, destination graph.NodeId) int {
-	//activeNodes := make([]graph.Node, 1, 1)
-	dijkstra.visitedNodes = nil
-	dijkstra.path = nil
-	nodes := make([]*queue.PriorityQueueItem, dijkstra.g.NodeCount(), dijkstra.g.NodeCount())
-	settledNodes := make([]bool, dijkstra.g.NodeCount(), dijkstra.g.NodeCount())
+	// Initialize new search
+	dijkstra.visitedNodes = make([]bool, dijkstra.g.NodeCount())
+	dijkstra.searchSpace = make([]*queue.PriorityQueueItem, dijkstra.g.NodeCount())
 
 	startNode := queue.NewPriorityQueueItem(origin, 0, -1)
-	nodes[origin] = startNode
+	dijkstra.searchSpace[origin] = startNode
 	pq := queue.NewPriorityQueue(startNode)
 
 	for pq.Len() > 0 {
 		currentNode := heap.Pop(pq).(*queue.PriorityQueueItem)
-		settledNodes[currentNode.ItemId] = true
-		dijkstra.visitedNodes = append(dijkstra.visitedNodes, currentNode.ItemId)
+		dijkstra.searchSpace[currentNode.ItemId] = currentNode
+		dijkstra.visitedNodes[currentNode.ItemId] = true
 
-		if destination != -1 && settledNodes[destination] == true {
+		if destination != -1 && currentNode.ItemId == destination {
 			break
 		}
 
 		for _, arc := range dijkstra.g.GetArcsFrom(currentNode.ItemId) {
 			successor := arc.Destination()
-			if nodes[successor] == nil {
+			if dijkstra.searchSpace[successor] == nil {
 				newPriority := currentNode.Priority + arc.Cost()
 				nextNode := queue.NewPriorityQueueItem(successor, newPriority, currentNode.ItemId)
-				nodes[successor] = nextNode
+				dijkstra.searchSpace[successor] = nextNode
 				heap.Push(pq, nextNode)
 			} else {
-				if updatedCost := currentNode.Priority + arc.Cost(); updatedCost < nodes[successor].Priority {
-					pq.Update(nodes[successor], updatedCost)
-					nodes[successor].Predecessor = currentNode.ItemId
+				if updatedCost := currentNode.Priority + arc.Cost(); updatedCost < dijkstra.searchSpace[successor].Priority {
+					pq.Update(dijkstra.searchSpace[successor], updatedCost)
+					dijkstra.searchSpace[successor].Predecessor = currentNode.ItemId
 				}
 			}
 		}
@@ -60,22 +57,14 @@ func (dijkstra *UniversalDijkstra) GetShortestPath(origin, destination graph.Nod
 
 	if destination == -1 {
 		// calculated every distance from source to each possible target
-		dijkstra.settledNodes = nodes
-	} else if nodes[destination] == nil {
+		//dijkstra.settledNodes = nodes
+		return 0
+	}
+	if dijkstra.searchSpace[destination] == nil {
 		// no valid path found
 		return -1
 	}
-	path := make([]int, 0)
-	length := nodes[destination].Priority
-	for nodeId := destination; nodeId != -1; nodeId = nodes[nodeId].Predecessor {
-		path = append(path, nodeId)
-	}
-	// reverse path (to create the correct direction)
-	for i, j := 0, len(path)-1; i < j; i, j = i+1, j-1 {
-		path[i], path[j] = path[j], path[i]
-	}
-	dijkstra.path = path
-
+	length := dijkstra.searchSpace[destination].Priority
 	return length
 }
 
@@ -85,8 +74,23 @@ func (dijkstra *UniversalDijkstra) SetHeuristic(heuristic []int) {
 
 func (dijkstra *UniversalDijkstra) GetPath(origin, destination int) ([]int, int) {
 	length := dijkstra.GetShortestPath(origin, destination)
-	if dijkstra.path == nil {
+	if destination == -1 {
+		// path to each node was calculated
+		// return nothing
+		return make([]int, 0), 0
+	}
+	if length == -1 {
+		// no path found
 		return make([]int, 0), length
 	}
-	return dijkstra.path, length
+	path := make([]int, 0)
+	for nodeId := destination; nodeId != -1; nodeId = dijkstra.searchSpace[nodeId].Predecessor {
+		path = append(path, nodeId)
+	}
+	// reverse path (to create the correct direction)
+	for i, j := 0, len(path)-1; i < j; i, j = i+1, j-1 {
+		path[i], path[j] = path[j], path[i]
+	}
+
+	return path, length
 }
