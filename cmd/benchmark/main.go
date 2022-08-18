@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"log"
 	"math/rand"
@@ -17,12 +18,27 @@ const graphFile = "graphs/ocean_equi_4.fmi"
 const targetFile = "cmd/benchmark/targets.txt"
 
 func main() {
+	useRandomTargets := flag.Bool("random", false, "Create (new) random targets")
+	amountTargets := flag.Int("n", 100, "How many new targets should get created")
+	storeTargets := flag.Bool("store", false, "Store targets (when newly generated)")
+	flag.Parse()
+
 	start := time.Now()
 	aag := graph.NewAdjacencyArrayFromFmi(graphFile)
 	elapsed := time.Since(start)
 	fmt.Printf("[TIME-Import] = %s\n", elapsed)
 
-	benchmark(aag, 100)
+	var targets [][2]int
+	if *useRandomTargets {
+		targets = createTargets(*amountTargets, aag, targetFile)
+		if *storeTargets {
+			writeTargets(targets, targetFile)
+		}
+	} else {
+		targets = readTargets(targetFile)
+	}
+
+	benchmark(aag, targets)
 }
 
 func readTargets(filename string) [][2]int {
@@ -54,47 +70,50 @@ func readTargets(filename string) [][2]int {
 	return targets
 }
 
-func createTargets(n int, aag *graph.AdjacencyArrayGraph, filename string) {
-	var sb strings.Builder
+func createTargets(n int, aag *graph.AdjacencyArrayGraph, filename string) [][2]int {
+	targets := make([][2]int, n)
+	seed := rand.NewSource(time.Now().UnixNano())
+	rng := rand.New(seed)
 	for i := 0; i < n; i++ {
-		origin := rand.Intn(aag.NodeCount())
-		destination := rand.Intn(aag.NodeCount())
-		sb.WriteString(fmt.Sprintf("%v %v\n", origin, destination))
+		origin := rng.Intn(aag.NodeCount())
+		destination := rng.Intn(aag.NodeCount())
+		targets[i] = [2]int{origin, destination}
 	}
-	fmt.Printf("Targets:\n%s", sb.String())
+	return targets
+}
+
+func writeTargets(targets [][2]int, targetFile string) {
+	var sb strings.Builder
+	for _, target := range targets {
+		sb.WriteString(fmt.Sprintf("%v %v\n", target[0], target[1]))
+	}
+
+	//fmt.Printf("Targets:\n%s", sb.String())
 	file, cErr := os.Create(targetFile)
 
 	if cErr != nil {
 		log.Fatal(cErr)
 	}
 
-	targets := sb.String()
 	writer := bufio.NewWriter(file)
-	writer.WriteString(targets)
+	writer.WriteString(sb.String())
 	writer.Flush()
 }
 
-// Run benchmarks on the provided graphs: Compute n random routes
-func benchmark(aag *graph.AdjacencyArrayGraph, n int) {
-
-	createFile := false // set to true to recreate the target file
-	if createFile {
-		createTargets(n, aag, targetFile)
-	}
-
-	targets := readTargets(targetFile)
+// Run benchmarks on the provided graphs and targets
+func benchmark(aag *graph.AdjacencyArrayGraph, targets [][2]int) {
 
 	runtime := 0
-	for i := 0; i < n && i < len(targets); i++ {
-		origin := targets[i][0]
-		destination := targets[i][1]
+	for i, target := range targets {
+		origin := target[0]
+		destination := target[1]
 
 		navigator := path.GetNavigator(aag)
 
 		start := time.Now()
 		path, length := navigator.GetPath(origin, destination)
 		elapsed := time.Since(start)
-		fmt.Printf("[TIME-Navigate] = %s\n", elapsed)
+		fmt.Printf("[%3v TIME-Navigate] = %s\n", i, elapsed)
 
 		if length > -1 {
 			if path[0] != origin || path[len(path)-1] != destination {
@@ -104,5 +123,5 @@ func benchmark(aag *graph.AdjacencyArrayGraph, n int) {
 
 		runtime += int(elapsed)
 	}
-	fmt.Printf("Average runtime: %.3fms\n", float64(runtime/n)/1000000)
+	fmt.Printf("Average runtime: %.3fms\n", float64(runtime/len(targets))/1000000)
 }
