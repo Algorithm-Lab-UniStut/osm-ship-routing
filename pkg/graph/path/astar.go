@@ -31,16 +31,19 @@ func NewImproveAStar(g graph.Graph, dijkstra *UniversalDijkstra) *ImprovedAStar 
 
 func (astar *ImprovedAStar) GetPath(origin, destination int) ([]int, int) {
 	// calculate heuristic
-	heuristic := make([]int, astar.g.NodeCount(), astar.g.NodeCount())
-	destNode := astar.g.GetNode(destination)
-	destPoint := geo.NewPoint(destNode.Lat, destNode.Lon)
-	for i := 0; i < astar.g.NodeCount(); i++ {
-		sourceNode := astar.g.GetNode(i)
-		sourcePoint := geo.NewPoint(sourceNode.Lat, sourceNode.Lon)
-		h := sourcePoint.IntHaversine(destPoint)
-		heuristic[i] = h
-	}
-	astar.dijkstra.SetHeuristic(heuristic)
+	// not needed. it is more performantly to compute this on the fly
+	/*
+		heuristic := make([]int, astar.g.NodeCount(), astar.g.NodeCount())
+		destNode := astar.g.GetNode(destination)
+		destPoint := geo.NewPoint(destNode.Lat, destNode.Lon)
+		for i := 0; i < astar.g.NodeCount(); i++ {
+			sourceNode := astar.g.GetNode(i)
+			sourcePoint := geo.NewPoint(sourceNode.Lat, sourceNode.Lon)
+			h := sourcePoint.IntHaversine(destPoint)
+			heuristic[i] = h
+		}
+	*/
+	astar.dijkstra.SetUseHeuristic(true)
 
 	// execute query
 	return astar.dijkstra.GetPath(origin, destination)

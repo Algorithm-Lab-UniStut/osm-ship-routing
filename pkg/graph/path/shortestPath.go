@@ -12,5 +12,6 @@ func GetNavigator(g graph.Graph) Navigator {
 	//return NewBidirectionalDijkstra(g)
 	//return NewAStar(g)
 	//return NewDijkstra(g)
-	return NewUniversalDijkstra(g)
+	return NewUniversalDijkstra(g, false) // Dijkstra
+	//return NewUniversalDijkstra(g, true) // AStar
 }

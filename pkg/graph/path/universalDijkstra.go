@@ -3,59 +3,71 @@ package path
 import (
 	"container/heap"
 
+	geo "github.com/natevvv/osm-ship-routing/pkg/geometry"
 	"github.com/natevvv/osm-ship-routing/pkg/graph"
-	"github.com/natevvv/osm-ship-routing/pkg/queue"
 )
 
 type UniversalDijkstra struct {
 	// check if pointers are needed/better
 	g            graph.Graph
 	visitedNodes []bool
-	searchSpace  []*queue.PriorityQueueItem // search space, a map really reduces performance. If node is also visited, this can be seen as "settled"
-	heuristic    []int
+	searchSpace  []*DijkstraItem // search space, a map really reduces performance. If node is also visited, this can be seen as "settled"
+	useHeuristic bool            // flag indicating if heuristic (remaining distance) should be used (AStar implementation)
+	origin       graph.NodeId    // the origin of the current search
+	destination  graph.NodeId    // the distinaiton of the current search
 }
 
-func NewUniversalDijkstra(g graph.Graph) *UniversalDijkstra {
+func NewUniversalDijkstra(g graph.Graph, useHeuristic bool) *UniversalDijkstra {
 	// heuristic is initially "nil"
-	return &UniversalDijkstra{g: g, visitedNodes: make([]bool, g.NodeCount())}
+	return &UniversalDijkstra{g: g, useHeuristic: useHeuristic}
 }
 
-func (d *UniversalDijkstra) InitializeSearch() {
+func (d *UniversalDijkstra) InitializeSearch(origin, destination graph.NodeId) {
 	d.visitedNodes = make([]bool, d.g.NodeCount())
-	d.searchSpace = make([]*queue.PriorityQueueItem, d.g.NodeCount())
+	d.searchSpace = make([]*DijkstraItem, d.g.NodeCount())
+	d.origin = origin
+	d.destination = destination
 }
 
-func (d *UniversalDijkstra) SettleNode(node *queue.PriorityQueueItem) {
-	d.searchSpace[node.ItemId] = node
-	d.visitedNodes[node.ItemId] = true
+func (d *UniversalDijkstra) SettleNode(node *DijkstraItem) {
+	d.searchSpace[node.nodeId] = node
+	d.visitedNodes[node.nodeId] = true
 }
 
-func (d *UniversalDijkstra) RelaxEdges(node *queue.PriorityQueueItem, pq *queue.PriorityQueue) {
-	for _, arc := range d.g.GetArcsFrom(node.ItemId) {
+func (d *UniversalDijkstra) RelaxEdges(node *DijkstraItem, pq *MinPath) {
+	for _, arc := range d.g.GetArcsFrom(node.nodeId) {
 		successor := arc.Destination()
 		if d.searchSpace[successor] == nil {
-			newPriority := node.Priority + arc.Cost()
-			nextNode := queue.NewPriorityQueueItem(successor, newPriority, node.ItemId)
+			cost := node.distance + arc.Cost()
+			heuristic := 0
+			if d.useHeuristic {
+				heuristic = d.estimatedDistance(successor, d.destination)
+			}
+			nextNode := NewDijkstraItem(successor, cost, node.nodeId, heuristic)
 			d.searchSpace[successor] = nextNode
 			heap.Push(pq, nextNode)
 		} else {
-			if updatedCost := node.Priority + arc.Cost(); updatedCost < d.searchSpace[successor].Priority {
-				pq.Update(d.searchSpace[successor], updatedCost)
-				d.searchSpace[successor].Predecessor = node.ItemId
+			if updatedPriority := node.distance + arc.Cost() + d.searchSpace[successor].heuristic; updatedPriority < d.searchSpace[successor].Priority() {
+				pq.update(d.searchSpace[successor], node.distance+arc.Cost())
+				d.searchSpace[successor].predecessor = node.nodeId
 			}
 		}
 	}
 }
 
 func (dijkstra *UniversalDijkstra) GetShortestPath(origin, destination graph.NodeId) int {
-	dijkstra.InitializeSearch()
-	pq := queue.NewPriorityQueue(queue.NewPriorityQueueItem(origin, 0, -1))
+	dijkstra.InitializeSearch(origin, destination)
+	heuristic := 0
+	if dijkstra.useHeuristic {
+		heuristic = dijkstra.estimatedDistance(origin, dijkstra.destination)
+	}
+	pq := NewMinPath(NewDijkstraItem(origin, 0, -1, heuristic))
 
 	for pq.Len() > 0 {
-		currentNode := heap.Pop(pq).(*queue.PriorityQueueItem)
+		currentNode := heap.Pop(pq).(*DijkstraItem)
 		dijkstra.SettleNode(currentNode)
 
-		if destination != -1 && currentNode.ItemId == destination {
+		if destination != -1 && currentNode.nodeId == destination {
 			break
 		}
 
@@ -71,12 +83,12 @@ func (dijkstra *UniversalDijkstra) GetShortestPath(origin, destination graph.Nod
 		// no valid path found
 		return -1
 	}
-	length := dijkstra.searchSpace[destination].Priority
+	length := dijkstra.searchSpace[destination].distance
 	return length
 }
 
-func (dijkstra *UniversalDijkstra) SetHeuristic(heuristic []int) {
-	dijkstra.heuristic = heuristic
+func (dijkstra *UniversalDijkstra) SetUseHeuristic(useHeuristic bool) {
+	dijkstra.useHeuristic = useHeuristic
 }
 
 func (dijkstra *UniversalDijkstra) GetPath(origin, destination int) ([]int, int) {
@@ -90,14 +102,28 @@ func (dijkstra *UniversalDijkstra) GetPath(origin, destination int) ([]int, int)
 		// no path found
 		return make([]int, 0), length
 	}
+	path := dijkstra.extractPath(origin, destination)
+
+	return path, length
+}
+
+func (d *UniversalDijkstra) extractPath(origin, destination int) []int {
 	path := make([]int, 0)
-	for nodeId := destination; nodeId != -1; nodeId = dijkstra.searchSpace[nodeId].Predecessor {
+	for nodeId := destination; nodeId != -1; nodeId = d.searchSpace[nodeId].predecessor {
 		path = append(path, nodeId)
 	}
 	// reverse path (to create the correct direction)
 	for i, j := 0, len(path)-1; i < j; i, j = i+1, j-1 {
 		path[i], path[j] = path[j], path[i]
 	}
+	return path
+}
 
-	return path, length
+func (d *UniversalDijkstra) estimatedDistance(originNodeId, destinationNodeId int) int {
+	origin := d.g.GetNode(originNodeId)
+	destination := d.g.GetNode(destinationNodeId)
+	//originPoint := geo.NewPoint(origin.Point.X, origin.Point.Y) // TODO: access point via node
+	originPoint := geo.NewPoint(origin.Lat, origin.Lon)
+	destinationPoint := geo.NewPoint(destination.Lat, destination.Lon)
+	return originPoint.IntHaversine(destinationPoint)
 }
