@@ -9,5 +9,8 @@ func FindShortestPath(g graph.Graph, origin, destination int) ([]int, int) {
 }
 
 func GetNavigator(g graph.Graph) Navigator {
-	return NewBidirectionalDijkstra(g)
+	//return NewBidirectionalDijkstra(g)
+	//return NewAStar(g)
+	//return NewDijkstra(g)
+	return NewUniversalDijkstra(g)
 }
