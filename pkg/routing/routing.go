@@ -89,6 +89,15 @@ func (sr *ShipRouter) SetNavigator(navigator string) bool {
 	case "astar":
 		sr.navigator = path.NewUniversalDijkstra(sr.g, true)
 		return true
+	case "bidirectional-dijkstra":
+		bidijkstra := path.NewUniversalDijkstra(sr.g, false)
+		bidijkstra.SetBidirectional(true)
+		sr.navigator = bidijkstra
+		return true
+	case "contraction-hierarchies":
+		return false
+	case "alt":
+		return false
 	}
 	return false
 }
