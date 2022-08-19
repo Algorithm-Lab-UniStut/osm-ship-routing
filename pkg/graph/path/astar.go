@@ -149,3 +149,11 @@ func (a AStar) GetPath(origin, destination int) ([]int, int) {
 
 	return path, length
 }
+
+func (a AStar) GetNodes() []graph.Node {
+	panic("not implemented")
+}
+
+func (a AStar) GetSearchSpace() []graph.Node {
+	panic("not implemented")
+}
