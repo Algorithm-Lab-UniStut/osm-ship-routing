@@ -15,19 +15,30 @@ type PathItem interface {
 	SetPriority(i int)
 }
 
+type Direction int
+
+const (
+	FORWARD  Direction = iota
+	BACKWARD Direction = iota
+)
+
 type DijkstraItem struct {
-	nodeId      graph.NodeId // node id of this item in the graph
-	distance    int          // distance to origin of this node
-	heuristic   int          // estimated distance from node to destination
-	predecessor graph.NodeId // node id of the predecessor
-	index       int          // internal usage
+	nodeId          graph.NodeId // node id of this item in the graph
+	distance        int          // distance to origin of this node
+	heuristic       int          // estimated distance from node to destination
+	predecessor     graph.NodeId // node id of the predecessor
+	index           int          // internal usage
+	searchDirection Direction    // search direction (useful for bidirectional search)
 }
 
 // MinPath implements the heap.Interface to hold the PriorityQueue
 type MinPath []*DijkstraItem
 
-func NewDijkstraItem(nodeId graph.NodeId, distance int, predecessor graph.NodeId, heuristic int) *DijkstraItem {
-	return &DijkstraItem{nodeId: nodeId, distance: distance, predecessor: predecessor, index: -1, heuristic: heuristic}
+func NewDijkstraItem(nodeId graph.NodeId, distance int, predecessor graph.NodeId, heuristic int, searchDirection Direction) *DijkstraItem {
+	if searchDirection != BACKWARD && searchDirection != FORWARD {
+		panic("bad direction")
+	}
+	return &DijkstraItem{nodeId: nodeId, distance: distance, predecessor: predecessor, index: -1, heuristic: heuristic, searchDirection: searchDirection}
 }
 
 func NewMinPath(initialItem *DijkstraItem) *MinPath {

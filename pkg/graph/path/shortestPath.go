@@ -13,5 +13,8 @@ func GetNavigator(g graph.Graph) Navigator {
 	//return NewAStar(g)
 	//return NewDijkstra(g)
 	//return NewUniversalDijkstra(g, false) // Dijkstra
-	return NewUniversalDijkstra(g, true) // AStar
+	//return NewUniversalDijkstra(g, true) // AStar
+	bidijkstra := NewUniversalDijkstra(g, false)
+	bidijkstra.SetBidirectional(true)
+	return bidijkstra
 }
