@@ -24,7 +24,7 @@ func main() {
 	flag.Parse()
 
 	start := time.Now()
-	aag := graph.NewAdjacencyArrayFromFmi(graphFile)
+	aag := graph.NewAdjacencyArrayFromFmiFile(graphFile)
 	elapsed := time.Since(start)
 	fmt.Printf("[TIME-Import] = %s\n", elapsed)
 
