@@ -44,6 +44,10 @@ func (aag *AdjacencyArrayGraph) GetNode(id NodeId) Node {
 	return aag.Nodes[id]
 }
 
+func (aag *AdjacencyArrayGraph) GetNodes() []Node {
+	return aag.Nodes
+}
+
 func (aag *AdjacencyArrayGraph) GetArcsFrom(id NodeId) []Arc {
 	if id < 0 || id >= aag.NodeCount() {
 		panic(fmt.Sprintf("NodeId %d is not contained in the graph.", id))

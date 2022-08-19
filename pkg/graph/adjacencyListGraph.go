@@ -19,6 +19,10 @@ func (alg *AdjacencyListGraph) GetNode(id NodeId) Node {
 	return alg.Nodes[id]
 }
 
+func (alg *AdjacencyListGraph) GetNodes() []Node {
+	return alg.Nodes
+}
+
 func (alg *AdjacencyListGraph) GetArcsFrom(id NodeId) []Arc {
 	if id < 0 || id >= alg.NodeCount() {
 		panic(id)

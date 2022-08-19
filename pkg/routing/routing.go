@@ -64,7 +64,7 @@ func (sr ShipRouter) ComputeRoute(origin, destination geo.Point) (route Route) {
 }
 
 func (sr ShipRouter) GetNodes() []geo.Point {
-	nodes := sr.navigator.GetNodes()
+	nodes := sr.g.GetNodes()
 	waypoints := make([]geo.Point, 0)
 	for _, node := range nodes {
 		waypoints = append(waypoints, *nodeToPoint(node))

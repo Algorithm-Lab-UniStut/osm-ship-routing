@@ -60,10 +60,6 @@ func (d Dijkstra) GetPath(origin, destination int) ([]int, int) {
 	return path, length
 }
 
-func (d Dijkstra) GetNodes() []graph.Node {
-	panic("not implemented")
-}
-
 func (d Dijkstra) GetSearchSpace() []graph.Node {
 	panic("not implemented")
 }

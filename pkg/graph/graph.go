@@ -32,6 +32,7 @@ type Arc interface {
 
 type Graph interface {
 	GetNode(id NodeId) Node
+	GetNodes() []Node
 	//GetEdgesFrom(id NodeId) []Edge
 	GetArcsFrom(id NodeId) []Arc
 	NodeCount() int
