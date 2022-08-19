@@ -8,10 +8,49 @@ import (
 	"github.com/natevvv/osm-ship-routing/pkg/graph"
 )
 
-const graphFile = "../../../graphs/test.fmi"
+const graphFmi = `10
+26
+# nodes
+0 0 0
+1 0 1
+2 0 2
+3 1 0
+4 1 1
+5 1 2
+6 2 0
+7 2 1
+8 2 2
+9 3 3
+# edges
+0 1 1
+0 3 1
+1 0 1
+1 2 1
+1 4 1
+2 1 1
+2 5 1
+3 1 1
+3 4 1
+3 6 1
+4 1 1
+4 3 1
+4 5 1
+4 7 1
+5 2 1
+5 4 1
+5 8 1
+6 3 1
+6 7 1
+7 4 1
+7 6 1
+7 8 1
+8 5 1
+8 7 1
+8 9 1
+9 8 1`
 
 func TestPlainDijkstra(t *testing.T) {
-	aag := graph.NewAdjacencyArrayFromFmi(graphFile)
+	aag := graph.NewAdjacencyArrayFromFmiString(graphFmi)
 	d := NewUniversalDijkstra(aag, false)
 	path, length := d.GetPath(0, 9)
 	fmt.Printf("length: %v\n", length)
@@ -33,7 +72,7 @@ func TestPlainDijkstra(t *testing.T) {
 }
 
 func TestAStarDijkstra(t *testing.T) {
-	aag := graph.NewAdjacencyArrayFromFmi(graphFile)
+	aag := graph.NewAdjacencyArrayFromFmiString(graphFmi)
 	d := NewUniversalDijkstra(aag, false)
 	astar := NewUniversalDijkstra(aag, true)
 	path, length := d.GetPath(0, 9)
@@ -53,7 +92,7 @@ func TestAStarDijkstra(t *testing.T) {
 }
 
 func TestBidirecitonalDijkstra(t *testing.T) {
-	aag := graph.NewAdjacencyArrayFromFmi(graphFile)
+	aag := graph.NewAdjacencyArrayFromFmiString(graphFmi)
 	d := NewUniversalDijkstra(aag, false)
 	bidijkstra := NewUniversalDijkstra(aag, false)
 	bidijkstra.SetBidirectional(true)

@@ -6,6 +6,15 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
+)
+
+// fmi parse states
+const (
+	PARSE_NODE_COUNT = iota
+	PARSE_EDGE_COUNT = iota
+	PARSE_NODES      = iota
+	PARSE_EDGES      = iota
 )
 
 func WriteFmi(g Graph, filename string) {
@@ -22,24 +31,8 @@ func WriteFmi(g Graph, filename string) {
 	writer.Flush()
 }
 
-// fmi parse states
-const (
-	PARSE_NODE_COUNT = iota
-	PARSE_EDGE_COUNT = iota
-	PARSE_NODES      = iota
-	PARSE_EDGES      = iota
-)
-
-func NewAdjacencyListFromFmi(filename string) *AdjacencyListGraph {
-
-	file, err := os.Open(filename)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	scanner.Split(bufio.ScanLines)
+func NewAdjacencyListFromFmiString(fmi string) *AdjacencyListGraph {
+	scanner := bufio.NewScanner(strings.NewReader(fmi))
 
 	numNodes := 0
 	numParsedNodes := 0
@@ -95,8 +88,16 @@ func NewAdjacencyListFromFmi(filename string) *AdjacencyListGraph {
 	return &alg
 }
 
-func NewAdjacencyArrayFromFmi(filename string) *AdjacencyArrayGraph {
-	alg := NewAdjacencyListFromFmi(filename)
+func NewAdjacencyArrayFromFmiString(fmi string) *AdjacencyArrayGraph {
+	alg := NewAdjacencyListFromFmiString(fmi)
 	aag := NewAdjacencyArrayFromGraph(alg)
 	return aag
+}
+
+func NewAdjacencyArrayFromFmiFile(filename string) *AdjacencyArrayGraph {
+	fmi, err := os.ReadFile(filename)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return NewAdjacencyArrayFromFmiString(string(fmi))
 }

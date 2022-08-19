@@ -20,7 +20,7 @@ type DefaultApiService struct {
 
 // NewDefaultApiService creates a default api service
 func NewDefaultApiService(graphFile string) DefaultApiServicer {
-	g := graph.NewAdjacencyArrayFromFmi(graphFile)
+	g := graph.NewAdjacencyArrayFromFmiFile(graphFile)
 	sr := routing.NewShipRouter(g)
 	return &DefaultApiService{shipRouter: sr}
 }
