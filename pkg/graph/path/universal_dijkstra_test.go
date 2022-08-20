@@ -84,6 +84,9 @@ func TestAStarDijkstra(t *testing.T) {
 	if len(astarPath) != len(path) {
 		t.Errorf("Path has wrong length. Is %v, should be %v", len(astarPath), len(path))
 	}
+	if astarPath[0] != path[0] || astarPath[len(astarPath)-1] != path[len(path)-1] {
+		t.Errorf("First or last element do not math.\nDijkstra: %v %v\nAStar: %v %v", path[0], path[len(path)-1], astarPath[0], astarPath[len(astarPath)-1])
+	}
 	for i := 0; i < int(math.Min(float64(len(path)), float64(len(astarPath)))); i++ {
 		if path[i] != astarPath[i] {
 			//t.Errorf("Path does not match. At pos %v, it is %v, should be %v", i, astarPath[i], path[i])
@@ -97,16 +100,19 @@ func TestBidirecitonalDijkstra(t *testing.T) {
 	bidijkstra := NewUniversalDijkstra(aag, false)
 	bidijkstra.SetBidirectional(true)
 	path, length := d.GetPath(0, 9)
-	astarPath, astarLength := bidijkstra.GetPath(0, 9)
-	fmt.Printf("astar path %v\n", astarPath)
-	if length != astarLength {
-		t.Errorf("Length does not match. Is %v, should be %v", astarLength, length)
+	bidijkstraPath, bidijkstraLength := bidijkstra.GetPath(0, 9)
+	fmt.Printf("astar path %v\n", bidijkstraPath)
+	if length != bidijkstraLength {
+		t.Errorf("Length does not match. Is %v, should be %v", bidijkstraLength, length)
 	}
-	if len(astarPath) != len(path) {
-		t.Errorf("Path has wrong length. Is %v, should be %v", len(astarPath), len(path))
+	if len(bidijkstraPath) != len(path) {
+		t.Errorf("Path has wrong length. Is %v, should be %v", len(bidijkstraPath), len(path))
 	}
-	for i := 0; i < int(math.Min(float64(len(path)), float64(len(astarPath)))); i++ {
-		if path[i] != astarPath[i] {
+	if bidijkstraPath[0] != path[0] || bidijkstraPath[len(bidijkstraPath)-1] != path[len(path)-1] {
+		t.Errorf("First or last element do not math.\nDijkstra: %v %v\nAStar: %v %v", path[0], path[len(path)-1], bidijkstraPath[0], bidijkstraPath[len(bidijkstraPath)-1])
+	}
+	for i := 0; i < int(math.Min(float64(len(path)), float64(len(bidijkstraPath)))); i++ {
+		if path[i] != bidijkstraPath[i] {
 			//t.Errorf("Path does not match. At pos %v, it is %v, should be %v", i, astarPath[i], path[i])
 		}
 	}

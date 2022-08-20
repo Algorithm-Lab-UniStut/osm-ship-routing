@@ -60,7 +60,7 @@ func (d *UniversalDijkstra) RelaxEdges(node *DijkstraItem, pq *MinPath) {
 			connectionPredecessor := node.nodeId
 			connectionSuccessor := connection.predecessor
 			var con *BidirectionalConnection
-			if connection.searchDirection == FORWARD {
+			if node.searchDirection == FORWARD {
 				con = NewBidirectionalConnection(connection.nodeId, connectionPredecessor, connectionSuccessor, node.distance+arc.Cost()+connection.distance)
 			} else {
 				con = NewBidirectionalConnection(connection.nodeId, connectionSuccessor, connectionPredecessor, node.distance+arc.Cost()+connection.distance)
@@ -82,7 +82,7 @@ func (d *UniversalDijkstra) RelaxEdges(node *DijkstraItem, pq *MinPath) {
 			if updatedPriority := node.distance + arc.Cost() + d.searchSpace[successor].heuristic; updatedPriority < d.searchSpace[successor].Priority() {
 				pq.update(d.searchSpace[successor], node.distance+arc.Cost())
 				d.searchSpace[successor].predecessor = node.nodeId
-				//d.searchSpace[successor].searchDirection = node.searchDirection
+				d.searchSpace[successor].searchDirection = node.searchDirection
 			}
 		}
 	}
@@ -179,21 +179,21 @@ func (dijkstra *UniversalDijkstra) GetPath(origin, destination int) ([]int, int)
 func (d *UniversalDijkstra) extractPath(origin, destination int) []int {
 	path := make([]int, 0)
 	if d.bidirectional {
-		for nodeId := d.bidirectionalConnection.successor; nodeId != -1; nodeId = d.searchSpace[nodeId].predecessor {
+		for nodeId := d.bidirectionalConnection.predecessor; nodeId != -1; nodeId = d.searchSpace[nodeId].predecessor {
 			path = append(path, nodeId)
 		}
 		reversePathInPlace(path)
 		path = append(path, d.bidirectionalConnection.nodeId)
-		for nodeId := d.bidirectionalConnection.predecessor; nodeId != -1; nodeId = d.searchSpace[nodeId].predecessor {
+		for nodeId := d.bidirectionalConnection.successor; nodeId != -1; nodeId = d.searchSpace[nodeId].predecessor {
 			path = append(path, nodeId)
 		}
-		return path
+	} else {
+		for nodeId := destination; nodeId != -1; nodeId = d.searchSpace[nodeId].predecessor {
+			path = append(path, nodeId)
+		}
+		// reverse path (to create the correct direction)
+		reversePathInPlace(path)
 	}
-	for nodeId := destination; nodeId != -1; nodeId = d.searchSpace[nodeId].predecessor {
-		path = append(path, nodeId)
-	}
-	// reverse path (to create the correct direction)
-	reversePathInPlace(path)
 	return path
 }
 
