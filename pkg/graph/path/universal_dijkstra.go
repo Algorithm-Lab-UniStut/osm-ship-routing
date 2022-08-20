@@ -5,6 +5,7 @@ import (
 
 	geo "github.com/natevvv/osm-ship-routing/pkg/geometry"
 	"github.com/natevvv/osm-ship-routing/pkg/graph"
+	"github.com/natevvv/osm-ship-routing/pkg/slice"
 )
 
 type UniversalDijkstra struct {
@@ -186,7 +187,7 @@ func (d *UniversalDijkstra) extractPath(origin, destination int) []int {
 		for nodeId := d.bidirectionalConnection.predecessor; nodeId != -1; nodeId = d.searchSpace[nodeId].predecessor {
 			path = append(path, nodeId)
 		}
-		reversePathInPlace(path)
+		slice.ReverseIntInPlace(path)
 		path = append(path, d.bidirectionalConnection.nodeId)
 		for nodeId := d.bidirectionalConnection.successor; nodeId != -1; nodeId = d.searchSpace[nodeId].predecessor {
 			path = append(path, nodeId)
@@ -196,15 +197,9 @@ func (d *UniversalDijkstra) extractPath(origin, destination int) []int {
 			path = append(path, nodeId)
 		}
 		// reverse path (to create the correct direction)
-		reversePathInPlace(path)
+		slice.ReverseIntInPlace(path)
 	}
 	return path
-}
-
-func reversePathInPlace(path []int) {
-	for i, j := 0, len(path)-1; i < j; i, j = i+1, j-1 {
-		path[i], path[j] = path[j], path[i]
-	}
 }
 
 func (d *UniversalDijkstra) estimatedDistance(originNodeId, destinationNodeId int) int {
