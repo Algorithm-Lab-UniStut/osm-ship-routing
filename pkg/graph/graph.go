@@ -40,6 +40,7 @@ type Graph interface {
 	ArcCount() int
 	AsString() string
 	// ReduceToLargestConnectedComponent() Graph -> why is this needed?
+	EstimateDistance(source, target NodeId) int
 }
 
 type DynamicGraph interface {
