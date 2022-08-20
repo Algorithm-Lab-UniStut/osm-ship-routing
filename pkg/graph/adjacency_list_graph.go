@@ -3,6 +3,8 @@ package graph
 import (
 	"fmt"
 	"strings"
+
+	geo "github.com/natevvv/osm-ship-routing/pkg/geometry"
 )
 
 // Implementation for dynamic graphs
@@ -88,4 +90,12 @@ func (alg *AdjacencyListGraph) AddArc(e Edge) {
 	}
 	alg.Edges[e.From] = append(alg.Edges[e.From], e.toOutgoingEdge())
 	alg.edgeCount++
+}
+
+func (alg *AdjacencyListGraph) EstimateDistance(source, target NodeId) int {
+	origin := alg.GetNode(source)
+	destination := alg.GetNode(target)
+	originPoint := geo.NewPoint(origin.Lat, origin.Lon)
+	destinationPoint := geo.NewPoint(destination.Lat, destination.Lon)
+	return originPoint.IntHaversine(destinationPoint)
 }

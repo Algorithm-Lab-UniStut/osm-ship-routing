@@ -3,7 +3,6 @@ package path
 import (
 	"container/heap"
 
-	geo "github.com/natevvv/osm-ship-routing/pkg/geometry"
 	"github.com/natevvv/osm-ship-routing/pkg/graph"
 	"github.com/natevvv/osm-ship-routing/pkg/slice"
 )
@@ -78,7 +77,7 @@ func (d *UniversalDijkstra) RelaxEdges(node *DijkstraItem, pq *MinPath) {
 			cost := node.distance + arc.Cost()
 			heuristic := 0
 			if d.useHeuristic {
-				heuristic = d.estimatedDistance(successor, d.destination)
+				heuristic = d.g.EstimateDistance(successor, d.destination)
 			}
 			nextNode := NewDijkstraItem(successor, cost, node.nodeId, heuristic, node.searchDirection)
 			d.searchSpace[successor] = nextNode
@@ -103,7 +102,7 @@ func (dijkstra *UniversalDijkstra) GetShortestPath(origin, destination graph.Nod
 	}
 	heuristic := 0
 	if dijkstra.useHeuristic {
-		heuristic = dijkstra.estimatedDistance(origin, dijkstra.destination)
+		heuristic = dijkstra.g.EstimateDistance(origin, dijkstra.destination)
 	}
 	pq := NewMinPath(NewDijkstraItem(origin, 0, -1, heuristic, FORWARD))
 
@@ -200,15 +199,6 @@ func (d *UniversalDijkstra) extractPath(origin, destination int) []int {
 		slice.ReverseIntInPlace(path)
 	}
 	return path
-}
-
-func (d *UniversalDijkstra) estimatedDistance(originNodeId, destinationNodeId int) int {
-	origin := d.g.GetNode(originNodeId)
-	destination := d.g.GetNode(destinationNodeId)
-	//originPoint := geo.NewPoint(origin.Point.X, origin.Point.Y) // TODO: access point via node
-	originPoint := geo.NewPoint(origin.Lat, origin.Lon)
-	destinationPoint := geo.NewPoint(destination.Lat, destination.Lon)
-	return originPoint.IntHaversine(destinationPoint)
 }
 
 func (d *UniversalDijkstra) GetSearchSpace() []graph.Node {

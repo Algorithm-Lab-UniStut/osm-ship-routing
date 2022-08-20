@@ -3,6 +3,8 @@ package graph
 import (
 	"fmt"
 	"strings"
+
+	geo "github.com/natevvv/osm-ship-routing/pkg/geometry"
 )
 
 // Implementation for static graphs
@@ -100,4 +102,12 @@ func (aag *AdjacencyArrayGraph) AsString() string {
 		}
 	}
 	return sb.String()
+}
+
+func (aag *AdjacencyArrayGraph) EstimateDistance(source, target NodeId) int {
+	origin := aag.GetNode(source)
+	destination := aag.GetNode(target)
+	originPoint := geo.NewPoint(origin.Lat, origin.Lon)
+	destinationPoint := geo.NewPoint(destination.Lat, destination.Lon)
+	return originPoint.IntHaversine(destinationPoint)
 }
