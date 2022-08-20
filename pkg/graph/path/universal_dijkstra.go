@@ -12,11 +12,15 @@ type UniversalDijkstra struct {
 	g                       graph.Graph
 	visitedNodes            []bool
 	searchSpace             []*DijkstraItem // search space, a map really reduces performance. If node is also visited, this can be seen as "settled"
+	distances               []int           // TODO: distance values for each node. Is this necessary?
 	origin                  graph.NodeId    // the origin of the current search
 	destination             graph.NodeId    // the distinaiton of the current search
 	useHeuristic            bool            // flag indicating if heuristic (remaining distance) should be used (AStar implementation)
 	bidirectional           bool            // flag indicating if search shuld be done from both sides
 	bidirectionalConnection *BidirectionalConnection
+	considerArcFlags        bool
+	costUpperBound          int
+	maxNumSettledNodes      int
 }
 
 type BidirectionalConnection struct {
@@ -222,4 +226,16 @@ func (d *UniversalDijkstra) GetSearchSpace() []graph.Node {
 		}
 	}
 	return searchSpace
+}
+
+func (d *UniversalDijkstra) SetConsiderArcFlags(considerArcFlags bool) {
+	d.considerArcFlags = considerArcFlags
+}
+
+func (d *UniversalDijkstra) SetCostUpperBound(costUpperBound int) {
+	d.costUpperBound = costUpperBound
+}
+
+func (d *UniversalDijkstra) SetMaxNumSettledNodes(maxNumSettledNodes int) {
+	d.maxNumSettledNodes = maxNumSettledNodes
 }
