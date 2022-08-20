@@ -92,7 +92,7 @@ func (d *UniversalDijkstra) RelaxEdges(node *DijkstraItem, pq *MinPath) {
 	}
 }
 
-func (dijkstra *UniversalDijkstra) GetShortestPath(origin, destination graph.NodeId) int {
+func (dijkstra *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId) int {
 	dijkstra.InitializeSearch(origin, destination)
 	if dijkstra.useHeuristic && dijkstra.bidirectional {
 		panic("AStar doesn't work bidirectional so far.")
@@ -165,7 +165,7 @@ func (dijkstra *UniversalDijkstra) SetBidirectional(bidirectional bool) {
 }
 
 func (dijkstra *UniversalDijkstra) GetPath(origin, destination int) ([]int, int) {
-	length := dijkstra.GetShortestPath(origin, destination)
+	length := dijkstra.ComputeShortestPath(origin, destination)
 	if destination == -1 {
 		// path to each node was calculated
 		// return nothing
@@ -175,12 +175,12 @@ func (dijkstra *UniversalDijkstra) GetPath(origin, destination int) ([]int, int)
 		// no path found
 		return make([]int, 0), length
 	}
-	path := dijkstra.extractPath(origin, destination)
+	path := dijkstra.extractComputedPath(origin, destination)
 
 	return path, length
 }
 
-func (d *UniversalDijkstra) extractPath(origin, destination int) []int {
+func (d *UniversalDijkstra) extractComputedPath(origin, destination int) []int {
 	path := make([]int, 0)
 	if d.bidirectional {
 		for nodeId := d.bidirectionalConnection.predecessor; nodeId != -1; nodeId = d.searchSpace[nodeId].predecessor {
