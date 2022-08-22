@@ -7,27 +7,11 @@ import (
 
 type NodeId = int
 
-type Node struct {
-	Lon float64
-	Lat float64
-}
-
-type Edge struct {
-	From     NodeId
-	To       NodeId
-	Distance int
-}
-
-type OutgoingEdge struct {
-	To       NodeId
-	Distance int
-}
-
-type OutgoingEdges = []OutgoingEdge
-
 type Arc interface {
 	Destination() NodeId
 	Cost() int
+	ArcFlag() bool
+	SetArcFlag(flag bool)
 }
 
 type Graph interface {
@@ -46,15 +30,41 @@ type Graph interface {
 type DynamicGraph interface {
 	Graph
 	AddNode(n Node)
-	AddArc(arc Arc)
+	AddEdge(edge Edge)
 }
+
+type Node struct {
+	Lon float64
+	Lat float64
+	// TODO: id?
+	// TODO: Point attribute/ implement Point type
+}
+
+type Edge struct {
+	From     NodeId
+	To       NodeId
+	Distance int
+	arcFlag  bool
+}
+
+type OutgoingEdge struct {
+	To       NodeId
+	Distance int
+	arcFlag  bool
+}
+
+type OutgoingEdges = []OutgoingEdge
 
 func NewNode(lon float64, lat float64) *Node {
 	return &Node{Lon: lon, Lat: lat}
 }
 
 func NewEdge(to NodeId, from NodeId, distance int) *Edge {
-	return &Edge{To: to, From: from, Distance: distance}
+	return &Edge{To: to, From: from, Distance: distance, arcFlag: true}
+}
+
+func NewOutgoingEdge(to NodeId, distance int, arcFlag bool) *OutgoingEdge {
+	return &OutgoingEdge{To: to, Distance: distance, arcFlag: arcFlag}
 }
 
 func (e Edge) Destination() NodeId {
@@ -69,12 +79,20 @@ func (e Edge) Invert() Edge {
 	return Edge{From: e.To, To: e.From, Distance: e.Distance}
 }
 
-func (e Edge) toOutgoingEdge() OutgoingEdge {
-	return OutgoingEdge{To: e.To, Distance: e.Distance}
+func (e Edge) toOutgoingEdge() *OutgoingEdge {
+	return NewOutgoingEdge(e.To, e.Distance, e.ArcFlag()) //OutgoingEdge{To: e.To, Distance: e.Distance, arcFlag: e.ArcFlag()}
+}
+
+func (e Edge) ArcFlag() bool {
+	return e.arcFlag
+}
+
+func (e *Edge) SetArcFlag(flag bool) {
+	e.arcFlag = flag
 }
 
 func (oe OutgoingEdge) toEdge(from NodeId) Edge {
-	return Edge{From: from, To: oe.To, Distance: oe.Distance}
+	return Edge{From: from, To: oe.To, Distance: oe.Distance, arcFlag: oe.ArcFlag()}
 }
 
 func (oe OutgoingEdge) Destination() NodeId {
@@ -84,6 +102,10 @@ func (oe OutgoingEdge) Destination() NodeId {
 func (oe OutgoingEdge) Cost() int {
 	return oe.Distance
 }
+
+func (oe OutgoingEdge) ArcFlag() bool { return oe.arcFlag }
+
+func (oe *OutgoingEdge) SetArcFlag(flag bool) { oe.arcFlag = flag }
 
 func GraphAsString(g Graph) string {
 	var sb strings.Builder

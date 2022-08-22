@@ -7,10 +7,12 @@ import (
 	geo "github.com/natevvv/osm-ship-routing/pkg/geometry"
 )
 
+// TODO: Maybe add a graph class for "planar" geometry (not spherical)
+
 // Implementation for dynamic graphs
 type AdjacencyListGraph struct {
 	Nodes     []Node
-	Edges     [][]OutgoingEdge // TODO: use interface Arc
+	Edges     [][]*OutgoingEdge // TODO: use interface Arc
 	edgeCount int
 }
 
@@ -57,12 +59,14 @@ func (alg *AdjacencyListGraph) AsString() string {
 	sb.WriteString(fmt.Sprintf("%v\n", alg.NodeCount()))
 	sb.WriteString(fmt.Sprintf("%v\n", alg.ArcCount()))
 
+	sb.WriteString(fmt.Sprintf("#Nodes\n"))
 	// list all nodes structured as "id lat lon"
 	for i := 0; i < alg.NodeCount(); i++ {
 		node := alg.GetNode(i)
 		sb.WriteString(fmt.Sprintf("%v %v %v\n", i, node.Lat, node.Lon))
 	}
 
+	sb.WriteString(fmt.Sprintf("#Edges\n"))
 	// list all edges structured as "fromId targetId distance"
 	for i := 0; i < alg.NodeCount(); i++ {
 		for _, arc := range alg.GetArcsFrom(i) {
@@ -74,10 +78,10 @@ func (alg *AdjacencyListGraph) AsString() string {
 
 func (alg *AdjacencyListGraph) AddNode(n Node) {
 	alg.Nodes = append(alg.Nodes, n)
-	alg.Edges = append(alg.Edges, make([]OutgoingEdge, 0))
+	alg.Edges = append(alg.Edges, make([]*OutgoingEdge, 0))
 }
 
-func (alg *AdjacencyListGraph) AddArc(e Edge) {
+func (alg *AdjacencyListGraph) AddEdge(e Edge) {
 	// Check if both source and target node exit
 	if e.From >= alg.NodeCount() || e.To >= alg.NodeCount() {
 		panic(fmt.Sprintf("Edge out of range %v", e))

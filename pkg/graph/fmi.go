@@ -18,7 +18,6 @@ const (
 )
 
 func WriteFmi(g Graph, filename string) {
-
 	file, cErr := os.Create(filename)
 
 	if cErr != nil {
@@ -72,7 +71,8 @@ func NewAdjacencyListFromFmiString(fmi string) *AdjacencyListGraph {
 		case PARSE_EDGES:
 			var from, to, distance int
 			fmt.Sscanf(line, "%d %d %d", &from, &to, &distance)
-			alg.AddArc(Edge{From: id2index[from], To: id2index[to], Distance: distance})
+			edge := NewEdge(id2index[to], id2index[from], distance)
+			alg.AddEdge(*edge)
 		}
 	}
 
@@ -86,6 +86,14 @@ func NewAdjacencyListFromFmiString(fmi string) *AdjacencyListGraph {
 	}
 
 	return &alg
+}
+
+func NewAdjacencyListFromFmiFile(filename string) *AdjacencyListGraph {
+	fmi, err := os.ReadFile(filename)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return NewAdjacencyListFromFmiString(string(fmi))
 }
 
 func NewAdjacencyArrayFromFmiString(fmi string) *AdjacencyArrayGraph {

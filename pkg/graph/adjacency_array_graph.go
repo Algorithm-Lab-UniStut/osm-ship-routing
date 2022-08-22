@@ -11,14 +11,14 @@ import (
 type AdjacencyArrayGraph struct {
 	Nodes         []Node
 	Arcs          []Arc
-	outgoingEdges []OutgoingEdge
+	outgoingEdges []*OutgoingEdge
 	Offsets       []int
 }
 
 func NewAdjacencyArrayFromGraph(g Graph) *AdjacencyArrayGraph {
 	nodes := make([]Node, 0)
 	arcs := make([]Arc, 0)
-	outgoingEdges := make([]OutgoingEdge, 0)
+	outgoingEdges := make([]*OutgoingEdge, 0)
 	offsets := make([]int, g.NodeCount()+1, g.NodeCount()+1)
 
 	for i := 0; i < g.NodeCount(); i++ {
@@ -28,7 +28,7 @@ func NewAdjacencyArrayFromGraph(g Graph) *AdjacencyArrayGraph {
 		// add all edges of node
 		for _, arc := range g.GetArcsFrom(i) {
 			arcs = append(arcs, arc)
-			outgoingEdges = append(outgoingEdges, OutgoingEdge{To: arc.Destination(), Distance: arc.Cost()})
+			outgoingEdges = append(outgoingEdges, NewOutgoingEdge(arc.Destination(), arc.Cost(), arc.ArcFlag()))
 		}
 
 		// set stop-offset
@@ -89,12 +89,14 @@ func (aag *AdjacencyArrayGraph) AsString() string {
 	sb.WriteString(fmt.Sprintf("%v\n", aag.NodeCount()))
 	sb.WriteString(fmt.Sprintf("%v\n", aag.ArcCount()))
 
+	sb.WriteString(fmt.Sprintf("#Nodes\n"))
 	// list all nodes structured as "id lat lon"
 	for i := 0; i < aag.NodeCount(); i++ {
 		node := aag.GetNode(i)
 		sb.WriteString(fmt.Sprintf("%v %v %v\n", i, node.Lat, node.Lon))
 	}
 
+	sb.WriteString(fmt.Sprintf("#Edges\n"))
 	// list all edges structured as "fromId targetId distance"
 	for i := 0; i < aag.NodeCount(); i++ {
 		for _, arc := range aag.GetArcsFrom(i) {
