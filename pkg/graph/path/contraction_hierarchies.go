@@ -38,6 +38,7 @@ type OrderOptions byte
 
 const (
 	dynamicOrder OrderOptions = 1 << iota
+	randomOrder
 	considerEdgeDifference
 	considerProcessedNeighbors
 )
@@ -111,16 +112,38 @@ func ConvertToNodeOrdering(nodeOrderingString string) []int {
 	return nodeOrdering
 }
 
-func (ch *ContractionHierarchies) ComputeNodeOrdering() {
-	ch.computeRandomNodeOrdering()
-}
-func (ch *ContractionHierarchies) computeRandomNodeOrdering() {
-	ch.nodeOrdering = make([]int, ch.g.NodeCount())
-	for i := range ch.nodeOrdering {
-		ch.nodeOrdering[i] = i
+func (ch *ContractionHierarchies) ComputeInitialNodeOrdering() *NodeOrder {
+	var pq *NodeOrder
+	if ch.orderOptions|randomOrder == 1 {
+		nodeOrdering := make([]int, ch.g.NodeCount())
+		for i := range nodeOrdering {
+			nodeOrdering[i] = i
+		}
+		//rand.Seed(time.Now().UnixNano()) // completely random
+		rand.Shuffle(len(nodeOrdering), func(i, j int) { nodeOrdering[i], nodeOrdering[j] = nodeOrdering[j], nodeOrdering[i] })
+
+		order := make(NodeOrder, ch.g.NodeCount())
+		for i := 0; i < ch.g.NodeCount(); i++ {
+			order[i] = NewOrderItem(nodeOrdering[i])
+			order[i].edgeDifference = nodeOrdering[i]
+		}
+		pq = &order
+		heap.Init(pq)
+	} else {
+		pq = NewNodeOrder(nil)
+		for i := 0; i < ch.g.NodeCount(); i++ {
+			ed, processedNeighbors := ch.ContractNode(i, true)
+			orderItem := NewOrderItem(i)
+			if ch.orderOptions|considerEdgeDifference == 1 {
+				orderItem.edgeDifference = ed
+			}
+			if ch.orderOptions|considerProcessedNeighbors == 1 {
+				orderItem.processedNeighbors = processedNeighbors
+			}
+			heap.Push(pq, orderItem)
+		}
 	}
-	//rand.Seed(time.Now().UnixNano()) // completely random
-	rand.Shuffle(len(ch.nodeOrdering), func(i, j int) { ch.nodeOrdering[i], ch.nodeOrdering[j] = ch.nodeOrdering[j], ch.nodeOrdering[i] })
+	return pq
 }
 
 func (ch *ContractionHierarchies) ContractNode(nodeId graph.NodeId, computeEdgeDifferenceOnly bool) (int, int) {
@@ -237,28 +260,24 @@ func (ch *ContractionHierarchies) precompute() {
 			}
 		}
 	}
-	//dynamicOrdering := true
-	pq := NewNodeOrder(nil)
-	for i := 0; i < ch.g.NodeCount(); i++ {
-		ed, processedNeighbors := ch.ContractNode(i, true)
-		orderItem := NewOrderItem(i)
-		orderItem.edgeDifference = ed
-		orderItem.processedNeighbors = processedNeighbors
-		heap.Push(pq, orderItem)
-	}
+	pq := ch.ComputeInitialNodeOrdering()
 	position := 0
 	for pq.Len() > 0 {
 		pqItem := heap.Pop(pq).(*OrderItem)
 		currentEdgeDifference, currentProcessedNeighbors := ch.ContractNode(pqItem.nodeId, true)
-		if /*!dynamicOrdering ||*/ pq.Len() == 0 || currentEdgeDifference+currentProcessedNeighbors <= (*pq)[0].edgeDifference+(*pq)[0].processedNeighbors {
+		if ch.orderOptions|dynamicOrder == 0 || pq.Len() == 0 || currentEdgeDifference+currentProcessedNeighbors <= (*pq)[0].edgeDifference+(*pq)[0].processedNeighbors {
 			// always stick to initially computed order or this is still the smallest edge difference
 			ch.ContractNode(pqItem.nodeId, false)
 			ch.orderOfNode[pqItem.nodeId] = position
 			ch.nodeOrdering[position] = pqItem.nodeId
 			position++
 		} else {
-			pqItem.edgeDifference = currentEdgeDifference
-			pqItem.processedNeighbors = currentProcessedNeighbors
+			if ch.orderOptions|considerEdgeDifference == 1 {
+				pqItem.edgeDifference = currentEdgeDifference
+			}
+			if ch.orderOptions|considerEdgeDifference == 1 {
+				pqItem.processedNeighbors = currentProcessedNeighbors
+			}
 			heap.Push(pq, pqItem)
 		}
 	}
