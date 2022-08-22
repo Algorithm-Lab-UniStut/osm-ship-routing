@@ -57,15 +57,15 @@ func (ch *ContractionHierarchies) SetShortcuts(shortcuts []Shortcut) {
 	ch.shortcuts = shortcuts
 }
 
-func (ch *ContractionHierarchies) ReadShortcutFile() []Shortcut {
-	file, err := os.ReadFile(ch.shortcutsFilename)
+func ReadShortcutFile(filename string) []Shortcut {
+	file, err := os.ReadFile(filename)
 	if err != nil {
 		log.Fatal(err)
 	}
-	return ch.ConvertToShortcuts(string(file))
+	return ConvertToShortcuts(string(file))
 }
 
-func (ch *ContractionHierarchies) ConvertToShortcuts(shortcutsString string) []Shortcut {
+func ConvertToShortcuts(shortcutsString string) []Shortcut {
 	scanner := bufio.NewScanner(strings.NewReader(shortcutsString))
 
 	shortcuts := make([]Shortcut, 0)
@@ -86,15 +86,15 @@ func (ch *ContractionHierarchies) SetNodeOrdering(nodeOrdering []int) {
 	ch.nodeOrdering = nodeOrdering
 }
 
-func (ch *ContractionHierarchies) ReadNodeOrderingFile() []int {
-	file, err := os.ReadFile(ch.shortcutsFilename)
+func ReadNodeOrderingFile(filename string) []int {
+	file, err := os.ReadFile(filename)
 	if err != nil {
 		log.Fatal(err)
 	}
-	return ch.ConvertToNodeOrdering(string(file))
+	return ConvertToNodeOrdering(string(file))
 }
 
-func (ch *ContractionHierarchies) ConvertToNodeOrdering(nodeOrderingString string) []int {
+func ConvertToNodeOrdering(nodeOrderingString string) []int {
 	scanner := bufio.NewScanner(strings.NewReader(nodeOrderingString))
 
 	nodeOrdering := make([]int, 0)
