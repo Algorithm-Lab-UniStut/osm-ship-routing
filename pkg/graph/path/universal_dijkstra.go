@@ -2,6 +2,7 @@ package path
 
 import (
 	"container/heap"
+	"math"
 
 	"github.com/natevvv/osm-ship-routing/pkg/graph"
 	"github.com/natevvv/osm-ship-routing/pkg/slice"
@@ -10,7 +11,7 @@ import (
 type UniversalDijkstra struct {
 	// check if pointers are needed/better
 	g                       graph.Graph
-	visitedNodes            []bool
+	visitedNodes            []bool          // TODO: think about making this slice only store the visited node ids. Benefit: Less space needed. Loss: slice needs to get increases for each new node
 	searchSpace             []*DijkstraItem // search space, a map really reduces performance. If node is also visited, this can be seen as "settled"
 	distances               []int           // TODO: distance values for each node. Is this necessary?
 	origin                  graph.NodeId    // the origin of the current search
@@ -31,8 +32,7 @@ type BidirectionalConnection struct {
 }
 
 func NewUniversalDijkstra(g graph.Graph, useHeuristic bool) *UniversalDijkstra {
-	// heuristic is initially "nil"
-	return &UniversalDijkstra{g: g, useHeuristic: useHeuristic, bidirectionalConnection: nil}
+	return &UniversalDijkstra{g: g, useHeuristic: useHeuristic, bidirectionalConnection: nil, costUpperBound: math.MaxInt, maxNumSettledNodes: math.MaxInt}
 }
 
 func NewBidirectionalConnection(nodeId, predecessor, successor graph.NodeId, distance int) *BidirectionalConnection {
@@ -50,12 +50,16 @@ func (d *UniversalDijkstra) InitializeSearch(origin, destination graph.NodeId) {
 }
 
 func (d *UniversalDijkstra) SettleNode(node *DijkstraItem) {
-	d.searchSpace[node.nodeId] = node
+	d.searchSpace[node.nodeId] = node // not necessary?
 	d.visitedNodes[node.nodeId] = true
 }
 
 func (d *UniversalDijkstra) RelaxEdges(node *DijkstraItem, pq *MinPath) {
 	for _, arc := range d.g.GetArcsFrom(node.nodeId) {
+		if d.considerArcFlags && !arc.ArcFlag() {
+			// ignore this arc
+			continue
+		}
 		successor := arc.Destination()
 		if d.bidirectional && d.searchSpace[successor] != nil && d.searchSpace[successor].searchDirection != node.searchDirection {
 			// store potential connection node, needed for later
@@ -111,9 +115,16 @@ func (dijkstra *UniversalDijkstra) ComputeShortestPath(origin, destination graph
 		heap.Push(pq, NewDijkstraItem(destination, 0, -1, heuristic, BACKWARD))
 	}
 
+	numSettledNodes := 0
 	for pq.Len() > 0 {
 		currentNode := heap.Pop(pq).(*DijkstraItem)
+		if dijkstra.costUpperBound < currentNode.Priority() || dijkstra.maxNumSettledNodes < numSettledNodes {
+			// Each following node exeeds the max allowed cost or the number of allowed nodes is reached
+			// Stop search
+			return -1
+		}
 		dijkstra.SettleNode(currentNode)
+		numSettledNodes++
 		if dijkstra.bidirectionalConnection != nil && currentNode.nodeId == dijkstra.bidirectionalConnection.nodeId {
 			// node with lowest priority is the current connection node
 			// -> every edge increases cost/priority
