@@ -37,8 +37,9 @@ type Shortcut struct {
 type OrderOptions byte
 
 const (
-	dynamicOrder OrderOptions = 1 << iota
-	randomOrder
+	dynamic OrderOptions = 1 << iota
+	random
+	given
 	considerEdgeDifference
 	considerProcessedNeighbors
 )
@@ -112,9 +113,17 @@ func ConvertToNodeOrdering(nodeOrderingString string) []int {
 	return nodeOrdering
 }
 
-func (ch *ContractionHierarchies) ComputeInitialNodeOrdering() *NodeOrder {
+func (ch *ContractionHierarchies) ComputeInitialNodeOrdering(givenNodeOrder []int) *NodeOrder {
 	var pq *NodeOrder
-	if ch.orderOptions|randomOrder == 1 {
+	if givenNodeOrder != nil {
+		order := make(NodeOrder, ch.g.NodeCount())
+		for i := 0; i < ch.g.NodeCount(); i++ {
+			order[i] = NewOrderItem(givenNodeOrder[i])
+			order[i].edgeDifference = i
+		}
+		pq = &order
+		heap.Init(pq)
+	} else if ch.orderOptions|random == 1 {
 		nodeOrdering := make([]int, ch.g.NodeCount())
 		for i := range nodeOrdering {
 			nodeOrdering[i] = i
@@ -125,7 +134,7 @@ func (ch *ContractionHierarchies) ComputeInitialNodeOrdering() *NodeOrder {
 		order := make(NodeOrder, ch.g.NodeCount())
 		for i := 0; i < ch.g.NodeCount(); i++ {
 			order[i] = NewOrderItem(nodeOrdering[i])
-			order[i].edgeDifference = nodeOrdering[i]
+			order[i].edgeDifference = i
 		}
 		pq = &order
 		heap.Init(pq)
@@ -221,51 +230,17 @@ func (ch *ContractionHierarchies) ContractNode(nodeId graph.NodeId, computeEdgeD
 	return shortcutsForNode/2 - incidentArcs, contractedNeighbors
 }
 
-func (ch *ContractionHierarchies) ContractNodes() {
-	if ch.nodeOrdering == nil {
-		panic("Node ordering not set")
-	}
-	if len(ch.nodeOrdering) != ch.g.NodeCount() {
+func (ch *ContractionHierarchies) ContractNodes(initialOrder *NodeOrder) {
+	if initialOrder.Len() != ch.g.NodeCount() {
 		// this is a rudimentary test, if the ordering could be valid.
 		// However, it misses to test if every id appears exactly once
 		panic("Node ordering not valid")
 	}
-	ch.addedShortcuts = make(map[int]int)
-	ch.shortcuts = make([]Shortcut, 0)
-	ch.orderOfNode = make([]int, ch.g.NodeCount())
-	for i := 0; i < ch.g.NodeCount(); i++ {
-		for _, v := range ch.g.GetArcsFrom(i) {
-			if !v.ArcFlag() {
-				panic("Arc Flags are initially not completely true")
-			}
-		}
-	}
-	for i := range ch.g.GetNodes() {
-		nodeId := ch.nodeOrdering[i]
-		ch.orderOfNode[nodeId] = i
-		ch.ContractNode(nodeId, false)
-	}
-	fmt.Println(ch.addedShortcuts)
-}
-
-func (ch *ContractionHierarchies) precompute() {
-	ch.addedShortcuts = make(map[int]int)
-	ch.shortcuts = make([]Shortcut, 0)
-	ch.orderOfNode = make([]int, ch.g.NodeCount())
-	ch.nodeOrdering = make([]int, ch.g.NodeCount())
-	for i := 0; i < ch.g.NodeCount(); i++ {
-		for _, v := range ch.g.GetArcsFrom(i) {
-			if !v.ArcFlag() {
-				panic("Arc Flags are initially not completely true")
-			}
-		}
-	}
-	pq := ch.ComputeInitialNodeOrdering()
 	position := 0
-	for pq.Len() > 0 {
-		pqItem := heap.Pop(pq).(*OrderItem)
+	for initialOrder.Len() > 0 {
+		pqItem := heap.Pop(initialOrder).(*OrderItem)
 		currentEdgeDifference, currentProcessedNeighbors := ch.ContractNode(pqItem.nodeId, true)
-		if ch.orderOptions|dynamicOrder == 0 || pq.Len() == 0 || currentEdgeDifference+currentProcessedNeighbors <= (*pq)[0].edgeDifference+(*pq)[0].processedNeighbors {
+		if ch.orderOptions|dynamic == 0 || initialOrder.Len() == 0 || currentEdgeDifference+currentProcessedNeighbors <= (*initialOrder)[0].edgeDifference+(*initialOrder)[0].processedNeighbors {
 			// always stick to initially computed order or this is still the smallest edge difference
 			ch.ContractNode(pqItem.nodeId, false)
 			ch.orderOfNode[pqItem.nodeId] = position
@@ -278,9 +253,25 @@ func (ch *ContractionHierarchies) precompute() {
 			if ch.orderOptions|considerEdgeDifference == 1 {
 				pqItem.processedNeighbors = currentProcessedNeighbors
 			}
-			heap.Push(pq, pqItem)
+			heap.Push(initialOrder, pqItem)
 		}
 	}
+}
+
+func (ch *ContractionHierarchies) precompute(givenNodeOrder []int) {
+	ch.addedShortcuts = make(map[int]int)
+	ch.shortcuts = make([]Shortcut, 0)
+	ch.orderOfNode = make([]int, ch.g.NodeCount())
+	ch.nodeOrdering = make([]int, ch.g.NodeCount())
+	for i := 0; i < ch.g.NodeCount(); i++ {
+		for _, v := range ch.g.GetArcsFrom(i) {
+			if !v.ArcFlag() {
+				panic("Arc Flags are initially not completely true")
+			}
+		}
+	}
+	pq := ch.ComputeInitialNodeOrdering(givenNodeOrder)
+	ch.ContractNodes(pq)
 }
 
 func (ch *ContractionHierarchies) computeShortestPath(origin, destination graph.NodeId) int {
