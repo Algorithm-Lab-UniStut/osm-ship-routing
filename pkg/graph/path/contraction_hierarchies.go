@@ -15,13 +15,14 @@ import (
 )
 
 type ContractionHierarchies struct {
-	g                    graph.DynamicGraph
+	g                    graph.Graph
 	dijkstra             *UniversalDijkstra
 	nodeOrdering         []graph.NodeId
 	orderOfNode          []int
 	shortcuts            []Shortcut
 	addedShortcuts       map[int]int
 	debugLevel           int
+	orderOptions         OrderOptions
 	graphFilename        string
 	shortcutsFilename    string
 	nodeOrderingFilename string
@@ -34,17 +35,32 @@ type Shortcut struct {
 }
 
 type OrderItem struct {
-	nodeId         graph.NodeId
-	edgeDifference int
-	addEdges       int
-	index          int
+	nodeId             graph.NodeId
+	edgeDifference     int
+	processedNeighbors int
+	index              int
 }
 
 // NodeOrder implements the heap.Interface to hold the PriorityQueue
 type NodeOrder []*OrderItem
 
-func NewContractionHierarchies(g graph.DynamicGraph, dijkstra *UniversalDijkstra) *ContractionHierarchies {
+type OrderOptions byte
+
+const (
+	dynamicOrder OrderOptions = 1 << iota
+	considerEdgeDifference
+	considerProcessedNeighbors
+)
+
+func NewContractionHierarchies(g graph.Graph, dijkstra *UniversalDijkstra) *ContractionHierarchies {
 	return &ContractionHierarchies{g: g, dijkstra: dijkstra, graphFilename: "contracted_graph.fmi", shortcutsFilename: "shortcuts.txt", nodeOrderingFilename: "node_ordering.txt"}
+}
+
+func NewContractionHierarchiesInitialized(g graph.Graph, dijkstra *UniversalDijkstra, shortcuts []Shortcut, nodeOrdering []int) *ContractionHierarchies {
+	ch := NewContractionHierarchies(g, dijkstra)
+	ch.SetShortcuts(shortcuts)
+	ch.SetNodeOrdering(nodeOrdering)
+	return ch
 }
 
 func NewOrderItem(nodeId graph.NodeId) *OrderItem {
@@ -60,6 +76,64 @@ func NewNodeOrder(initialItem *OrderItem) *NodeOrder {
 	return &pq
 }
 
+func (ch *ContractionHierarchies) SetShortcuts(shortcuts []Shortcut) {
+	ch.shortcuts = shortcuts
+}
+
+func (ch *ContractionHierarchies) ReadShortcutFile() []Shortcut {
+	file, err := os.ReadFile(ch.shortcutsFilename)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return ch.ConvertToShortcuts(string(file))
+}
+
+func (ch *ContractionHierarchies) ConvertToShortcuts(shortcutsString string) []Shortcut {
+	scanner := bufio.NewScanner(strings.NewReader(shortcutsString))
+
+	shortcuts := make([]Shortcut, 0)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if len(line) < 1 || line[0] == '#' {
+			// skip empty lines and comments
+			continue
+		}
+		var source, target, via graph.NodeId
+		fmt.Scanf(line, "%d %d %d", source, target, via)
+		shortcuts = append(shortcuts, Shortcut{source: source, target: target, via: via})
+	}
+	return shortcuts
+}
+
+func (ch *ContractionHierarchies) SetNodeOrdering(nodeOrdering []int) {
+	ch.nodeOrdering = nodeOrdering
+}
+
+func (ch *ContractionHierarchies) ReadNodeOrderingFile() []int {
+	file, err := os.ReadFile(ch.shortcutsFilename)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return ch.ConvertToNodeOrdering(string(file))
+}
+
+func (ch *ContractionHierarchies) ConvertToNodeOrdering(nodeOrderingString string) []int {
+	scanner := bufio.NewScanner(strings.NewReader(nodeOrderingString))
+
+	nodeOrdering := make([]int, 0)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if len(line) < 1 || line[0] == '#' {
+			// skip empty lines and comments
+			continue
+		}
+		var nodeId graph.NodeId
+		fmt.Scanf(line, "%d", nodeId)
+		nodeOrdering = append(nodeOrdering, nodeId)
+	}
+	return nodeOrdering
+}
+
 func (ch *ContractionHierarchies) ComputeNodeOrdering() {
 	ch.computeRandomNodeOrdering()
 }
@@ -72,7 +146,7 @@ func (ch *ContractionHierarchies) computeRandomNodeOrdering() {
 	rand.Shuffle(len(ch.nodeOrdering), func(i, j int) { ch.nodeOrdering[i], ch.nodeOrdering[j] = ch.nodeOrdering[j], ch.nodeOrdering[i] })
 }
 
-func (ch *ContractionHierarchies) ContractNode(nodeId graph.NodeId, computeEdgeDifferenceOnly bool) int {
+func (ch *ContractionHierarchies) ContractNode(nodeId graph.NodeId, computeEdgeDifferenceOnly bool) (int, int) {
 	ch.dijkstra.SetMaxNumSettledNodes(20)
 	if ch.debugLevel == 1 {
 		fmt.Printf("Contract Node %v\n", nodeId)
@@ -116,7 +190,11 @@ func (ch *ContractionHierarchies) ContractNode(nodeId graph.NodeId, computeEdgeD
 				shortcutsForNode++
 				if !computeEdgeDifferenceOnly {
 					shortcut := graph.NewEdge(target, source, maxCost)
-					ch.g.AddEdge(*shortcut)
+					g, ok := ch.g.(graph.DynamicGraph)
+					if !ok {
+						panic("Adding edge not possible, Make sure to provide an dynamic graph")
+					}
+					g.AddEdge(*shortcut)
 					ch.shortcuts = append(ch.shortcuts, Shortcut{source: source, target: target, via: nodeId})
 					if ch.debugLevel == 1 {
 						fmt.Printf("Add shortcut %v %v %v %v\n", source, target, maxCost, nodeId)
@@ -140,7 +218,7 @@ func (ch *ContractionHierarchies) ContractNode(nodeId graph.NodeId, computeEdgeD
 		}
 	}
 	// number of shortcuts is doubled, since we have two arcs for each each (because symmetric graph)
-	return shortcutsForNode/2 - incidentArcs + contractedNeighbors
+	return shortcutsForNode/2 - incidentArcs, contractedNeighbors
 }
 
 func (ch *ContractionHierarchies) ContractNodes() {
@@ -174,6 +252,7 @@ func (ch *ContractionHierarchies) precompute() {
 	ch.addedShortcuts = make(map[int]int)
 	ch.shortcuts = make([]Shortcut, 0)
 	ch.orderOfNode = make([]int, ch.g.NodeCount())
+	ch.nodeOrdering = make([]int, ch.g.NodeCount())
 	for i := 0; i < ch.g.NodeCount(); i++ {
 		for _, v := range ch.g.GetArcsFrom(i) {
 			if !v.ArcFlag() {
@@ -181,28 +260,28 @@ func (ch *ContractionHierarchies) precompute() {
 			}
 		}
 	}
-	edgeDifferences := make([]int, ch.g.NodeCount())
+	//dynamicOrdering := true
 	pq := NewNodeOrder(nil)
 	for i := 0; i < ch.g.NodeCount(); i++ {
-		ed := ch.ContractNode(i, true)
-		edgeDifferences[i] = ed
+		ed, processedNeighbors := ch.ContractNode(i, true)
 		orderItem := NewOrderItem(i)
 		orderItem.edgeDifference = ed
+		orderItem.processedNeighbors = processedNeighbors
 		heap.Push(pq, orderItem)
 	}
-	fmt.Println(edgeDifferences)
 	position := 0
 	for pq.Len() > 0 {
 		pqItem := heap.Pop(pq).(*OrderItem)
-		currentEdgeDifference := ch.ContractNode(pqItem.nodeId, true)
-		if pq.Len() == 0 || currentEdgeDifference <= (*pq)[0].edgeDifference {
-			// still the smallest edge difference
+		currentEdgeDifference, currentProcessedNeighbors := ch.ContractNode(pqItem.nodeId, true)
+		if /*!dynamicOrdering ||*/ pq.Len() == 0 || currentEdgeDifference+currentProcessedNeighbors <= (*pq)[0].edgeDifference+(*pq)[0].processedNeighbors {
+			// always stick to initially computed order or this is still the smallest edge difference
 			ch.ContractNode(pqItem.nodeId, false)
 			ch.orderOfNode[pqItem.nodeId] = position
+			ch.nodeOrdering[position] = pqItem.nodeId
 			position++
-			fmt.Printf("Contract node %v\n", pqItem.nodeId)
 		} else {
 			pqItem.edgeDifference = currentEdgeDifference
+			pqItem.processedNeighbors = currentProcessedNeighbors
 			heap.Push(pq, pqItem)
 		}
 	}
@@ -245,7 +324,7 @@ func (ch *ContractionHierarchies) GetSearchSpace() []graph.Node {
 }
 
 func (ch *ContractionHierarchies) IsShortcut(edge *graph.Edge) bool {
-	// is this necessary
+	// TODO is this necessary
 	panic("not implemented")
 }
 
@@ -362,7 +441,7 @@ func (ch *ContractionHierarchies) WriteContractionResult() {
 	ch.WriteNodeOrdering()
 }
 
-func (o OrderItem) Priority() int { return o.edgeDifference }
+func (o OrderItem) Priority() int { return o.edgeDifference + o.processedNeighbors }
 
 func (h NodeOrder) Len() int { return len(h) }
 
@@ -390,7 +469,8 @@ func (h *NodeOrder) Pop() interface{} {
 	return pqItem
 }
 
-func (h *NodeOrder) update(pqItem *OrderItem, edgeDifference int) {
+func (h *NodeOrder) update(pqItem *OrderItem, edgeDifference, processedNeighbors int) {
 	pqItem.edgeDifference = edgeDifference
+	pqItem.processedNeighbors = processedNeighbors
 	heap.Fix(h, pqItem.index)
 }
