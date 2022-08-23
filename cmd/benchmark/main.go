@@ -111,7 +111,8 @@ func benchmark(aag *graph.AdjacencyArrayGraph, targets [][2]int) {
 		navigator := path.GetNavigator(aag)
 
 		start := time.Now()
-		path, length := navigator.GetPath(origin, destination)
+		length := navigator.ComputeShortestPath(origin, destination)
+		path := navigator.GetPath(origin, destination)
 		elapsed := time.Since(start)
 		fmt.Printf("[%3v TIME-Navigate] = %s\n", i, elapsed)
 
