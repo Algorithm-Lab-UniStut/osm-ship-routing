@@ -258,7 +258,7 @@ func (ch *ContractionHierarchies) ContractNodes(initialOrder *NodeOrder) {
 	}
 }
 
-func (ch *ContractionHierarchies) precompute(givenNodeOrder []int) {
+func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int) {
 	ch.addedShortcuts = make(map[int]int)
 	ch.shortcuts = make([]Shortcut, 0)
 	ch.orderOfNode = make([]int, ch.g.NodeCount())

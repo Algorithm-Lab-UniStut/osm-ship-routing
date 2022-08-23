@@ -90,7 +90,7 @@ func TestContractGraph(t *testing.T) {
 	ch := NewContractionHierarchies(alg, dijkstra)
 	nodeOrdering := []int{0, 1, 10, 12, 7, 4, 9, 3, 6, 5, 8, 11, 2}
 	ch.debugLevel = 0
-	ch.precompute(nodeOrdering)
+	ch.Precompute(nodeOrdering)
 	fmt.Printf("node ordering: %v\n", ch.nodeOrdering)
 	fmt.Printf("shortcuts: %v\n", ch.shortcuts)
 	if len(ch.addedShortcuts) != 2 {
@@ -120,7 +120,7 @@ func TestPathFinding(t *testing.T) {
 	ch := NewContractionHierarchies(alg, dijkstra)
 	nodeOrdering := []int{0, 1, 10, 12, 7, 4, 9, 3, 6, 5, 8, 11, 2}
 	ch.nodeOrdering = nodeOrdering
-	ch.precompute(nil)
+	ch.Precompute(nil)
 	length := ch.computeShortestPath(0, 12)
 	if l != length {
 		t.Errorf("Length do not match")
@@ -137,14 +137,14 @@ func TestPrecompute(t *testing.T) {
 	dijkstra := NewUniversalDijkstra(alg, false)
 	ch := NewContractionHierarchies(alg, dijkstra)
 	ch.debugLevel = 0
-	ch.precompute(nil)
+	ch.Precompute(nil)
 }
 
 func TestContractionHierarchies(t *testing.T) {
 	alg := graph.NewAdjacencyListFromFmiString(cuttableGraph)
 	dijkstra := NewUniversalDijkstra(alg, false)
 	ch := NewContractionHierarchies(alg, dijkstra)
-	ch.precompute(nil)
+	ch.Precompute(nil)
 	length := ch.computeShortestPath(0, 12)
 	fmt.Println(length)
 	path, length := ch.GetPath(0, 12)
