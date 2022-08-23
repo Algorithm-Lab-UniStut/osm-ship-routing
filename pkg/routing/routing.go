@@ -47,7 +47,8 @@ func (sr ShipRouter) closestNodes(p1, p2 geo.Point) (n1, n2 int) {
 
 func (sr ShipRouter) ComputeRoute(origin, destination geo.Point) (route Route) {
 	originNode, desdestinationNode := sr.closestNodes(origin, destination)
-	nodePath, length := sr.navigator.GetPath(originNode, desdestinationNode)
+	length := sr.navigator.ComputeShortestPath(originNode, desdestinationNode)
+	nodePath := sr.navigator.GetPath(originNode, desdestinationNode)
 
 	if length > -1 {
 		// shortest path exists
@@ -84,13 +85,15 @@ func (sr ShipRouter) GetSearchSpace() []geo.Point {
 func (sr *ShipRouter) SetNavigator(navigator string) bool {
 	switch navigator {
 	case "dijkstra":
-		sr.navigator = path.NewUniversalDijkstra(sr.g, false)
+		sr.navigator = path.NewUniversalDijkstra(sr.g)
 		return true
 	case "astar":
-		sr.navigator = path.NewUniversalDijkstra(sr.g, true)
+		astar := path.NewUniversalDijkstra(sr.g)
+		astar.SetUseHeuristic(true)
+		sr.navigator = astar
 		return true
 	case "bidirectional-dijkstra":
-		bidijkstra := path.NewUniversalDijkstra(sr.g, false)
+		bidijkstra := path.NewUniversalDijkstra(sr.g)
 		bidijkstra.SetBidirectional(true)
 		sr.navigator = bidijkstra
 		return true
