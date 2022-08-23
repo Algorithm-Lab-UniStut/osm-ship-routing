@@ -270,6 +270,9 @@ func (ch *ContractionHierarchies) ContractNodes(initialOrder *NodeOrder) {
 }
 
 func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int) {
+	ch.dijkstra.SetConsiderArcFlags(true)
+	ch.dijkstra.SetBidirectional(false)
+	ch.dijkstra.SetUseHeuristic(false)
 	ch.addedShortcuts = make(map[int]int)
 	ch.shortcuts = make([]Shortcut, 0)
 	ch.orderOfNode = make([]int, ch.g.NodeCount())
@@ -290,6 +293,7 @@ func (ch *ContractionHierarchies) ComputeShortestPath(origin, destination graph.
 	ch.dijkstra.SetCostUpperBound(math.MaxInt)
 	ch.dijkstra.SetConsiderArcFlags(true)
 	ch.dijkstra.SetBidirectional(true)
+	ch.dijkstra.SetUseHeuristic(false)
 	ch.disableArcsAccordingToNodeOrder()
 	length := ch.dijkstra.ComputeShortestPath(origin, destination)
 	return length
