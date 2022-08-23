@@ -10,15 +10,15 @@ import (
 
 type UniversalDijkstra struct {
 	// check if pointers are needed/better
-	g                       graph.Graph
-	visitedNodes            []bool          // TODO: think about making this slice only store the visited node ids. Benefit: Less space needed. Loss: slice needs to get increases for each new node
-	searchSpace             []*DijkstraItem // search space, a map really reduces performance. If node is also visited, this can be seen as "settled"
-	distances               []int           // TODO: distance values for each node. Is this necessary?
-	origin                  graph.NodeId    // the origin of the current search
-	destination             graph.NodeId    // the distinaiton of the current search
-	pathLength              int             // length of the computed path (-1 if no path found)
-	useHeuristic            bool            // flag indicating if heuristic (remaining distance) should be used (AStar implementation)
-	bidirectional           bool            // flag indicating if search shuld be done from both sides
+	g            graph.Graph
+	visitedNodes []graph.NodeId  // TODO: think about making this slice only store the visited node ids. Benefit: Less space needed. Loss: slice needs to get increases for each new node
+	searchSpace  []*DijkstraItem // search space, a map really reduces performance. If node is also visited, this can be seen as "settled"
+	//distances               []int           // TODO: distance values for each node. Is this necessary?
+	origin                  graph.NodeId // the origin of the current search
+	destination             graph.NodeId // the distinaiton of the current search
+	pathLength              int          // length of the computed path (-1 if no path found)
+	useHeuristic            bool         // flag indicating if heuristic (remaining distance) should be used (AStar implementation)
+	bidirectional           bool         // flag indicating if search shuld be done from both sides
 	bidirectionalConnection *BidirectionalConnection
 	considerArcFlags        bool
 	costUpperBound          int
@@ -33,7 +33,11 @@ type BidirectionalConnection struct {
 }
 
 func NewUniversalDijkstra(g graph.Graph) *UniversalDijkstra {
-	return &UniversalDijkstra{g: g, bidirectionalConnection: nil, costUpperBound: math.MaxInt, maxNumSettledNodes: math.MaxInt, pathLength: -1}
+	ud := &UniversalDijkstra{g: g, visitedNodes: make([]graph.NodeId, 0), searchSpace: make([]*DijkstraItem, g.NodeCount()) /*distances: make([]int, g.NodeCount()), */, bidirectionalConnection: nil, costUpperBound: math.MaxInt, maxNumSettledNodes: math.MaxInt, pathLength: -1}
+	/*for i := range ud.distances {
+		ud.distances[i] = -1
+	}*/
+	return ud
 }
 
 func NewBidirectionalConnection(nodeId, predecessor, successor graph.NodeId, distance int) *BidirectionalConnection {
@@ -41,8 +45,15 @@ func NewBidirectionalConnection(nodeId, predecessor, successor graph.NodeId, dis
 }
 
 func (d *UniversalDijkstra) InitializeSearch(origin, destination graph.NodeId) {
-	d.visitedNodes = make([]bool, d.g.NodeCount())
-	d.searchSpace = make([]*DijkstraItem, d.g.NodeCount())
+	for _, previouslyVisitedNode := range d.visitedNodes {
+		//d.distances[previouslyVisitedNode] = -1
+		d.searchSpace[previouslyVisitedNode] = nil
+		for _, arc := range d.g.GetArcsFrom(previouslyVisitedNode) {
+			// also reset the potential other enqueued nodes
+			d.searchSpace[arc.Destination()] = nil
+		}
+	}
+	d.visitedNodes = make([]graph.NodeId, 0)
 	d.origin = origin
 	d.destination = destination
 	if d.bidirectional {
@@ -51,8 +62,9 @@ func (d *UniversalDijkstra) InitializeSearch(origin, destination graph.NodeId) {
 }
 
 func (d *UniversalDijkstra) SettleNode(node *DijkstraItem) {
-	d.searchSpace[node.nodeId] = node // not necessary?
-	d.visitedNodes[node.nodeId] = true
+	d.searchSpace[node.nodeId] = node
+	//d.distances[node.nodeId] = node.distance
+	d.visitedNodes = append(d.visitedNodes, node.nodeId)
 }
 
 func (d *UniversalDijkstra) RelaxEdges(node *DijkstraItem, pq *MinPath) {
@@ -220,12 +232,11 @@ func (d *UniversalDijkstra) extractComputedPath(origin, destination int) []int {
 
 func (d *UniversalDijkstra) GetSearchSpace() []graph.Node {
 	searchSpace := make([]graph.Node, 0)
-	for i := 0; i < len(d.visitedNodes); i++ {
-		if d.visitedNodes[i] {
-			dijkstraItem := d.searchSpace[i]
-			node := d.g.GetNode(dijkstraItem.nodeId)
-			searchSpace = append(searchSpace, node)
-		}
+	for _, visitedNode := range d.visitedNodes {
+		dijkstraItem := d.searchSpace[visitedNode]
+		node := d.g.GetNode(dijkstraItem.nodeId)
+		searchSpace = append(searchSpace, node)
+
 	}
 	return searchSpace
 }
