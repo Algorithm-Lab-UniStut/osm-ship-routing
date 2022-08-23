@@ -156,6 +156,10 @@ func (ch *ContractionHierarchies) ComputeInitialNodeOrdering(givenNodeOrder []in
 }
 
 func (ch *ContractionHierarchies) ContractNode(nodeId graph.NodeId, computeEdgeDifferenceOnly bool) (int, int) {
+	g, ok := ch.g.(graph.DynamicGraph)
+	if !ok {
+		panic("Adding edge not possible, Make sure to provide an dynamic graph")
+	}
 	ch.dijkstra.SetMaxNumSettledNodes(20)
 	if ch.debugLevel == 1 {
 		fmt.Printf("Contract Node %v\n", nodeId)
@@ -164,9 +168,13 @@ func (ch *ContractionHierarchies) ContractNode(nodeId graph.NodeId, computeEdgeD
 	contractedNeighbors := 0
 	incidentArcs := len(ch.g.GetArcsFrom(nodeId))
 	ch.disableArcsForNode(nodeId)
+	ch.dijkstra.SetConsiderArcFlags(true)
 	for _, arc := range ch.g.GetArcsFrom(nodeId) {
 		source := arc.Destination()
 		if ch.isNodeAlreadyProcessed(source) {
+			// if the position/order of the (current) nodeId is 0, no other node can be processed
+			// if the other node has already an entry in the order, this was already processed
+			// ch.orderOfNode[nodeId] != 0 && ch.orderOfNode[source] != 0 --> wrong, if source was processed at first
 			if ch.debugLevel == 1 {
 				fmt.Printf("source %v already processed\n", source)
 			}
@@ -180,6 +188,9 @@ func (ch *ContractionHierarchies) ContractNode(nodeId graph.NodeId, computeEdgeD
 				continue
 			}
 			if ch.isNodeAlreadyProcessed(target) {
+				// if the position/order of the (current) nodeId is 0, no other node can be processed
+				// if the other node has already an entry in the order, this was already processed
+				// ch.orderOfNode[nodeId] != 0 && ch.orderOfNode[target] != 0 --> wrong, if target was processed at first
 				if ch.debugLevel == 1 {
 					fmt.Printf("target %v already processed\n", target)
 				}
@@ -191,7 +202,6 @@ func (ch *ContractionHierarchies) ContractNode(nodeId graph.NodeId, computeEdgeD
 			}
 			maxCost := arc.Cost() + otherArc.Cost()
 			ch.dijkstra.SetCostUpperBound(maxCost)
-			ch.dijkstra.SetConsiderArcFlags(true)
 			_, length := ch.dijkstra.GetPath(source, target)
 			if length == -1 || length > maxCost {
 				// add shortcut, since the path via this node is the fastest
@@ -199,10 +209,6 @@ func (ch *ContractionHierarchies) ContractNode(nodeId graph.NodeId, computeEdgeD
 				shortcutsForNode++
 				if !computeEdgeDifferenceOnly {
 					shortcut := graph.NewEdge(target, source, maxCost)
-					g, ok := ch.g.(graph.DynamicGraph)
-					if !ok {
-						panic("Adding edge not possible, Make sure to provide an dynamic graph")
-					}
 					g.AddEdge(*shortcut)
 					ch.shortcuts = append(ch.shortcuts, Shortcut{source: source, target: target, via: nodeId})
 					if ch.debugLevel == 1 {
@@ -216,15 +222,17 @@ func (ch *ContractionHierarchies) ContractNode(nodeId graph.NodeId, computeEdgeD
 	if computeEdgeDifferenceOnly {
 		// reset temporarily disabled arcs
 		ch.enableArcsForNode(nodeId)
-	}
-
-	if !computeEdgeDifferenceOnly {
+	} else {
 		_, exists := ch.addedShortcuts[shortcutsForNode]
 		if !exists {
 			ch.addedShortcuts[shortcutsForNode] = 1
 		} else {
 			ch.addedShortcuts[shortcutsForNode]++
 		}
+	}
+
+	if ch.debugLevel == 1 {
+		fmt.Printf("Needed Shortcuts: %v, incident Arcs: %v, contractedNeighbors: %v\n", shortcutsForNode/2, incidentArcs, contractedNeighbors)
 	}
 	// number of shortcuts is doubled, since we have two arcs for each each (because symmetric graph)
 	return shortcutsForNode/2 - incidentArcs, contractedNeighbors
@@ -242,11 +250,14 @@ func (ch *ContractionHierarchies) ContractNodes(initialOrder *NodeOrder) {
 		currentEdgeDifference, currentProcessedNeighbors := ch.ContractNode(pqItem.nodeId, true)
 		if ch.orderOptions|dynamic == 0 || initialOrder.Len() == 0 || currentEdgeDifference+currentProcessedNeighbors <= (*initialOrder)[0].edgeDifference+(*initialOrder)[0].processedNeighbors {
 			// always stick to initially computed order or this is still the smallest edge difference
-			ch.ContractNode(pqItem.nodeId, false)
 			ch.orderOfNode[pqItem.nodeId] = position
 			ch.nodeOrdering[position] = pqItem.nodeId
+			ch.ContractNode(pqItem.nodeId, false)
 			position++
 		} else {
+			if ch.debugLevel == 1 {
+				fmt.Printf("Update order\n")
+			}
 			if ch.orderOptions|considerEdgeDifference == 1 {
 				pqItem.edgeDifference = currentEdgeDifference
 			}
@@ -335,7 +346,7 @@ func (ch *ContractionHierarchies) enableArcsForNode(nodeId graph.NodeId) {
 	for _, arc := range ch.g.GetArcsFrom(nodeId) {
 		// disable the outgoing arc
 		if ch.debugLevel == 1 {
-			fmt.Printf("disable arc %v -> %v\n", nodeId, arc.Destination())
+			fmt.Printf("enable arc %v -> %v\n", nodeId, arc.Destination())
 		}
 		arc.SetArcFlag(true)
 		for _, otherArc := range ch.g.GetArcsFrom(arc.Destination()) {
@@ -367,20 +378,22 @@ func (ch *ContractionHierarchies) disableArcsAccordingToNodeOrder() {
 func (ch *ContractionHierarchies) isNodeAlreadyProcessed(nodeId graph.NodeId) bool {
 	// check whether the arcs of the node are already disabled
 	// TODO: other options: check if the nodeId is on a lower position in the nodeOrdering array than the node which gets contracted
-	for _, arc := range ch.g.GetArcsFrom(nodeId) {
-		if arc.ArcFlag() {
-			return false
-		}
+	arcs := ch.g.GetArcsFrom(nodeId)
+	if len(arcs) == 0 || !arcs[0].ArcFlag() {
+		// this node has no arcs
+		// or the arc flag of (at least) one arc is already set to false
+		return true
+		// this check should be faster than iterating over all arcs
+		// if one arc is modified, the whole node was processed
 	}
-	return true
+	return false
 	/*
-		if !contractionNode.arc.ArcFlag() && false {
-			// already processed this arc (from a previous contraction)
-			// ignore this arc
-			// TODO: is this necessary? or does only the outgoing arcs have to get deactivated (since then, the "next" node can't reach anything)
-			fmt.Printf("source arc flag %v -> %v not set\n", nodeId, arc.Destination())
-			continue
+		for _, arc := range ch.g.GetArcsFrom(nodeId) {
+			if !arc.ArcFlag() {
+				return true
+			}
 		}
+		return false
 	*/
 }
 
