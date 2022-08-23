@@ -114,22 +114,22 @@ func TestContractGraph(t *testing.T) {
 func TestPathFinding(t *testing.T) {
 	alg := graph.NewAdjacencyListFromFmiString(cuttableGraph)
 	dijkstra := NewUniversalDijkstra(alg, false)
-	p, l := dijkstra.GetPath(0, 12)
-	fmt.Println(l)
-	fmt.Println(p)
+	source, target := 0, 12
+	l := dijkstra.ComputeShortestPath(source, target)
+	p := dijkstra.GetPath(source, target)
 	ch := NewContractionHierarchies(alg, dijkstra)
 	nodeOrdering := []int{0, 1, 10, 12, 7, 4, 9, 3, 6, 5, 8, 11, 2}
-	ch.nodeOrdering = nodeOrdering
-	ch.Precompute(nil)
-	length := ch.computeShortestPath(0, 12)
+	//ch.nodeOrdering = nodeOrdering
+	ch.Precompute(nodeOrdering)
+	length := ch.ComputeShortestPath(source, target)
 	if l != length {
 		t.Errorf("Length do not match")
 	}
-	fmt.Println(length)
 	fmt.Println(ch.GetSearchSpace())
-	path, length := ch.GetPath(0, 12)
-	fmt.Println(length)
-	fmt.Println(path)
+	path := ch.GetPath(source, target)
+	if len(p) != len(path) || p[0] != path[0] || p[len(p)-1] != path[len(path)-1] {
+		t.Errorf("computed SP do not match")
+	}
 }
 
 func TestPrecompute(t *testing.T) {
@@ -143,14 +143,21 @@ func TestPrecompute(t *testing.T) {
 func TestContractionHierarchies(t *testing.T) {
 	alg := graph.NewAdjacencyListFromFmiString(cuttableGraph)
 	dijkstra := NewUniversalDijkstra(alg, false)
+	source, target := 0, 12
+	l := dijkstra.ComputeShortestPath(source, target)
+	p := dijkstra.GetPath(source, target)
 	ch := NewContractionHierarchies(alg, dijkstra)
 	ch.Precompute(nil)
-	length := ch.computeShortestPath(0, 12)
-	fmt.Println(length)
-	path, length := ch.GetPath(0, 12)
-	fmt.Println(length)
-	fmt.Println(path)
+	length := ch.ComputeShortestPath(source, target)
+	if length != l {
+		t.Errorf("Length does not match")
+	}
 	if length != 10 {
 		t.Errorf("Wrong length")
 	}
+	path := ch.GetPath(source, target)
+	if len(p) != len(path) || p[0] != path[0] || p[len(p)-1] != path[len(path)-1] {
+		t.Errorf("computed SP do not match")
+	}
+	fmt.Println(path)
 }

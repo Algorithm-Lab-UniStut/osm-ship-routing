@@ -16,6 +16,7 @@ type UniversalDijkstra struct {
 	distances               []int           // TODO: distance values for each node. Is this necessary?
 	origin                  graph.NodeId    // the origin of the current search
 	destination             graph.NodeId    // the distinaiton of the current search
+	pathLength              int             // length of the computed path (-1 if no path found)
 	useHeuristic            bool            // flag indicating if heuristic (remaining distance) should be used (AStar implementation)
 	bidirectional           bool            // flag indicating if search shuld be done from both sides
 	bidirectionalConnection *BidirectionalConnection
@@ -32,7 +33,7 @@ type BidirectionalConnection struct {
 }
 
 func NewUniversalDijkstra(g graph.Graph, useHeuristic bool) *UniversalDijkstra {
-	return &UniversalDijkstra{g: g, useHeuristic: useHeuristic, bidirectionalConnection: nil, costUpperBound: math.MaxInt, maxNumSettledNodes: math.MaxInt}
+	return &UniversalDijkstra{g: g, useHeuristic: useHeuristic, bidirectionalConnection: nil, costUpperBound: math.MaxInt, maxNumSettledNodes: math.MaxInt, pathLength: -1}
 }
 
 func NewBidirectionalConnection(nodeId, predecessor, successor graph.NodeId, distance int) *BidirectionalConnection {
@@ -121,6 +122,7 @@ func (dijkstra *UniversalDijkstra) ComputeShortestPath(origin, destination graph
 		if dijkstra.costUpperBound < currentNode.Priority() || dijkstra.maxNumSettledNodes < numSettledNodes {
 			// Each following node exeeds the max allowed cost or the number of allowed nodes is reached
 			// Stop search
+			dijkstra.pathLength = -1
 			return -1
 		}
 		dijkstra.SettleNode(currentNode)
@@ -147,23 +149,28 @@ func (dijkstra *UniversalDijkstra) ComputeShortestPath(origin, destination graph
 	if destination == -1 {
 		// calculated every distance from source to each possible target
 		//dijkstra.settledNodes = nodes
+		dijkstra.pathLength = 0
 		return 0
 	}
 
 	if dijkstra.bidirectional {
 		if dijkstra.bidirectionalConnection == nil {
 			// no valid path found
+			dijkstra.pathLength = -1
 			return -1
 		}
 		length := dijkstra.bidirectionalConnection.distance
+		dijkstra.pathLength = length
 		return length
 	}
 
 	if dijkstra.searchSpace[destination] == nil {
 		// no valid path found
+		dijkstra.pathLength = -1
 		return -1
 	}
 	length := dijkstra.searchSpace[destination].distance
+	dijkstra.pathLength = length
 	return length
 }
 
@@ -175,20 +182,19 @@ func (dijkstra *UniversalDijkstra) SetBidirectional(bidirectional bool) {
 	dijkstra.bidirectional = bidirectional
 }
 
-func (dijkstra *UniversalDijkstra) GetPath(origin, destination int) ([]int, int) {
-	length := dijkstra.ComputeShortestPath(origin, destination)
+func (dijkstra *UniversalDijkstra) GetPath(origin, destination int) []int {
 	if destination == -1 {
 		// path to each node was calculated
 		// return nothing
-		return make([]int, 0), 0
+		return make([]int, 0)
 	}
-	if length == -1 {
+	if dijkstra.pathLength == -1 {
 		// no path found
-		return make([]int, 0), length
+		return make([]int, 0)
 	}
 	path := dijkstra.extractComputedPath(origin, destination)
 
-	return path, length
+	return path
 }
 
 func (d *UniversalDijkstra) extractComputedPath(origin, destination int) []int {

@@ -29,7 +29,13 @@ func NewImproveAStar(g graph.Graph, dijkstra *UniversalDijkstra) *ImprovedAStar 
 	return &ImprovedAStar{g: g, dijkstra: dijkstra}
 }
 
-func (astar *ImprovedAStar) GetPath(origin, destination int) ([]int, int) {
+func (astar *ImprovedAStar) ComputeShortestPath(origin, destination int) int {
+	astar.dijkstra.SetUseHeuristic(true)
+	length := astar.dijkstra.ComputeShortestPath(origin, destination)
+	return length
+}
+
+func (astar *ImprovedAStar) GetPath(origin, destination int) []int {
 	// calculate heuristic
 	// not needed. it is more performantly to compute this on the fly
 	/*
@@ -43,10 +49,10 @@ func (astar *ImprovedAStar) GetPath(origin, destination int) ([]int, int) {
 			heuristic[i] = h
 		}
 	*/
-	astar.dijkstra.SetUseHeuristic(true)
 
 	// execute query
-	return astar.dijkstra.GetPath(origin, destination)
+	path := astar.dijkstra.GetPath(origin, destination)
+	return path
 }
 
 func NewAStarPriorityQueueItem(id, priority, predecessor, distance int) *AStarPriorityQueueItem {

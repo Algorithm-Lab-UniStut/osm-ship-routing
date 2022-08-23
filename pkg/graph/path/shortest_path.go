@@ -4,7 +4,8 @@ import "github.com/natevvv/osm-ship-routing/pkg/graph"
 
 func FindShortestPath(g graph.Graph, origin, destination int) ([]int, int) {
 	navigator := GetNavigator(g)
-	path, length := navigator.GetPath(origin, destination)
+	length := navigator.ComputeShortestPath(origin, destination)
+	path := navigator.GetPath(origin, destination)
 	return path, length
 }
 

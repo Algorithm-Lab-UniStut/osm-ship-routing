@@ -202,7 +202,7 @@ func (ch *ContractionHierarchies) ContractNode(nodeId graph.NodeId, computeEdgeD
 			}
 			maxCost := arc.Cost() + otherArc.Cost()
 			ch.dijkstra.SetCostUpperBound(maxCost)
-			_, length := ch.dijkstra.GetPath(source, target)
+			length := ch.dijkstra.ComputeShortestPath(source, target)
 			if length == -1 || length > maxCost {
 				// add shortcut, since the path via this node is the fastest
 				// without this node, the target is either not reachable or the path is longer
@@ -285,36 +285,39 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int) {
 	ch.ContractNodes(pq)
 }
 
-func (ch *ContractionHierarchies) computeShortestPath(origin, destination graph.NodeId) int {
+func (ch *ContractionHierarchies) ComputeShortestPath(origin, destination graph.NodeId) int {
 	ch.dijkstra.SetMaxNumSettledNodes(math.MaxInt)
 	ch.dijkstra.SetCostUpperBound(math.MaxInt)
 	ch.dijkstra.SetConsiderArcFlags(true)
 	ch.dijkstra.SetBidirectional(true)
 	ch.disableArcsAccordingToNodeOrder()
-	path, length := ch.dijkstra.GetPath(origin, destination)
-	fmt.Println(path)
+	length := ch.dijkstra.ComputeShortestPath(origin, destination)
 	return length
 }
 
-func (ch *ContractionHierarchies) GetPath(origin, destination graph.NodeId) ([]int, int) {
+func (ch *ContractionHierarchies) GetPath(origin, destination graph.NodeId) []int {
 	// TODO: change interface:
 	// two methods: compute path, get path
 	// this function has to replace the shortcuts
 	// TODO: this probably gets more efficient with other data structuers (store shortcuts as map -> faster access)
-	path, length := ch.dijkstra.GetPath(origin, destination)
+	path := ch.dijkstra.GetPath(origin, destination)
+	if ch.debugLevel == 1 {
+		fmt.Println(path)
+	}
 	for i := 0; i < len(path)-1; i++ {
-		fmt.Println("length", len(path)-1)
 		source := path[i]
 		target := path[i+1]
 		for _, sc := range ch.shortcuts {
 			if sc.source == source && sc.target == target {
 				path = slice.InsertInt(path, i+1, sc.via)
-				fmt.Printf("Added node %v -> %v -> %v\n", source, sc.via, target)
+				if ch.debugLevel == 1 {
+					fmt.Printf("Added node %v -> %v -> %v\n", source, sc.via, target)
+				}
 				i-- // reevaluate, if the source has a shortcut to the currently added node
 			}
 		}
 	}
-	return path, length
+	return path
 }
 
 func (ch *ContractionHierarchies) GetSearchSpace() []graph.Node {
