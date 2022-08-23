@@ -296,9 +296,6 @@ func (ch *ContractionHierarchies) ComputeShortestPath(origin, destination graph.
 }
 
 func (ch *ContractionHierarchies) GetPath(origin, destination graph.NodeId) []int {
-	// TODO: change interface:
-	// two methods: compute path, get path
-	// this function has to replace the shortcuts
 	// TODO: this probably gets more efficient with other data structuers (store shortcuts as map -> faster access)
 	path := ch.dijkstra.GetPath(origin, destination)
 	if ch.debugLevel == 1 {
