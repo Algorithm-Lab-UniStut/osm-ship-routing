@@ -51,7 +51,7 @@ const graphFmi = `10
 
 func TestPlainDijkstra(t *testing.T) {
 	aag := graph.NewAdjacencyArrayFromFmiString(graphFmi)
-	d := NewUniversalDijkstra(aag, false)
+	d := NewUniversalDijkstra(aag)
 	length := d.ComputeShortestPath(0, 9)
 	path := d.GetPath(0, 9)
 	fmt.Printf("length: %v\n", length)
@@ -74,8 +74,9 @@ func TestPlainDijkstra(t *testing.T) {
 
 func TestAStarDijkstra(t *testing.T) {
 	aag := graph.NewAdjacencyArrayFromFmiString(graphFmi)
-	d := NewUniversalDijkstra(aag, false)
-	astar := NewUniversalDijkstra(aag, true)
+	d := NewUniversalDijkstra(aag)
+	astar := NewUniversalDijkstra(aag)
+	astar.SetUseHeuristic(true)
 	length := d.ComputeShortestPath(0, 9)
 	path := d.GetPath(0, 9)
 	astarLength := astar.ComputeShortestPath(0, 9)
@@ -99,8 +100,8 @@ func TestAStarDijkstra(t *testing.T) {
 
 func TestBidirectionalDijkstra(t *testing.T) {
 	aag := graph.NewAdjacencyArrayFromFmiString(graphFmi)
-	d := NewUniversalDijkstra(aag, false)
-	bidijkstra := NewUniversalDijkstra(aag, false)
+	d := NewUniversalDijkstra(aag)
+	bidijkstra := NewUniversalDijkstra(aag)
 	bidijkstra.SetBidirectional(true)
 	length := d.ComputeShortestPath(0, 9)
 	path := d.GetPath(0, 9)

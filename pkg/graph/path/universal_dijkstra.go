@@ -32,8 +32,8 @@ type BidirectionalConnection struct {
 	distance    int
 }
 
-func NewUniversalDijkstra(g graph.Graph, useHeuristic bool) *UniversalDijkstra {
-	return &UniversalDijkstra{g: g, useHeuristic: useHeuristic, bidirectionalConnection: nil, costUpperBound: math.MaxInt, maxNumSettledNodes: math.MaxInt, pathLength: -1}
+func NewUniversalDijkstra(g graph.Graph) *UniversalDijkstra {
+	return &UniversalDijkstra{g: g, bidirectionalConnection: nil, costUpperBound: math.MaxInt, maxNumSettledNodes: math.MaxInt, pathLength: -1}
 }
 
 func NewBidirectionalConnection(nodeId, predecessor, successor graph.NodeId, distance int) *BidirectionalConnection {

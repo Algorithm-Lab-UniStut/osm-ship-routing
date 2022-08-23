@@ -70,7 +70,7 @@ const cuttableGraph = `13
 
 func TestNodeOrdering(t *testing.T) {
 	alg := graph.NewAdjacencyListFromFmiString(cuttableGraph)
-	dijkstra := NewUniversalDijkstra(alg, false)
+	dijkstra := NewUniversalDijkstra(alg)
 	ch := NewContractionHierarchies(alg, dijkstra)
 	nodeOrdering := []int{0, 1, 10, 12, 7, 4, 9, 3, 6, 5, 8, 11, 2}
 	ch.nodeOrdering = nodeOrdering
@@ -86,7 +86,7 @@ func TestNodeOrdering(t *testing.T) {
 
 func TestContractGraph(t *testing.T) {
 	alg := graph.NewAdjacencyListFromFmiString(cuttableGraph)
-	dijkstra := NewUniversalDijkstra(alg, false)
+	dijkstra := NewUniversalDijkstra(alg)
 	ch := NewContractionHierarchies(alg, dijkstra)
 	nodeOrdering := []int{0, 1, 10, 12, 7, 4, 9, 3, 6, 5, 8, 11, 2}
 	ch.debugLevel = 0
@@ -113,7 +113,7 @@ func TestContractGraph(t *testing.T) {
 
 func TestPathFinding(t *testing.T) {
 	alg := graph.NewAdjacencyListFromFmiString(cuttableGraph)
-	dijkstra := NewUniversalDijkstra(alg, false)
+	dijkstra := NewUniversalDijkstra(alg)
 	source, target := 0, 12
 	l := dijkstra.ComputeShortestPath(source, target)
 	p := dijkstra.GetPath(source, target)
@@ -134,7 +134,7 @@ func TestPathFinding(t *testing.T) {
 
 func TestPrecompute(t *testing.T) {
 	alg := graph.NewAdjacencyListFromFmiString(cuttableGraph)
-	dijkstra := NewUniversalDijkstra(alg, false)
+	dijkstra := NewUniversalDijkstra(alg)
 	ch := NewContractionHierarchies(alg, dijkstra)
 	ch.debugLevel = 0
 	ch.Precompute(nil)
@@ -142,7 +142,7 @@ func TestPrecompute(t *testing.T) {
 
 func TestContractionHierarchies(t *testing.T) {
 	alg := graph.NewAdjacencyListFromFmiString(cuttableGraph)
-	dijkstra := NewUniversalDijkstra(alg, false)
+	dijkstra := NewUniversalDijkstra(alg)
 	source, target := 0, 12
 	l := dijkstra.ComputeShortestPath(source, target)
 	p := dijkstra.GetPath(source, target)
