@@ -2,12 +2,14 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
 	"time"
 
 	"github.com/natevvv/osm-ship-routing/pkg/geometry"
 	"github.com/natevvv/osm-ship-routing/pkg/graph"
+	"github.com/natevvv/osm-ship-routing/pkg/graph/path"
 	"github.com/natevvv/osm-ship-routing/pkg/grid"
 )
 
@@ -15,7 +17,19 @@ const density = 710 // parameter for SimpleSphereGrid
 const nTarget = 1e6 // parameter for EquiSphereGrid
 
 func main() {
+	buildGridGraph := flag.Bool("gridgraph", false, "Build grid graph")
+	buildContractedGraph := flag.Bool("contract", false, "Build grid graph")
+	flag.Parse()
 
+	if *buildGridGraph {
+		createGridGraph()
+	}
+	if *buildContractedGraph {
+		createContractedGraph()
+	}
+}
+
+func createGridGraph() {
 	//arg := loadPolyJsonPolygons("antarctica.poly.json")
 	arg := loadPolyJsonPolygons("planet-coastlines.poly.json")
 
@@ -56,4 +70,12 @@ func loadPolyJsonPolygons(file string) []geometry.Polygon {
 	fmt.Printf("[TIME] Unmarshal: %s\n", elapsed)
 
 	return polygons
+}
+
+func createContractedGraph() {
+	alg := graph.NewAdjacencyListFromFmiFile("ocean_equi_4.fmi")
+	dijkstra := path.NewUniversalDijkstra(alg, false)
+	ch := path.NewContractionHierarchies(alg, dijkstra)
+	ch.Precompute(nil)
+	//ch.WriteContractionResult()
 }
