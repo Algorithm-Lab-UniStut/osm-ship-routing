@@ -15,17 +15,17 @@ import (
 )
 
 type ContractionHierarchies struct {
-	g                    graph.Graph
-	dijkstra             *UniversalDijkstra
-	nodeOrdering         []graph.NodeId
-	orderOfNode          []int
-	shortcuts            []Shortcut
-	addedShortcuts       map[int]int
-	debugLevel           int
-	orderOptions         OrderOptions
-	graphFilename        string
-	shortcutsFilename    string
-	nodeOrderingFilename string
+	g                    graph.Graph                                    // graph to work on (for precomputation, this ha sto be a graph.DynamicGraph)
+	dijkstra             *UniversalDijkstra                             // the dijkstra algorithm to perform the searches
+	nodeOrdering         []graph.NodeId                                 // the node ordering (in which order the nodes were contracted)
+	orderOfNode          []int                                          // the order of the node ("reverse" node ordering). At which position the specified node was contracted
+	shortcutMap          map[graph.NodeId]map[graph.NodeId]graph.NodeId // a map of the shortcuts (from/source -> to/target -> via)
+	addedShortcuts       map[int]int                                    // debug information - stores the number of who many nodes introduced the specified amount of shortcuts
+	debugLevel           int                                            // the debug level - used for printing some informaiton
+	orderOptions         OrderOptions                                   // the order options
+	graphFilename        string                                         // the filename were the file gets stored
+	shortcutsFilename    string                                         // the filename were the shourtcuts gets stored
+	nodeOrderingFilename string                                         // the filname were the node ordering gets stored
 }
 
 type Shortcut struct {
@@ -56,7 +56,27 @@ func NewContractionHierarchiesInitialized(g graph.Graph, dijkstra *UniversalDijk
 }
 
 func (ch *ContractionHierarchies) SetShortcuts(shortcuts []Shortcut) {
-	ch.shortcuts = shortcuts
+	ch.shortcutMap = make(map[graph.NodeId]map[graph.NodeId]graph.NodeId)
+	for _, v := range shortcuts {
+		source := v.source
+		target := v.target
+		via := v.via
+		if ch.shortcutMap[source] == nil {
+			ch.shortcutMap[source] = make(map[graph.NodeId]graph.NodeId)
+		}
+		ch.shortcutMap[source][target] = via
+
+	}
+}
+
+func (ch *ContractionHierarchies) GetShortcuts() []Shortcut {
+	sc := make([]Shortcut, 0)
+	for source, shortcuts := range ch.shortcutMap {
+		for target, via := range shortcuts {
+			sc = append(sc, Shortcut{source: source, target: target, via: via})
+		}
+	}
+	return sc
 }
 
 func ReadShortcutFile(filename string) []Shortcut {
@@ -210,7 +230,10 @@ func (ch *ContractionHierarchies) ContractNode(nodeId graph.NodeId, computeEdgeD
 				if !computeEdgeDifferenceOnly {
 					shortcut := graph.NewEdge(target, source, maxCost)
 					g.AddEdge(*shortcut)
-					ch.shortcuts = append(ch.shortcuts, Shortcut{source: source, target: target, via: nodeId})
+					if ch.shortcutMap[source] == nil {
+						ch.shortcutMap[source] = make(map[graph.NodeId]graph.NodeId)
+					}
+					ch.shortcutMap[source][target] = nodeId
 					if ch.debugLevel == 1 {
 						fmt.Printf("Add shortcut %v %v %v %v\n", source, target, maxCost, nodeId)
 					}
@@ -274,7 +297,7 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int) {
 	ch.dijkstra.SetBidirectional(false)
 	ch.dijkstra.SetUseHeuristic(false)
 	ch.addedShortcuts = make(map[int]int)
-	ch.shortcuts = make([]Shortcut, 0)
+	ch.shortcutMap = make(map[graph.NodeId]map[graph.NodeId]graph.NodeId)
 	ch.orderOfNode = make([]int, ch.g.NodeCount())
 	ch.nodeOrdering = make([]int, ch.g.NodeCount())
 	for i := 0; i < ch.g.NodeCount(); i++ {
@@ -300,7 +323,7 @@ func (ch *ContractionHierarchies) ComputeShortestPath(origin, destination graph.
 }
 
 func (ch *ContractionHierarchies) GetPath(origin, destination graph.NodeId) []int {
-	// TODO: this probably gets more efficient with other data structuers (store shortcuts as map -> faster access)
+	// TODO: this probably gets more efficient with other data structures (store shortcuts as map -> faster access)
 	path := ch.dijkstra.GetPath(origin, destination)
 	if ch.debugLevel == 1 {
 		fmt.Println(path)
@@ -308,15 +331,25 @@ func (ch *ContractionHierarchies) GetPath(origin, destination graph.NodeId) []in
 	for i := 0; i < len(path)-1; i++ {
 		source := path[i]
 		target := path[i+1]
-		for _, sc := range ch.shortcuts {
-			if sc.source == source && sc.target == target {
-				path = slice.InsertInt(path, i+1, sc.via)
-				if ch.debugLevel == 1 {
-					fmt.Printf("Added node %v -> %v -> %v\n", source, sc.via, target)
-				}
-				i-- // reevaluate, if the source has a shortcut to the currently added node
+		via, exists := ch.shortcutMap[source][target]
+		if exists {
+			path = slice.InsertInt(path, i+1, via)
+			if ch.debugLevel == 1 {
+				fmt.Printf("Added node %v -> %v -> %v\n", source, via, target)
 			}
+			i-- // reevaluate, if the source has a shortcut to the currently added node
 		}
+		/*
+			for _, sc := range ch.shortcuts {
+				if sc.source == source && sc.target == target {
+					path = slice.InsertInt(path, i+1, sc.via)
+					if ch.debugLevel == 1 {
+						fmt.Printf("Added node %v -> %v -> %v\n", source, sc.via, target)
+					}
+					i-- // reevaluate, if the source has a shortcut to the currently added node
+				}
+			}
+		*/
 	}
 	return path
 }
@@ -413,10 +446,12 @@ func (ch *ContractionHierarchies) WriteShortcuts() {
 	}
 
 	var sb strings.Builder
-	for _, v := range ch.shortcuts {
+
+	for _, v := range ch.GetShortcuts() {
 		shortcut := fmt.Sprintf("%v %v %v\n", v.source, v.target, v.via)
 		sb.WriteString(shortcut)
 	}
+
 	writer := bufio.NewWriter(file)
 	writer.WriteString(sb.String())
 	writer.Flush()

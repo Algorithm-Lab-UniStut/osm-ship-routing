@@ -92,7 +92,7 @@ func TestContractGraph(t *testing.T) {
 	ch.debugLevel = 0
 	ch.Precompute(nodeOrdering)
 	fmt.Printf("node ordering: %v\n", ch.nodeOrdering)
-	fmt.Printf("shortcuts: %v\n", ch.shortcuts)
+	fmt.Printf("shortcuts: %v\n", ch.GetShortcuts())
 	if len(ch.addedShortcuts) != 2 {
 		t.Errorf("wrong number of nodes shortcuttet.\n")
 	}
