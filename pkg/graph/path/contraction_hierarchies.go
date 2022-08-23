@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/natevvv/osm-ship-routing/pkg/graph"
 	"github.com/natevvv/osm-ship-routing/pkg/slice"
@@ -22,7 +23,6 @@ type ContractionHierarchies struct {
 	shortcutMap          map[graph.NodeId]map[graph.NodeId]graph.NodeId // a map of the shortcuts (from/source -> to/target -> via)
 	addedShortcuts       map[int]int                                    // debug information - stores the number of who many nodes introduced the specified amount of shortcuts
 	debugLevel           int                                            // the debug level - used for printing some informaiton
-	orderOptions         OrderOptions                                   // the order options
 	graphFilename        string                                         // the filename were the file gets stored
 	shortcutsFilename    string                                         // the filename were the shourtcuts gets stored
 	nodeOrderingFilename string                                         // the filname were the node ordering gets stored
@@ -39,10 +39,13 @@ type OrderOptions byte
 const (
 	dynamic OrderOptions = 1 << iota
 	random
-	given
 	considerEdgeDifference
 	considerProcessedNeighbors
 )
+
+func MakeOrderOptions() OrderOptions {
+	return OrderOptions(0)
+}
 
 func NewContractionHierarchies(g graph.Graph, dijkstra *UniversalDijkstra) *ContractionHierarchies {
 	return &ContractionHierarchies{g: g, dijkstra: dijkstra, graphFilename: "contracted_graph.fmi", shortcutsFilename: "shortcuts.txt", nodeOrderingFilename: "node_ordering.txt"}
@@ -133,7 +136,7 @@ func ConvertToNodeOrdering(nodeOrderingString string) []int {
 	return nodeOrdering
 }
 
-func (ch *ContractionHierarchies) ComputeInitialNodeOrdering(givenNodeOrder []int) *NodeOrder {
+func (ch *ContractionHierarchies) ComputeInitialNodeOrdering(givenNodeOrder []int, oo OrderOptions) *NodeOrder {
 	var pq *NodeOrder
 	if givenNodeOrder != nil {
 		order := make(NodeOrder, ch.g.NodeCount())
@@ -143,12 +146,12 @@ func (ch *ContractionHierarchies) ComputeInitialNodeOrdering(givenNodeOrder []in
 		}
 		pq = &order
 		heap.Init(pq)
-	} else if ch.orderOptions|random == 1 {
+	} else if oo.IsRandom() {
 		nodeOrdering := make([]int, ch.g.NodeCount())
 		for i := range nodeOrdering {
 			nodeOrdering[i] = i
 		}
-		//rand.Seed(time.Now().UnixNano()) // completely random
+		rand.Seed(time.Now().UnixNano()) // completely random
 		rand.Shuffle(len(nodeOrdering), func(i, j int) { nodeOrdering[i], nodeOrdering[j] = nodeOrdering[j], nodeOrdering[i] })
 
 		order := make(NodeOrder, ch.g.NodeCount())
@@ -163,10 +166,10 @@ func (ch *ContractionHierarchies) ComputeInitialNodeOrdering(givenNodeOrder []in
 		for i := 0; i < ch.g.NodeCount(); i++ {
 			ed, processedNeighbors := ch.ContractNode(i, true)
 			orderItem := NewOrderItem(i)
-			if ch.orderOptions|considerEdgeDifference == 1 {
+			if oo.ConsiderEdgeDifference() {
 				orderItem.edgeDifference = ed
 			}
-			if ch.orderOptions|considerProcessedNeighbors == 1 {
+			if oo.ConsiderProcessedNeighbors() {
 				orderItem.processedNeighbors = processedNeighbors
 			}
 			heap.Push(pq, orderItem)
@@ -261,7 +264,7 @@ func (ch *ContractionHierarchies) ContractNode(nodeId graph.NodeId, computeEdgeD
 	return shortcutsForNode/2 - incidentArcs, contractedNeighbors
 }
 
-func (ch *ContractionHierarchies) ContractNodes(initialOrder *NodeOrder) {
+func (ch *ContractionHierarchies) ContractNodes(initialOrder *NodeOrder, oo OrderOptions) {
 	if initialOrder.Len() != ch.g.NodeCount() {
 		// this is a rudimentary test, if the ordering could be valid.
 		// However, it misses to test if every id appears exactly once
@@ -271,8 +274,9 @@ func (ch *ContractionHierarchies) ContractNodes(initialOrder *NodeOrder) {
 	for initialOrder.Len() > 0 {
 		pqItem := heap.Pop(initialOrder).(*OrderItem)
 		currentEdgeDifference, currentProcessedNeighbors := ch.ContractNode(pqItem.nodeId, true)
-		if ch.orderOptions|dynamic == 0 || initialOrder.Len() == 0 || currentEdgeDifference+currentProcessedNeighbors <= (*initialOrder)[0].edgeDifference+(*initialOrder)[0].processedNeighbors {
+		if !oo.IsDynamic() || initialOrder.Len() == 0 || currentEdgeDifference+currentProcessedNeighbors <= (*initialOrder)[0].edgeDifference+(*initialOrder)[0].processedNeighbors {
 			// always stick to initially computed order or this is still the smallest edge difference
+			fmt.Printf("Contract Node %v\n", pqItem.nodeId)
 			ch.orderOfNode[pqItem.nodeId] = position
 			ch.nodeOrdering[position] = pqItem.nodeId
 			ch.ContractNode(pqItem.nodeId, false)
@@ -281,10 +285,10 @@ func (ch *ContractionHierarchies) ContractNodes(initialOrder *NodeOrder) {
 			if ch.debugLevel == 1 {
 				fmt.Printf("Update order\n")
 			}
-			if ch.orderOptions|considerEdgeDifference == 1 {
+			if oo.ConsiderEdgeDifference() {
 				pqItem.edgeDifference = currentEdgeDifference
 			}
-			if ch.orderOptions|considerEdgeDifference == 1 {
+			if oo.ConsiderProcessedNeighbors() {
 				pqItem.processedNeighbors = currentProcessedNeighbors
 			}
 			heap.Push(initialOrder, pqItem)
@@ -292,7 +296,7 @@ func (ch *ContractionHierarchies) ContractNodes(initialOrder *NodeOrder) {
 	}
 }
 
-func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int) {
+func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptions) {
 	ch.dijkstra.SetConsiderArcFlags(true)
 	ch.dijkstra.SetBidirectional(false)
 	ch.dijkstra.SetUseHeuristic(false)
@@ -300,6 +304,9 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int) {
 	ch.shortcutMap = make(map[graph.NodeId]map[graph.NodeId]graph.NodeId)
 	ch.orderOfNode = make([]int, ch.g.NodeCount())
 	ch.nodeOrdering = make([]int, ch.g.NodeCount())
+	if givenNodeOrder == nil && !oo.IsValid() {
+		panic("Order Options are not valid")
+	}
 	for i := 0; i < ch.g.NodeCount(); i++ {
 		for _, v := range ch.g.GetArcsFrom(i) {
 			if !v.ArcFlag() {
@@ -307,8 +314,15 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int) {
 			}
 		}
 	}
-	pq := ch.ComputeInitialNodeOrdering(givenNodeOrder)
-	ch.ContractNodes(pq)
+	if givenNodeOrder != nil {
+		// ignore the order options
+		// -> just overwrite them
+		oo = MakeOrderOptions().SetDynamic(false).SetRandom(false).SetEdgeDifference(false).SetProcessedNeighbors(false).SetRandom(false)
+	}
+	fmt.Printf("Compute Node Ordering\n")
+	pq := ch.ComputeInitialNodeOrdering(givenNodeOrder, oo)
+	fmt.Printf("Contract Nodes\n")
+	ch.ContractNodes(pq, oo)
 }
 
 func (ch *ContractionHierarchies) ComputeShortestPath(origin, destination graph.NodeId) int {
@@ -478,4 +492,72 @@ func (ch *ContractionHierarchies) WriteContractionResult() {
 	ch.WriteGraph()
 	ch.WriteShortcuts()
 	ch.WriteNodeOrdering()
+}
+
+func (oo OrderOptions) Set(o OrderOptions) OrderOptions {
+	return oo | o
+}
+
+func (oo OrderOptions) Reset(o OrderOptions) OrderOptions {
+	return oo & ^o
+}
+
+func (oo OrderOptions) SetDynamic(flag bool) OrderOptions {
+	if flag {
+		return oo.Set(dynamic)
+	} else {
+		return oo.Reset(dynamic)
+	}
+}
+
+func (oo OrderOptions) IsDynamic() bool {
+	return oo&dynamic != 0
+}
+
+func (oo OrderOptions) SetRandom(flag bool) OrderOptions {
+	if flag {
+		return oo.Set(random)
+	} else {
+		return oo.Reset(random)
+	}
+}
+
+func (oo OrderOptions) IsRandom() bool {
+	return oo&random != 0
+}
+
+func (oo OrderOptions) SetEdgeDifference(flag bool) OrderOptions {
+	if flag {
+		return oo.Set(considerEdgeDifference)
+	} else {
+		return oo.Reset(considerEdgeDifference)
+	}
+}
+
+func (oo OrderOptions) ConsiderEdgeDifference() bool {
+	return oo&considerEdgeDifference != 0
+}
+
+func (oo OrderOptions) SetProcessedNeighbors(flag bool) OrderOptions {
+	if flag {
+		return oo.Set(considerProcessedNeighbors)
+	} else {
+		return oo.Reset(considerProcessedNeighbors)
+	}
+}
+
+func (oo OrderOptions) ConsiderProcessedNeighbors() bool {
+	return oo&considerProcessedNeighbors != 0
+}
+
+func (oo OrderOptions) IsValid() bool {
+	if !oo.IsRandom() && !(oo.ConsiderEdgeDifference() || oo.ConsiderProcessedNeighbors()) {
+		// if using no random order, either the edge difference or the processed neighbors is needed for initial order computation
+		return false
+	}
+	if oo.IsDynamic() && !(oo.ConsiderEdgeDifference() || oo.ConsiderProcessedNeighbors()) {
+		// if using dynamic order, either the edge difference or the processed neighbors (or both) must get considered
+		return false
+	}
+	return true
 }

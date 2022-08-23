@@ -90,7 +90,7 @@ func TestContractGraph(t *testing.T) {
 	ch := NewContractionHierarchies(alg, dijkstra)
 	nodeOrdering := []int{0, 1, 10, 12, 7, 4, 9, 3, 6, 5, 8, 11, 2}
 	ch.debugLevel = 0
-	ch.Precompute(nodeOrdering)
+	ch.Precompute(nodeOrdering, MakeOrderOptions())
 	fmt.Printf("node ordering: %v\n", ch.nodeOrdering)
 	fmt.Printf("shortcuts: %v\n", ch.GetShortcuts())
 	if len(ch.addedShortcuts) != 2 {
@@ -120,7 +120,7 @@ func TestPathFinding(t *testing.T) {
 	ch := NewContractionHierarchies(alg, dijkstra)
 	nodeOrdering := []int{0, 1, 10, 12, 7, 4, 9, 3, 6, 5, 8, 11, 2}
 	//ch.nodeOrdering = nodeOrdering
-	ch.Precompute(nodeOrdering)
+	ch.Precompute(nodeOrdering, MakeOrderOptions())
 	length := ch.ComputeShortestPath(source, target)
 	if l != length {
 		t.Errorf("Length do not match")
@@ -137,7 +137,7 @@ func TestPrecompute(t *testing.T) {
 	dijkstra := NewUniversalDijkstra(alg)
 	ch := NewContractionHierarchies(alg, dijkstra)
 	ch.debugLevel = 0
-	ch.Precompute(nil)
+	ch.Precompute(nil, MakeOrderOptions().SetDynamic(true).SetEdgeDifference(true).SetProcessedNeighbors(true))
 }
 
 func TestContractionHierarchies(t *testing.T) {
@@ -147,7 +147,7 @@ func TestContractionHierarchies(t *testing.T) {
 	l := dijkstra.ComputeShortestPath(source, target)
 	p := dijkstra.GetPath(source, target)
 	ch := NewContractionHierarchies(alg, dijkstra)
-	ch.Precompute(nil)
+	ch.Precompute(nil, MakeOrderOptions().SetDynamic(true).SetEdgeDifference(true).SetProcessedNeighbors(true))
 	length := ch.ComputeShortestPath(source, target)
 	if length != l {
 		t.Errorf("Length does not match")
@@ -156,6 +156,27 @@ func TestContractionHierarchies(t *testing.T) {
 		t.Errorf("Wrong length")
 	}
 	path := ch.GetPath(source, target)
+	fmt.Printf("Search Space: %v\n", ch.GetSearchSpace())
+	if len(p) != len(path) || p[0] != path[0] || p[len(p)-1] != path[len(path)-1] {
+		t.Errorf("computed SP do not match")
+	}
+	fmt.Println(path)
+}
+
+func TestRandomContraction(t *testing.T) {
+	alg := graph.NewAdjacencyListFromFmiString(cuttableGraph)
+	dijkstra := NewUniversalDijkstra(alg)
+	source, target := 0, 12
+	l := dijkstra.ComputeShortestPath(source, target)
+	p := dijkstra.GetPath(source, target)
+	ch := NewContractionHierarchies(alg, dijkstra)
+	ch.Precompute(nil, MakeOrderOptions().SetDynamic(false).SetRandom(true))
+	length := ch.ComputeShortestPath(source, target)
+	if length != l {
+		t.Errorf("Length does not match")
+	}
+	path := ch.GetPath(source, target)
+	fmt.Printf("Search Space: %v\n", ch.GetSearchSpace())
 	if len(p) != len(path) || p[0] != path[0] || p[len(p)-1] != path[len(path)-1] {
 		t.Errorf("computed SP do not match")
 	}
