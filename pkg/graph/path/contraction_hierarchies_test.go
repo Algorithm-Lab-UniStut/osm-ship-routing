@@ -173,7 +173,7 @@ func TestRandomContraction(t *testing.T) {
 	ch.Precompute(nil, MakeOrderOptions().SetDynamic(false).SetRandom(true))
 	length := ch.ComputeShortestPath(source, target)
 	if length != l {
-		t.Errorf("Length does not match")
+		t.Errorf("Length does not match - Is: %v. Should: %v", length, l)
 	}
 	path := ch.GetPath(source, target)
 	fmt.Printf("Search Space: %v\n", ch.GetSearchSpace())
