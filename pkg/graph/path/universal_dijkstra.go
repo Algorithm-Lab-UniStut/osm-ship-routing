@@ -139,10 +139,12 @@ func (dijkstra *UniversalDijkstra) ComputeShortestPath(origin, destination graph
 		}
 		dijkstra.SettleNode(currentNode)
 		numSettledNodes++
-		if dijkstra.bidirectionalConnection != nil && currentNode.nodeId == dijkstra.bidirectionalConnection.nodeId {
+		if dijkstra.bidirectionalConnection != nil && dijkstra.bidirectionalConnection.distance < currentNode.Priority() {
 			// node with lowest priority is the current connection node
 			// -> every edge increases cost/priority
-			// -> this has to be the shortest path
+			// -> this has to be the shortest path --> wrong, if one edge is (really) long
+			// Correction: current node (with lowest possible distance) is already greater than connection distance
+			// -> connection has to be the lowest one
 			break
 		}
 
