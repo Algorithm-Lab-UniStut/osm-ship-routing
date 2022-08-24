@@ -62,3 +62,8 @@ func (h *NodeOrder) update(pqItem *OrderItem, edgeDifference, processedNeighbors
 	pqItem.processedNeighbors = processedNeighbors
 	heap.Fix(h, pqItem.index)
 }
+
+func (h *NodeOrder) Peek() interface{} {
+	n := len(*h)
+	return (*h)[n-1]
+}
