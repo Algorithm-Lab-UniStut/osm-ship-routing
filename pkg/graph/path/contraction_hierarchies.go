@@ -352,11 +352,6 @@ func (ch *ContractionHierarchies) addShortcut(source, target, via graph.NodeId, 
 	}
 }
 
-func (ch *ContractionHierarchies) isShortcut(edge *graph.Edge) bool {
-	// TODO is this necessary
-	panic("not implemented")
-}
-
 func (ch *ContractionHierarchies) enableArcsForNode(nodeId graph.NodeId) {
 	ch.g.SetArcFlags(nodeId, true)
 	if ch.debugLevel == 2 {
