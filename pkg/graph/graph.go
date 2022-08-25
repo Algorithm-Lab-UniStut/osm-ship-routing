@@ -25,6 +25,8 @@ type Graph interface {
 	AsString() string
 	// ReduceToLargestConnectedComponent() Graph -> why is this needed?
 	EstimateDistance(source, target NodeId) int
+	SetArcFlags(nodeId NodeId, flag bool)
+	EnableAllArcs()
 }
 
 type DynamicGraph interface {
