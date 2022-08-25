@@ -58,8 +58,11 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 	ch.addedShortcuts = make(map[int]int)
 	//ch.shortcutMap = make(map[graph.NodeId]map[graph.NodeId]graph.NodeId)
 	ch.shortcuts = make([]Shortcut, 0)
-	ch.orderOfNode = make([]int, ch.g.NodeCount())
 	ch.nodeOrdering = make([]int, ch.g.NodeCount())
+	ch.orderOfNode = make([]int, ch.g.NodeCount())
+	for i := range ch.orderOfNode {
+		ch.orderOfNode[i] = -1
+	}
 	if givenNodeOrder == nil && !oo.IsValid() {
 		panic("Order Options are not valid")
 	}
@@ -72,7 +75,7 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 	if ch.debugLevel >= 1 {
 		fmt.Printf("Compute Node Ordering\n")
 	}
-	pq := ch.computeInitialNodeOrdering(givenNodeOrder, oo)
+	pq := ch.computeInitialNodeOrder(givenNodeOrder, oo)
 	if ch.debugLevel >= 1 {
 		fmt.Printf("%v\n", pq)
 		fmt.Printf("Contract Nodes\n")
@@ -86,7 +89,7 @@ func (ch *ContractionHierarchies) ComputeShortestPath(origin, destination graph.
 	ch.dijkstra.SetConsiderArcFlags(true)
 	ch.dijkstra.SetBidirectional(true)
 	ch.dijkstra.SetUseHeuristic(false)
-	ch.disableArcsAccordingToNodeOrder()
+	ch.matchArcsWithNodeOrder()
 	length := ch.dijkstra.ComputeShortestPath(origin, destination)
 	return length
 }
@@ -128,13 +131,13 @@ func (ch *ContractionHierarchies) GetSearchSpace() []*DijkstraItem {
 	return ch.dijkstra.GetSearchSpace()
 }
 
-func (ch *ContractionHierarchies) computeInitialNodeOrdering(givenNodeOrder []int, oo OrderOptions) *NodeOrder {
+func (ch *ContractionHierarchies) computeInitialNodeOrder(givenNodeOrder []int, oo OrderOptions) *NodeOrder {
 	var pq *NodeOrder
 	if givenNodeOrder != nil {
 		order := make(NodeOrder, ch.g.NodeCount())
 		for i := 0; i < ch.g.NodeCount(); i++ {
 			order[i] = NewOrderItem(givenNodeOrder[i])
-			order[i].edgeDifference = i
+			order[i].edgeDifference = i // needed?
 		}
 		pq = &order
 		heap.Init(pq)
@@ -183,25 +186,24 @@ func (ch *ContractionHierarchies) contractNodes(order *NodeOrder, oo OrderOption
 	intermediateUpdates := 0
 	for order.Len() > 0 {
 		pqItem := heap.Pop(order).(*OrderItem)
-		addedShortcuts, edges, currentProcessedNeighbors := ch.contractNode(pqItem.nodeId, true)
-		currentEdgeDifference := addedShortcuts - edges
+		neededShortcuts, edges, processedNeighbors := ch.contractNode(pqItem.nodeId, true)
+		edgeDifference := neededShortcuts - edges
 		if !oo.ConsiderEdgeDifference() {
-			currentEdgeDifference = 0
+			edgeDifference = 0
 		}
 		if !oo.ConsiderProcessedNeighbors() {
-			currentProcessedNeighbors = 0
+			processedNeighbors = 0
 		}
-		if !oo.IsDynamic() || order.Len() == 0 || currentEdgeDifference+currentProcessedNeighbors <= order.Peek().(*OrderItem).Priority() {
+		if !oo.IsDynamic() || order.Len() == 0 || edgeDifference+processedNeighbors <= order.Peek().(*OrderItem).Priority() {
 			// always stick to initially computed order or this is still the smallest edge difference
-			//fmt.Printf("Pos %6v: Contract Node %6v, heap length: %6v, intermediate updates: %6v\n", position, pqItem.nodeId, initialOrder.Len(), intermediateUpdates)
-			if /*position > 0 && */ ch.orderOfNode[pqItem.nodeId] > 0 {
+			if ch.orderOfNode[pqItem.nodeId] >= 0 {
 				panic("Node was already ordered?")
 			}
 			ch.orderOfNode[pqItem.nodeId] = level
 			ch.nodeOrdering[level] = pqItem.nodeId
 			ch.contractNode(pqItem.nodeId, false)
 			if ch.debugLevel >= 1 {
-				fmt.Printf("Level %6v - Contract Node %6v, heap: %6v, sc: %3v, edges: %3v, ed: %3v pn: %3v, prio: %3v, updates: %6v\n", level, pqItem.nodeId, order.Len(), addedShortcuts, edges, currentEdgeDifference, currentProcessedNeighbors, currentEdgeDifference+currentProcessedNeighbors, intermediateUpdates)
+				fmt.Printf("Level %6v - Contract Node %6v, heap: %6v, sc: %3v, edges: %3v, ed: %3v pn: %3v, prio: %3v, updates: %6v\n", level, pqItem.nodeId, order.Len(), neededShortcuts, edges, edgeDifference, processedNeighbors, edgeDifference+processedNeighbors, intermediateUpdates)
 			}
 			intermediateUpdates = 0
 			level++
@@ -210,10 +212,10 @@ func (ch *ContractionHierarchies) contractNodes(order *NodeOrder, oo OrderOption
 				fmt.Printf("Update order\n")
 			}
 			if oo.ConsiderEdgeDifference() {
-				pqItem.edgeDifference = currentEdgeDifference
+				pqItem.edgeDifference = edgeDifference
 			}
 			if oo.ConsiderProcessedNeighbors() {
-				pqItem.processedNeighbors = currentProcessedNeighbors
+				pqItem.processedNeighbors = processedNeighbors
 			}
 			heap.Push(order, pqItem)
 			intermediateUpdates++
@@ -241,22 +243,19 @@ func (ch *ContractionHierarchies) contractNode(nodeId graph.NodeId, computeEdgeD
 	if ch.debugLevel == 2 && !computeEdgeDifferenceOnly {
 		fmt.Printf("Contract Node %v\n", nodeId)
 	}
-	shortcutsForNode := 0
+	shortcuts := 0
 	contractedNeighbors := 0
 	arcs := ch.g.GetArcsFrom(nodeId)
-	incidentArcs := len(arcs)
+	incidentArcsAmount := len(arcs)
 	if ch.debugLevel == 2 && !computeEdgeDifferenceOnly {
-		fmt.Printf("Incident arcs %v\n", incidentArcs)
+		fmt.Printf("Incident arcs %v\n", incidentArcsAmount)
 	}
 	ch.disableArcsForNode(nodeId)
 	runtime := 0
 	computations := 0
 	for _, arc := range arcs {
 		source := arc.Destination()
-		if ch.isNodeAlreadyProcessed(source) {
-			// if the position/order of the (current) nodeId is 0, no other node can be processed
-			// if the other node has already an entry in the order, this was already processed
-			// ch.orderOfNode[nodeId] != 0 && ch.orderOfNode[source] != 0 --> wrong, if source was processed at first
+		if ch.isNodeContracted(source) {
 			if ch.debugLevel == 2 && !computeEdgeDifferenceOnly {
 				fmt.Printf("source %v already processed\n", source)
 			}
@@ -269,10 +268,7 @@ func (ch *ContractionHierarchies) contractNode(nodeId graph.NodeId, computeEdgeD
 				// no need to process this path
 				continue
 			}
-			if ch.isNodeAlreadyProcessed(target) {
-				// if the position/order of the (current) nodeId is 0, no other node can be processed
-				// if the other node has already an entry in the order, this was already processed
-				// ch.orderOfNode[nodeId] != 0 && ch.orderOfNode[target] != 0 --> wrong, if target was processed at first
+			if ch.isNodeContracted(target) {
 				if ch.debugLevel == 2 && !computeEdgeDifferenceOnly {
 					fmt.Printf("target %v already processed\n", target)
 				}
@@ -296,7 +292,7 @@ func (ch *ContractionHierarchies) contractNode(nodeId graph.NodeId, computeEdgeD
 			if length == -1 || length > maxCost {
 				// add shortcut, since the path via this node is the fastest
 				// without this node, the target is either not reachable or the path is longer
-				shortcutsForNode++
+				shortcuts++
 				if !computeEdgeDifferenceOnly {
 					ch.addShortcut(source, target, nodeId, maxCost)
 				}
@@ -308,11 +304,11 @@ func (ch *ContractionHierarchies) contractNode(nodeId graph.NodeId, computeEdgeD
 		// reset temporarily disabled arcs
 		ch.enableArcsForNode(nodeId)
 	} else {
-		_, exists := ch.addedShortcuts[shortcutsForNode]
+		_, exists := ch.addedShortcuts[shortcuts]
 		if !exists {
-			ch.addedShortcuts[shortcutsForNode] = 1
+			ch.addedShortcuts[shortcuts] = 1
 		} else {
-			ch.addedShortcuts[shortcutsForNode]++
+			ch.addedShortcuts[shortcuts]++
 		}
 	}
 
@@ -321,13 +317,13 @@ func (ch *ContractionHierarchies) contractNode(nodeId graph.NodeId, computeEdgeD
 	}
 
 	// Fix incident arcs: Remove number of already contracted neighbors
-	incidentArcs -= contractedNeighbors
+	incidentArcsAmount -= contractedNeighbors
 
 	if ch.debugLevel == 2 && !computeEdgeDifferenceOnly {
-		fmt.Printf("Added Shortcuts: %v, incident Arcs: %v, contractedNeighbors: %v\n", shortcutsForNode/2, incidentArcs, contractedNeighbors)
+		fmt.Printf("Added Shortcuts: %v, incident Arcs: %v, contractedNeighbors: %v\n", shortcuts/2, incidentArcsAmount, contractedNeighbors)
 	}
 	// number of shortcuts is doubled, since we have two arcs for each each (because symmetric graph)
-	return shortcutsForNode, incidentArcs, contractedNeighbors
+	return shortcuts, incidentArcsAmount, contractedNeighbors
 }
 
 func (ch *ContractionHierarchies) addShortcut(source, target, via graph.NodeId, cost int) {
@@ -366,7 +362,7 @@ func (ch *ContractionHierarchies) disableArcsForNode(nodeId graph.NodeId) {
 	}
 }
 
-func (ch *ContractionHierarchies) disableArcsAccordingToNodeOrder() {
+func (ch *ContractionHierarchies) matchArcsWithNodeOrder() {
 	for source := range ch.g.GetNodes() {
 		for _, arc := range ch.g.GetArcsFrom(source) {
 			target := arc.Destination()
@@ -375,26 +371,10 @@ func (ch *ContractionHierarchies) disableArcsAccordingToNodeOrder() {
 	}
 }
 
-func (ch *ContractionHierarchies) isNodeAlreadyProcessed(nodeId graph.NodeId) bool {
-	// check whether the arcs of the node are already disabled
-	// TODO: other options: check if the nodeId is on a lower position in the nodeOrdering array than the node which gets contracted
-	arcs := ch.g.GetArcsFrom(nodeId)
-	if len(arcs) == 0 || !arcs[0].ArcFlag() {
-		// this node has no arcs
-		// or the arc flag of (at least) one arc is already set to false
-		return true
-		// this check should be faster than iterating over all arcs
-		// if one arc is modified, the whole node was processed
-	}
-	return false
-	/*
-		for _, arc := range ch.g.GetArcsFrom(nodeId) {
-			if !arc.ArcFlag() {
-				return true
-			}
-		}
-		return false
-	*/
+func (ch *ContractionHierarchies) isNodeContracted(node graph.NodeId) bool {
+	// orderOfNode gets initialized with -1
+	// if the entry is greater than that, there was already a level assigned
+	return ch.orderOfNode[node] >= 0
 }
 
 func (ch *ContractionHierarchies) SetShortcuts(shortcuts []Shortcut) {
