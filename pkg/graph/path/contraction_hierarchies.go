@@ -368,7 +368,7 @@ func (ch *ContractionHierarchies) GetPath(origin, destination graph.NodeId) []in
 	return path
 }
 
-func (ch *ContractionHierarchies) GetSearchSpace() []graph.Node {
+func (ch *ContractionHierarchies) GetSearchSpace() []*DijkstraItem {
 	return ch.dijkstra.GetSearchSpace()
 }
 
