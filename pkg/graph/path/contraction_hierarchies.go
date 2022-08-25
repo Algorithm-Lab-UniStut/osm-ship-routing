@@ -81,8 +81,8 @@ func (ch *ContractionHierarchies) GetShortcuts() []Shortcut {
 func (ch *ContractionHierarchies) SetNodeOrdering(nodeOrdering []int) {
 	ch.nodeOrdering = nodeOrdering
 	ch.orderOfNode = make([]int, len(nodeOrdering))
-	for i, v := range nodeOrdering {
-		ch.orderOfNode[v] = i
+	for i, nodeId := range nodeOrdering {
+		ch.orderOfNode[nodeId] = i
 	}
 }
 
