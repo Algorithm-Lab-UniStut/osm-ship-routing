@@ -130,10 +130,6 @@ func (ch *ContractionHierarchies) ComputeInitialNodeOrdering(givenNodeOrder []in
 }
 
 func (ch *ContractionHierarchies) ContractNode(nodeId graph.NodeId, computeEdgeDifferenceOnly bool) (int, int) {
-	g, ok := ch.g.(graph.DynamicGraph)
-	if !ok {
-		panic("Adding edge not possible, Make sure to provide an dynamic graph")
-	}
 	if ch.debugLevel == 1 {
 		fmt.Printf("Contract Node %v\n", nodeId)
 	}
@@ -145,7 +141,6 @@ func (ch *ContractionHierarchies) ContractNode(nodeId graph.NodeId, computeEdgeD
 		fmt.Printf("Incident arcs %v\n", incidentArcs)
 	}
 	ch.disableArcsForNode(nodeId)
-	//ch.dijkstra.SetConsiderArcFlags(true)
 	for _, arc := range arcs {
 		source := arc.Destination()
 		if ch.isNodeAlreadyProcessed(source) {
@@ -188,20 +183,7 @@ func (ch *ContractionHierarchies) ContractNode(nodeId graph.NodeId, computeEdgeD
 				// without this node, the target is either not reachable or the path is longer
 				shortcutsForNode++
 				if !computeEdgeDifferenceOnly {
-					shortcut := graph.NewEdge(target, source, maxCost)
-					g.AddEdge(*shortcut)
-					sc := Shortcut{source: source, target: target, via: nodeId}
-					ch.shortcuts = append(ch.shortcuts, sc)
-					// maybe this map is not so a good idea
-					/*
-						if ch.shortcutMap[source] == nil {
-							ch.shortcutMap[source] = make(map[graph.NodeId]graph.NodeId)
-						}
-						ch.shortcutMap[source][target] = nodeId
-					*/
-					if ch.debugLevel == 1 {
-						fmt.Printf("Add shortcut %v %v %v %v\n", source, target, nodeId, maxCost)
-					}
+					ch.AddShortcut(source, target, nodeId, maxCost)
 				}
 			}
 
@@ -224,6 +206,28 @@ func (ch *ContractionHierarchies) ContractNode(nodeId graph.NodeId, computeEdgeD
 	}
 	// number of shortcuts is doubled, since we have two arcs for each each (because symmetric graph)
 	return shortcutsForNode/2 - incidentArcs, contractedNeighbors
+}
+
+func (ch *ContractionHierarchies) AddShortcut(source, target, via graph.NodeId, cost int) {
+	// TODO maybe convert this one time at the start to improve performance
+	g, ok := ch.g.(graph.DynamicGraph)
+	if !ok {
+		panic("Adding edge not possible, Make sure to provide an dynamic graph")
+	}
+	shortcut := graph.NewEdge(target, source, cost)
+	g.AddEdge(*shortcut)
+	sc := Shortcut{source: source, target: target, via: via}
+	ch.shortcuts = append(ch.shortcuts, sc)
+	// maybe this map is not so a good idea
+	/*
+		if ch.shortcutMap[source] == nil {
+			ch.shortcutMap[source] = make(map[graph.NodeId]graph.NodeId)
+		}
+		ch.shortcutMap[source][target] = nodeId
+	*/
+	if ch.debugLevel == 1 {
+		fmt.Printf("Add shortcut %v %v %v %v\n", source, target, via, cost)
+	}
 }
 
 func (ch *ContractionHierarchies) ContractNodes(order *NodeOrder, oo OrderOptions) {
