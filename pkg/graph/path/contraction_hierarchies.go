@@ -78,58 +78,8 @@ func (ch *ContractionHierarchies) GetShortcuts() []Shortcut {
 	*/
 }
 
-func ReadShortcutFile(filename string) []Shortcut {
-	file, err := os.ReadFile(filename)
-	if err != nil {
-		log.Fatal(err)
-	}
-	return ConvertToShortcuts(string(file))
-}
-
-func ConvertToShortcuts(shortcutsString string) []Shortcut {
-	scanner := bufio.NewScanner(strings.NewReader(shortcutsString))
-
-	shortcuts := make([]Shortcut, 0)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if len(line) < 1 || line[0] == '#' {
-			// skip empty lines and comments
-			continue
-		}
-		var source, target, via graph.NodeId
-		fmt.Scanf(line, "%d %d %d", source, target, via)
-		shortcuts = append(shortcuts, Shortcut{source: source, target: target, via: via})
-	}
-	return shortcuts
-}
-
 func (ch *ContractionHierarchies) SetNodeOrdering(nodeOrdering []int) {
 	ch.nodeOrdering = nodeOrdering
-}
-
-func ReadNodeOrderingFile(filename string) []int {
-	file, err := os.ReadFile(filename)
-	if err != nil {
-		log.Fatal(err)
-	}
-	return ConvertToNodeOrdering(string(file))
-}
-
-func ConvertToNodeOrdering(nodeOrderingString string) []int {
-	scanner := bufio.NewScanner(strings.NewReader(nodeOrderingString))
-
-	nodeOrdering := make([]int, 0)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if len(line) < 1 || line[0] == '#' {
-			// skip empty lines and comments
-			continue
-		}
-		var nodeId graph.NodeId
-		fmt.Scanf(line, "%d", nodeId)
-		nodeOrdering = append(nodeOrdering, nodeId)
-	}
-	return nodeOrdering
 }
 
 func (ch *ContractionHierarchies) ComputeInitialNodeOrdering(givenNodeOrder []int, oo OrderOptions) *NodeOrder {
@@ -520,4 +470,54 @@ func (ch *ContractionHierarchies) WriteContractionResult() {
 
 func (ch *ContractionHierarchies) SetDebugLevel(level int) {
 	ch.debugLevel = level
+}
+
+func ReadShortcutFile(filename string) []Shortcut {
+	file, err := os.ReadFile(filename)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return ConvertToShortcuts(string(file))
+}
+
+func ConvertToShortcuts(shortcutsString string) []Shortcut {
+	scanner := bufio.NewScanner(strings.NewReader(shortcutsString))
+
+	shortcuts := make([]Shortcut, 0)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if len(line) < 1 || line[0] == '#' {
+			// skip empty lines and comments
+			continue
+		}
+		var source, target, via graph.NodeId
+		fmt.Scanf(line, "%d %d %d", source, target, via)
+		shortcuts = append(shortcuts, Shortcut{source: source, target: target, via: via})
+	}
+	return shortcuts
+}
+
+func ReadNodeOrderingFile(filename string) []int {
+	file, err := os.ReadFile(filename)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return ConvertToNodeOrdering(string(file))
+}
+
+func ConvertToNodeOrdering(nodeOrderingString string) []int {
+	scanner := bufio.NewScanner(strings.NewReader(nodeOrderingString))
+
+	nodeOrdering := make([]int, 0)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if len(line) < 1 || line[0] == '#' {
+			// skip empty lines and comments
+			continue
+		}
+		var nodeId graph.NodeId
+		fmt.Scanf(line, "%d", nodeId)
+		nodeOrdering = append(nodeOrdering, nodeId)
+	}
+	return nodeOrdering
 }
