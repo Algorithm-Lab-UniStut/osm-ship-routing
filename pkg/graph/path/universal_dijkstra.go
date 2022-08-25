@@ -83,59 +83,6 @@ func (d *UniversalDijkstra) SettleNode(node *DijkstraItem) {
 	visitedNodes[node.NodeId] = true
 }
 
-func (d *UniversalDijkstra) RelaxEdges(node *DijkstraItem, pq *MinPath) {
-	if d.debugLevel >= 1 {
-		fmt.Printf("Relax Edges for node %v\n", node.NodeId)
-	}
-	for _, arc := range d.g.GetArcsFrom(node.NodeId) {
-		if d.considerArcFlags && !arc.ArcFlag() {
-			// ignore this arc
-			continue
-		}
-
-		if d.debugLevel >= 1 {
-			fmt.Printf("Relax Edge %v -> %v", node.NodeId, arc.Destination())
-		}
-		successor := arc.Destination()
-		searchSpace, inverseSearchSpace := d.searchSpace, d.backwardSearchSpace
-		if node.searchDirection == BACKWARD {
-			searchSpace, inverseSearchSpace = d.backwardSearchSpace, d.searchSpace
-		}
-		if d.bidirectional && inverseSearchSpace[successor] != nil {
-			// store potential connection node, needed for later
-			// this is a "real" copy, not just a pointer since it get changed now
-			connection := inverseSearchSpace[successor]
-			connectionPredecessor := node.NodeId
-			connectionSuccessor := connection.predecessor
-			var con *BidirectionalConnection
-			if node.searchDirection == FORWARD {
-				con = NewBidirectionalConnection(connection.NodeId, connectionPredecessor, connectionSuccessor, node.distance+arc.Cost()+connection.distance)
-			} else {
-				con = NewBidirectionalConnection(connection.NodeId, connectionSuccessor, connectionPredecessor, node.distance+arc.Cost()+connection.distance)
-			}
-			if d.bidirectionalConnection == nil || con.distance < d.bidirectionalConnection.distance {
-				d.bidirectionalConnection = con
-			}
-		}
-		if searchSpace[successor] == nil {
-			cost := node.distance + arc.Cost()
-			heuristic := 0
-			if d.useHeuristic {
-				heuristic = d.g.EstimateDistance(successor, d.destination)
-			}
-			nextNode := NewDijkstraItem(successor, cost, node.NodeId, heuristic, node.searchDirection)
-			searchSpace[successor] = nextNode
-			heap.Push(pq, nextNode)
-		} else {
-			if updatedPriority := node.distance + arc.Cost() + searchSpace[successor].heuristic; updatedPriority < searchSpace[successor].Priority() {
-				pq.update(searchSpace[successor], node.distance+arc.Cost())
-				searchSpace[successor].predecessor = node.NodeId
-				//searchSpace[successor].searchDirection = node.searchDirection
-			}
-		}
-	}
-}
-
 func (d *UniversalDijkstra) IsFullSettled(nodeId graph.NodeId) bool {
 	visited := d.visitedNodes[nodeId]
 	backwardVisited := d.backwardVisitedNodes[nodeId]
@@ -230,12 +177,57 @@ func (dijkstra *UniversalDijkstra) ComputeShortestPath(origin, destination graph
 	return length
 }
 
-func (dijkstra *UniversalDijkstra) SetUseHeuristic(useHeuristic bool) {
-	dijkstra.useHeuristic = useHeuristic
-}
+func (d *UniversalDijkstra) RelaxEdges(node *DijkstraItem, pq *MinPath) {
+	if d.debugLevel >= 1 {
+		fmt.Printf("Relax Edges for node %v\n", node.NodeId)
+	}
+	for _, arc := range d.g.GetArcsFrom(node.NodeId) {
+		if d.considerArcFlags && !arc.ArcFlag() {
+			// ignore this arc
+			continue
+		}
 
-func (dijkstra *UniversalDijkstra) SetBidirectional(bidirectional bool) {
-	dijkstra.bidirectional = bidirectional
+		if d.debugLevel >= 1 {
+			fmt.Printf("Relax Edge %v -> %v", node.NodeId, arc.Destination())
+		}
+		successor := arc.Destination()
+		searchSpace, inverseSearchSpace := d.searchSpace, d.backwardSearchSpace
+		if node.searchDirection == BACKWARD {
+			searchSpace, inverseSearchSpace = d.backwardSearchSpace, d.searchSpace
+		}
+		if d.bidirectional && inverseSearchSpace[successor] != nil {
+			// store potential connection node, needed for later
+			// this is a "real" copy, not just a pointer since it get changed now
+			connection := inverseSearchSpace[successor]
+			connectionPredecessor := node.NodeId
+			connectionSuccessor := connection.predecessor
+			var con *BidirectionalConnection
+			if node.searchDirection == FORWARD {
+				con = NewBidirectionalConnection(connection.NodeId, connectionPredecessor, connectionSuccessor, node.distance+arc.Cost()+connection.distance)
+			} else {
+				con = NewBidirectionalConnection(connection.NodeId, connectionSuccessor, connectionPredecessor, node.distance+arc.Cost()+connection.distance)
+			}
+			if d.bidirectionalConnection == nil || con.distance < d.bidirectionalConnection.distance {
+				d.bidirectionalConnection = con
+			}
+		}
+		if searchSpace[successor] == nil {
+			cost := node.distance + arc.Cost()
+			heuristic := 0
+			if d.useHeuristic {
+				heuristic = d.g.EstimateDistance(successor, d.destination)
+			}
+			nextNode := NewDijkstraItem(successor, cost, node.NodeId, heuristic, node.searchDirection)
+			searchSpace[successor] = nextNode
+			heap.Push(pq, nextNode)
+		} else {
+			if updatedPriority := node.distance + arc.Cost() + searchSpace[successor].heuristic; updatedPriority < searchSpace[successor].Priority() {
+				pq.update(searchSpace[successor], node.distance+arc.Cost())
+				searchSpace[successor].predecessor = node.NodeId
+				//searchSpace[successor].searchDirection = node.searchDirection
+			}
+		}
+	}
 }
 
 func (dijkstra *UniversalDijkstra) GetPath(origin, destination int) []int {
@@ -248,32 +240,27 @@ func (dijkstra *UniversalDijkstra) GetPath(origin, destination int) []int {
 		// no path found
 		return make([]int, 0)
 	}
-	path := dijkstra.extractComputedPath(origin, destination)
-
-	return path
-}
-
-func (d *UniversalDijkstra) extractComputedPath(origin, destination int) []int {
 	path := make([]int, 0)
-	if d.bidirectional {
-		if d.debugLevel >= 1 {
-			fmt.Printf("con: %v, pre: %v, suc: %v\n", d.bidirectionalConnection.nodeId, d.bidirectionalConnection.predecessor, d.bidirectionalConnection.successor)
+	if dijkstra.bidirectional {
+		if dijkstra.debugLevel >= 1 {
+			fmt.Printf("con: %v, pre: %v, suc: %v\n", dijkstra.bidirectionalConnection.nodeId, dijkstra.bidirectionalConnection.predecessor, dijkstra.bidirectionalConnection.successor)
 		}
-		for nodeId := d.bidirectionalConnection.predecessor; nodeId != -1; nodeId = d.searchSpace[nodeId].predecessor {
+		for nodeId := dijkstra.bidirectionalConnection.predecessor; nodeId != -1; nodeId = dijkstra.searchSpace[nodeId].predecessor {
 			path = append(path, nodeId)
 		}
 		slice.ReverseIntInPlace(path)
-		path = append(path, d.bidirectionalConnection.nodeId)
-		for nodeId := d.bidirectionalConnection.successor; nodeId != -1; nodeId = d.backwardSearchSpace[nodeId].predecessor {
+		path = append(path, dijkstra.bidirectionalConnection.nodeId)
+		for nodeId := dijkstra.bidirectionalConnection.successor; nodeId != -1; nodeId = dijkstra.backwardSearchSpace[nodeId].predecessor {
 			path = append(path, nodeId)
 		}
 	} else {
-		for nodeId := destination; nodeId != -1; nodeId = d.searchSpace[nodeId].predecessor {
+		for nodeId := destination; nodeId != -1; nodeId = dijkstra.searchSpace[nodeId].predecessor {
 			path = append(path, nodeId)
 		}
 		// reverse path (to create the correct direction)
 		slice.ReverseIntInPlace(path)
 	}
+
 	return path
 }
 
@@ -289,6 +276,14 @@ func (d *UniversalDijkstra) GetSearchSpace() []*DijkstraItem {
 		i++
 	}
 	return searchSpace
+}
+
+func (dijkstra *UniversalDijkstra) SetUseHeuristic(useHeuristic bool) {
+	dijkstra.useHeuristic = useHeuristic
+}
+
+func (dijkstra *UniversalDijkstra) SetBidirectional(bidirectional bool) {
+	dijkstra.bidirectional = bidirectional
 }
 
 func (d *UniversalDijkstra) SetConsiderArcFlags(considerArcFlags bool) {
