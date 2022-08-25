@@ -64,7 +64,12 @@ func (d *UniversalDijkstra) InitializeSearch(origin, destination graph.NodeId) {
 func (d *UniversalDijkstra) SettleNode(node *DijkstraItem) {
 	d.searchSpace[node.nodeId] = node
 	//d.distances[node.nodeId] = node.distance
-	d.visitedNodes = append(d.visitedNodes, node.nodeId)
+	if !slice.Contains(d.visitedNodes, node.nodeId) {
+		// would be good if finding a better way here (not iterating over the whole slice)
+		// maybe make visitedNodes a Set (implemented with a map)
+		d.visitedNodes = append(d.visitedNodes, node.nodeId)
+
+	}
 }
 
 func (d *UniversalDijkstra) RelaxEdges(node *DijkstraItem, pq *MinPath) {
