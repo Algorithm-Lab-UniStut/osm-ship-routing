@@ -62,7 +62,7 @@ func (dijkstra *UniversalDijkstra) ComputeShortestPath(origin, destination graph
 
 	// for bidirectional algorithm
 	if dijkstra.bidirectional {
-		destinationItem := NewDijkstraItem(destination, 0, -1, heuristic, BACKWARD)
+		destinationItem := NewDijkstraItem(destination, 0, -1, 0, BACKWARD)
 		heap.Push(pq, destinationItem)
 		// Initialize
 		dijkstra.settleNode(destinationItem)
@@ -272,7 +272,6 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem, pq *MinPath) {
 			if updatedPriority := node.distance + arc.Cost() + searchSpace[successor].heuristic; updatedPriority < searchSpace[successor].Priority() {
 				pq.update(searchSpace[successor], node.distance+arc.Cost())
 				searchSpace[successor].predecessor = node.NodeId
-				//searchSpace[successor].searchDirection = node.searchDirection
 			}
 		}
 	}
