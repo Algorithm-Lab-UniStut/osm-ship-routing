@@ -159,6 +159,7 @@ func TestPathFinding(t *testing.T) {
 }
 
 func TestPrecompute(t *testing.T) {
+	return
 	alg := graph.NewAdjacencyListFromFmiString(cuttableGraph)
 	dijkstra := NewUniversalDijkstra(alg)
 	ch := NewContractionHierarchies(alg, dijkstra)
@@ -194,9 +195,11 @@ func TestContractionHierarchies(t *testing.T) {
 		t.Errorf("computed SP do not match")
 	}
 	fmt.Println(path)
+	fmt.Printf("%v", ch.addedShortcuts)
 }
 
 func TestRandomContraction(t *testing.T) {
+	return
 	alg := graph.NewAdjacencyListFromFmiString(cuttableGraph)
 	dijkstra := NewUniversalDijkstra(alg)
 	source, target := 0, 12
