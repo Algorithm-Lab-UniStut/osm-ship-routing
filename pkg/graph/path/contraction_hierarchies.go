@@ -54,7 +54,7 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 	ch.dijkstra.SetBidirectional(false)
 	ch.dijkstra.SetUseHeuristic(false)
 	// maybe test without maxNumSettledNodes
-	ch.dijkstra.SetMaxNumSettledNodes(100)
+	ch.dijkstra.SetMaxNumSettledNodes(20)
 	ch.addedShortcuts = make(map[int]int)
 	//ch.shortcutMap = make(map[graph.NodeId]map[graph.NodeId]graph.NodeId)
 	ch.shortcuts = make([]Shortcut, 0)
@@ -332,8 +332,7 @@ func (ch *ContractionHierarchies) addShortcut(source, target, via graph.NodeId, 
 	if !ok {
 		panic("Adding edge not possible, Make sure to provide an dynamic graph")
 	}
-	shortcut := graph.NewEdge(target, source, cost)
-	g.AddEdge(*shortcut)
+	g.AddArc(source, target, cost)
 	sc := Shortcut{source: source, target: target, via: via}
 	ch.shortcuts = append(ch.shortcuts, sc)
 	// maybe this map is not so a good idea

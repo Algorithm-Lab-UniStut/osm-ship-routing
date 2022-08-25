@@ -56,7 +56,7 @@ func TestPlainDijkstra(t *testing.T) {
 	path := d.GetPath(0, 9)
 	fmt.Printf("length: %v\n", length)
 	fmt.Printf("Path: %v\n", path)
-	pathReference := []int{0, 1, 4, 5, 8, 9}
+	pathReference := []int{0, 1, 4, 7, 8, 9}
 	lengthReference := 5
 	if length != lengthReference {
 		t.Errorf("length is %v. Should be %v\n", length, lengthReference)

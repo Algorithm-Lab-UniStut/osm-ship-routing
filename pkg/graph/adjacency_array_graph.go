@@ -9,16 +9,14 @@ import (
 
 // Implementation for static graphs
 type AdjacencyArrayGraph struct {
-	Nodes         []Node
-	Arcs          []Arc
-	outgoingEdges []*OutgoingEdge
-	Offsets       []int
+	Nodes   []Node
+	arcs    []*Arc
+	Offsets []int
 }
 
 func NewAdjacencyArrayFromGraph(g Graph) *AdjacencyArrayGraph {
 	nodes := make([]Node, 0)
-	arcs := make([]Arc, 0)
-	outgoingEdges := make([]*OutgoingEdge, 0)
+	arcs := make([]*Arc, 0)
 	offsets := make([]int, g.NodeCount()+1, g.NodeCount()+1)
 
 	for i := 0; i < g.NodeCount(); i++ {
@@ -28,14 +26,13 @@ func NewAdjacencyArrayFromGraph(g Graph) *AdjacencyArrayGraph {
 		// add all edges of node
 		for _, arc := range g.GetArcsFrom(i) {
 			arcs = append(arcs, arc)
-			outgoingEdges = append(outgoingEdges, NewOutgoingEdge(arc.Destination(), arc.Cost(), arc.ArcFlag()))
 		}
 
 		// set stop-offset
 		offsets[i+1] = len(arcs)
 	}
 
-	aag := AdjacencyArrayGraph{Nodes: nodes, Arcs: arcs, outgoingEdges: outgoingEdges, Offsets: offsets}
+	aag := AdjacencyArrayGraph{Nodes: nodes, arcs: arcs, Offsets: offsets}
 	return &aag
 }
 
@@ -50,20 +47,14 @@ func (aag *AdjacencyArrayGraph) GetNodes() []Node {
 	return aag.Nodes
 }
 
-func (aag *AdjacencyArrayGraph) GetArcsFrom(id NodeId) []Arc {
+func (aag *AdjacencyArrayGraph) GetArcsFrom(id NodeId) []*Arc {
 	if id < 0 || id >= aag.NodeCount() {
 		panic(fmt.Sprintf("NodeId %d is not contained in the graph.", id))
 	}
-	arcs := make([]Arc, 0)
+	arcs := make([]*Arc, 0)
 	for i := aag.Offsets[id]; i < aag.Offsets[id+1]; i++ {
-		arcs = append(arcs, aag.outgoingEdges[i])
+		arcs = append(arcs, aag.arcs[i])
 	}
-	/*
-		arcs := make([]Arc, 0)
-		for i := aag.Offsets[id]; i < aag.Offsets[id+1]; i++ {
-			arcs = append(arcs, aag.Arcs[i])
-		}
-	*/
 	return arcs
 }
 
@@ -79,7 +70,7 @@ func (aag *AdjacencyArrayGraph) EdgeCount() int {
 */
 
 func (aag *AdjacencyArrayGraph) ArcCount() int {
-	return len(aag.Arcs)
+	return len(aag.arcs)
 }
 
 func (aag *AdjacencyArrayGraph) AsString() string {

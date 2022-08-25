@@ -71,7 +71,7 @@ func NewAdjacencyListFromFmiString(fmi string) *AdjacencyListGraph {
 		case PARSE_EDGES:
 			var from, to, distance int
 			fmt.Sscanf(line, "%d %d %d", &from, &to, &distance)
-			edge := NewEdge(id2index[to], id2index[from], distance)
+			edge := NewEdge(id2index[from], id2index[to], distance, true)
 			alg.AddEdge(*edge)
 		}
 	}

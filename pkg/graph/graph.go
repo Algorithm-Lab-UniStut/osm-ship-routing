@@ -7,23 +7,13 @@ import (
 
 type NodeId = int
 
-type Arc interface {
-	Destination() NodeId
-	Cost() int
-	ArcFlag() bool
-	SetArcFlag(flag bool)
-}
-
 type Graph interface {
 	GetNode(id NodeId) Node
 	GetNodes() []Node
-	//GetEdgesFrom(id NodeId) []Edge
-	GetArcsFrom(id NodeId) []Arc
+	GetArcsFrom(id NodeId) []*Arc
 	NodeCount() int
-	//EdgeCount() int
 	ArcCount() int
 	AsString() string
-	// ReduceToLargestConnectedComponent() Graph -> why is this needed?
 	EstimateDistance(source, target NodeId) int
 	SetArcFlags(nodeId NodeId, flag bool)
 	EnableAllArcs()
@@ -33,6 +23,7 @@ type DynamicGraph interface {
 	Graph
 	AddNode(n Node)
 	AddEdge(edge Edge)
+	AddArc(from, to NodeId, distance int)
 }
 
 type Node struct {
@@ -49,24 +40,31 @@ type Edge struct {
 	arcFlag  bool
 }
 
-type OutgoingEdge struct {
+type Arc struct {
 	To       NodeId
 	Distance int
 	arcFlag  bool
 }
 
-type OutgoingEdges = []OutgoingEdge
+type Arcs = []Arc
 
 func NewNode(lon float64, lat float64) *Node {
 	return &Node{Lon: lon, Lat: lat}
 }
 
-func NewEdge(to NodeId, from NodeId, distance int) *Edge {
-	return &Edge{To: to, From: from, Distance: distance, arcFlag: true}
+func NewEdge(to, from NodeId, distance int, arcFlag bool) *Edge {
+	return &Edge{To: to, From: from, Distance: distance, arcFlag: arcFlag}
+}
+func MakeEdge(from, to NodeId, distance int, arcFlag bool) Edge {
+	return Edge{To: to, From: from, Distance: distance, arcFlag: arcFlag}
 }
 
-func NewOutgoingEdge(to NodeId, distance int, arcFlag bool) *OutgoingEdge {
-	return &OutgoingEdge{To: to, Distance: distance, arcFlag: arcFlag}
+func NewArc(to NodeId, distance int, arcFlag bool) *Arc {
+	return &Arc{To: to, Distance: distance, arcFlag: arcFlag}
+}
+
+func MakeArc(to NodeId, distance int, arcFlag bool) Arc {
+	return Arc{To: to, Distance: distance, arcFlag: arcFlag}
 }
 
 func (e Edge) Destination() NodeId {
@@ -81,8 +79,8 @@ func (e Edge) Invert() Edge {
 	return Edge{From: e.To, To: e.From, Distance: e.Distance}
 }
 
-func (e Edge) toOutgoingEdge() *OutgoingEdge {
-	return NewOutgoingEdge(e.To, e.Distance, e.ArcFlag()) //OutgoingEdge{To: e.To, Distance: e.Distance, arcFlag: e.ArcFlag()}
+func (e Edge) toArc() *Arc {
+	return NewArc(e.To, e.Distance, e.ArcFlag())
 }
 
 func (e Edge) ArcFlag() bool {
@@ -93,21 +91,21 @@ func (e *Edge) SetArcFlag(flag bool) {
 	e.arcFlag = flag
 }
 
-func (oe OutgoingEdge) toEdge(from NodeId) Edge {
-	return Edge{From: from, To: oe.To, Distance: oe.Distance, arcFlag: oe.ArcFlag()}
+func (a Arc) toEdge(from NodeId) *Edge {
+	return NewEdge(from, a.To, a.Distance, a.ArcFlag())
 }
 
-func (oe OutgoingEdge) Destination() NodeId {
-	return oe.To
+func (a Arc) Destination() NodeId {
+	return a.To
 }
 
-func (oe OutgoingEdge) Cost() int {
-	return oe.Distance
+func (a Arc) Cost() int {
+	return a.Distance
 }
 
-func (oe OutgoingEdge) ArcFlag() bool { return oe.arcFlag }
+func (a Arc) ArcFlag() bool { return a.arcFlag }
 
-func (oe *OutgoingEdge) SetArcFlag(flag bool) { oe.arcFlag = flag }
+func (a *Arc) SetArcFlag(flag bool) { a.arcFlag = flag }
 
 func GraphAsString(g Graph) string {
 	var sb strings.Builder

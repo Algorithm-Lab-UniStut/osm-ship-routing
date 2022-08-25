@@ -12,7 +12,7 @@ import (
 // Implementation for dynamic graphs
 type AdjacencyListGraph struct {
 	Nodes     []Node
-	Edges     [][]*OutgoingEdge // TODO: use interface Arc
+	Edges     [][]*Arc
 	edgeCount int
 }
 
@@ -27,11 +27,11 @@ func (alg *AdjacencyListGraph) GetNodes() []Node {
 	return alg.Nodes
 }
 
-func (alg *AdjacencyListGraph) GetArcsFrom(id NodeId) []Arc {
+func (alg *AdjacencyListGraph) GetArcsFrom(id NodeId) []*Arc {
 	if id < 0 || id >= alg.NodeCount() {
 		panic(id)
 	}
-	arcs := make([]Arc, 0)
+	arcs := make([]*Arc, 0)
 	for _, arc := range alg.Edges[id] {
 		arcs = append(arcs, arc)
 	}
@@ -78,7 +78,7 @@ func (alg *AdjacencyListGraph) AsString() string {
 
 func (alg *AdjacencyListGraph) AddNode(n Node) {
 	alg.Nodes = append(alg.Nodes, n)
-	alg.Edges = append(alg.Edges, make([]*OutgoingEdge, 0))
+	alg.Edges = append(alg.Edges, make([]*Arc, 0))
 }
 
 func (alg *AdjacencyListGraph) AddEdge(e Edge) {
@@ -87,12 +87,26 @@ func (alg *AdjacencyListGraph) AddEdge(e Edge) {
 		panic(fmt.Sprintf("Edge out of range %v", e))
 	}
 	// Check for duplicates
-	for _, outgoingEdge := range alg.Edges[e.From] {
-		if e.To == outgoingEdge.To {
+	for _, arc := range alg.Edges[e.From] {
+		if e.To == arc.To {
 			return // ignore duplicate edges
 		}
 	}
-	alg.Edges[e.From] = append(alg.Edges[e.From], e.toOutgoingEdge())
+	alg.Edges[e.From] = append(alg.Edges[e.From], e.toArc())
+	alg.edgeCount++
+}
+
+func (alg *AdjacencyListGraph) AddArc(from, to NodeId, distance int) {
+	if from >= alg.NodeCount() || to >= alg.NodeCount() {
+		panic(fmt.Sprintf("Arc out of range %v -> %v", from, to))
+	}
+	// Check for duplicates
+	for _, arc := range alg.Edges[from] {
+		if to == arc.To {
+			return // ignore duplicate edges
+		}
+	}
+	alg.Edges[from] = append(alg.Edges[from], NewArc(to, distance, true))
 	alg.edgeCount++
 }
 
