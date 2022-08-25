@@ -1,10 +1,10 @@
 package path
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/natevvv/osm-ship-routing/pkg/graph"
+	"github.com/natevvv/osm-ship-routing/pkg/slice"
 )
 
 const cuttableGraph = `13
@@ -90,11 +90,11 @@ func TestContractGraph(t *testing.T) {
 	dijkstra := NewUniversalDijkstra(alg)
 	ch := NewContractionHierarchies(alg, dijkstra)
 	nodeOrdering := []int{0, 1, 10, 12, 7, 4, 9, 3, 6, 5, 8, 11, 2}
-	ch.debugLevel = 0
 	ch.Precompute(nodeOrdering, MakeOrderOptions())
-	fmt.Printf("node ordering: %v\n", ch.nodeOrdering)
-	fmt.Printf("shortcuts: %v\n", ch.GetShortcuts())
-	if len(ch.shortcuts)/2 != 2 {
+	if slice.CompareInt(nodeOrdering, ch.nodeOrdering) != 0 {
+		t.Errorf("node ordering was changed")
+	}
+	if len(ch.GetShortcuts())/2 != 2 {
 		t.Errorf("wrong number of nodes shortcuttet.\n")
 	}
 	zeroShortcuts, ok := ch.addedShortcuts[0]
@@ -125,12 +125,6 @@ func TestPathFinding(t *testing.T) {
 	if l != length {
 		t.Errorf("Length do not match")
 	}
-	searchSpace := ch.GetSearchSpace()
-	fmt.Println("Search space:")
-	for _, s := range searchSpace {
-		fmt.Printf("%v,", s.NodeId)
-	}
-	fmt.Println()
 	path := ch.GetPath(source, target)
 	if len(p) != len(path) || p[0] != path[0] || p[len(p)-1] != path[len(path)-1] {
 		t.Errorf("computed SP do not match")
@@ -140,18 +134,11 @@ func TestPathFinding(t *testing.T) {
 	dijkstra = NewUniversalDijkstra(alg)
 	ch = NewContractionHierarchies(alg, dijkstra)
 	nodeOrdering = []int{1, 5, 9, 4, 3, 11, 10, 6, 8, 2, 7, 0, 12}
-	//ch.SetDebugLevel(1)
 	ch.Precompute(nodeOrdering, MakeOrderOptions())
 	length = ch.ComputeShortestPath(source, target)
 	if l != length {
 		t.Errorf("Length do not match")
 	}
-	searchSpace = ch.GetSearchSpace()
-	fmt.Println("Search space:")
-	for _, s := range searchSpace {
-		fmt.Printf("%v,", s.NodeId)
-	}
-	fmt.Println()
 	path = ch.GetPath(source, target)
 	if len(p) != len(path) || p[0] != path[0] || p[len(p)-1] != path[len(path)-1] {
 		t.Errorf("computed SP do not match. Shortcuts: %v", ch.shortcuts)
@@ -159,11 +146,9 @@ func TestPathFinding(t *testing.T) {
 }
 
 func TestPrecompute(t *testing.T) {
-	return
 	alg := graph.NewAdjacencyListFromFmiString(cuttableGraph)
 	dijkstra := NewUniversalDijkstra(alg)
 	ch := NewContractionHierarchies(alg, dijkstra)
-	ch.debugLevel = 0
 	ch.Precompute(nil, MakeOrderOptions().SetDynamic(true).SetEdgeDifference(true).SetProcessedNeighbors(true))
 	//fmt.Printf("shortcuts: %v\n", len(ch.shortcuts)/2)
 	//fmt.Printf("shortcuts: %v\n", ch.shortcuts)
@@ -185,21 +170,12 @@ func TestContractionHierarchies(t *testing.T) {
 		t.Errorf("Wrong length")
 	}
 	path := ch.GetPath(source, target)
-	searchSpace := ch.GetSearchSpace()
-	fmt.Println("Search space:")
-	for _, s := range searchSpace {
-		fmt.Printf("%v,", s.NodeId)
-	}
-	fmt.Println()
 	if len(p) != len(path) || p[0] != path[0] || p[len(p)-1] != path[len(path)-1] {
 		t.Errorf("computed SP do not match")
 	}
-	fmt.Println(path)
-	fmt.Printf("%v", ch.addedShortcuts)
 }
 
 func TestRandomContraction(t *testing.T) {
-	return
 	alg := graph.NewAdjacencyListFromFmiString(cuttableGraph)
 	dijkstra := NewUniversalDijkstra(alg)
 	source, target := 0, 12
@@ -214,18 +190,18 @@ func TestRandomContraction(t *testing.T) {
 		if length != l {
 			t.Errorf("Length does not match - Is: %v. Should: %v", length, l)
 		}
-		//ch.SetDebugLevel(1)
 		path := ch.GetPath(source, target)
-		ch.SetDebugLevel(0)
-		searchSpace := ch.GetSearchSpace()
-		fmt.Println("Search space:")
-		for _, s := range searchSpace {
-			fmt.Printf("%v,", s.NodeId)
-		}
-		fmt.Println()
+		/*
+			searchSpace := ch.GetSearchSpace()
+			fmt.Println("Search space:")
+			for _, s := range searchSpace {
+				fmt.Printf("%v,", s.NodeId)
+			}
+			fmt.Println()
+		*/
 		if len(p) != len(path) || p[0] != path[0] || p[len(p)-1] != path[len(path)-1] {
 			t.Errorf("computed SP do not match. Shortcuts: %v", ch.shortcuts)
 		}
-		fmt.Println(path)
+		//fmt.Println(path)
 	}
 }
