@@ -43,35 +43,8 @@ func NewBidirectionalConnection(nodeId, predecessor, successor graph.NodeId, dis
 	return &BidirectionalConnection{nodeId: nodeId, predecessor: predecessor, successor: successor, distance: distance}
 }
 
-func (d *UniversalDijkstra) InitializeSearch(origin, destination graph.NodeId) {
-	if d.debugLevel >= 1 {
-		fmt.Printf("visited nodes: %v\n", d.visitedNodes)
-	}
-	for nodeId := range d.visitedNodes {
-		d.searchSpace[nodeId] = nil
-		for _, arc := range d.g.GetArcsFrom(nodeId) {
-			// also reset the potential other enqueued nodes
-			d.searchSpace[arc.Destination()] = nil
-		}
-	}
-	for nodeId := range d.backwardVisitedNodes {
-		d.backwardSearchSpace[nodeId] = nil
-		for _, arc := range d.g.GetArcsFrom(nodeId) {
-			// also reset the potential other enqueued nodes
-			d.backwardSearchSpace[arc.Destination()] = nil
-		}
-	}
-	d.visitedNodes = make(map[graph.NodeId]bool)
-	d.backwardVisitedNodes = make(map[graph.NodeId]bool)
-	d.origin = origin
-	d.destination = destination
-	if d.bidirectional {
-		d.bidirectionalConnection = nil
-	}
-}
-
 func (dijkstra *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId) int {
-	dijkstra.InitializeSearch(origin, destination)
+	dijkstra.initializeSearch(origin, destination)
 	if dijkstra.useHeuristic && dijkstra.bidirectional {
 		panic("AStar doesn't work bidirectional so far.")
 	}
@@ -204,6 +177,33 @@ func (d *UniversalDijkstra) GetSearchSpace() []*DijkstraItem {
 		i++
 	}
 	return searchSpace
+}
+
+func (d *UniversalDijkstra) initializeSearch(origin, destination graph.NodeId) {
+	if d.debugLevel >= 1 {
+		fmt.Printf("visited nodes: %v\n", d.visitedNodes)
+	}
+	for nodeId := range d.visitedNodes {
+		d.searchSpace[nodeId] = nil
+		for _, arc := range d.g.GetArcsFrom(nodeId) {
+			// also reset the potential other enqueued nodes
+			d.searchSpace[arc.Destination()] = nil
+		}
+	}
+	for nodeId := range d.backwardVisitedNodes {
+		d.backwardSearchSpace[nodeId] = nil
+		for _, arc := range d.g.GetArcsFrom(nodeId) {
+			// also reset the potential other enqueued nodes
+			d.backwardSearchSpace[arc.Destination()] = nil
+		}
+	}
+	d.visitedNodes = make(map[graph.NodeId]bool)
+	d.backwardVisitedNodes = make(map[graph.NodeId]bool)
+	d.origin = origin
+	d.destination = destination
+	if d.bidirectional {
+		d.bidirectionalConnection = nil
+	}
 }
 
 func (d *UniversalDijkstra) settleNode(node *DijkstraItem) {
