@@ -23,7 +23,7 @@ const (
 )
 
 type DijkstraItem struct {
-	nodeId          graph.NodeId // node id of this item in the graph
+	NodeId          graph.NodeId // node id of this item in the graph
 	distance        int          // distance to origin of this node
 	heuristic       int          // estimated distance from node to destination
 	predecessor     graph.NodeId // node id of the predecessor
@@ -38,7 +38,7 @@ func NewDijkstraItem(nodeId graph.NodeId, distance int, predecessor graph.NodeId
 	if searchDirection != BACKWARD && searchDirection != FORWARD {
 		panic("bad direction")
 	}
-	return &DijkstraItem{nodeId: nodeId, distance: distance, predecessor: predecessor, index: -1, heuristic: heuristic, searchDirection: searchDirection}
+	return &DijkstraItem{NodeId: nodeId, distance: distance, predecessor: predecessor, index: -1, heuristic: heuristic, searchDirection: searchDirection}
 }
 
 func NewMinPath(initialItem *DijkstraItem) *MinPath {
