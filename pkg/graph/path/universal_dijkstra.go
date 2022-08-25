@@ -126,11 +126,17 @@ func (dijkstra *UniversalDijkstra) ComputeShortestPath(origin, destination graph
 	if dijkstra.useHeuristic {
 		heuristic = dijkstra.g.EstimateDistance(origin, dijkstra.destination)
 	}
-	pq := NewMinPath(NewDijkstraItem(origin, 0, -1, heuristic, FORWARD))
+	originItem := NewDijkstraItem(origin, 0, -1, heuristic, FORWARD)
+	pq := NewMinPath(originItem)
+	// Initialize
+	dijkstra.SettleNode(originItem)
 
 	// for bidirectional algorithm
 	if dijkstra.bidirectional {
-		heap.Push(pq, NewDijkstraItem(destination, 0, -1, heuristic, BACKWARD))
+		destinationItem := NewDijkstraItem(destination, 0, -1, heuristic, BACKWARD)
+		heap.Push(pq, destinationItem)
+		// Initialize
+		dijkstra.SettleNode(destinationItem)
 	}
 
 	numSettledNodes := 0
