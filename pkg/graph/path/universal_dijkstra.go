@@ -2,6 +2,7 @@ package path
 
 import (
 	"container/heap"
+	"fmt"
 	"math"
 
 	"github.com/natevvv/osm-ship-routing/pkg/graph"
@@ -23,6 +24,7 @@ type UniversalDijkstra struct {
 	considerArcFlags        bool
 	costUpperBound          int
 	maxNumSettledNodes      int
+	debugLevel              int
 }
 
 type BidirectionalConnection struct {
@@ -45,12 +47,22 @@ func NewBidirectionalConnection(nodeId, predecessor, successor graph.NodeId, dis
 }
 
 func (d *UniversalDijkstra) InitializeSearch(origin, destination graph.NodeId) {
+	if d.debugLevel >= 1 {
+		fmt.Printf("visited nodes: %v\n", d.visitedNodes)
+	}
 	for _, previouslyVisitedNode := range d.visitedNodes {
 		//d.distances[previouslyVisitedNode] = -1
 		d.searchSpace[previouslyVisitedNode] = nil
 		for _, arc := range d.g.GetArcsFrom(previouslyVisitedNode) {
 			// also reset the potential other enqueued nodes
 			d.searchSpace[arc.Destination()] = nil
+		}
+	}
+	for i := 0; i < len(d.searchSpace); i++ {
+		if d.searchSpace[i] != nil {
+			// remove later
+			fmt.Printf("%v node is not nil, is %+v\n", i, d.searchSpace[i])
+			panic("domain initially not nil.")
 		}
 	}
 	d.visitedNodes = make([]graph.NodeId, 0)
@@ -62,6 +74,9 @@ func (d *UniversalDijkstra) InitializeSearch(origin, destination graph.NodeId) {
 }
 
 func (d *UniversalDijkstra) SettleNode(node *DijkstraItem) {
+	if d.debugLevel >= 1 {
+		fmt.Printf("Settle Node %v\n", node.NodeId)
+	}
 	d.searchSpace[node.NodeId] = node
 	//d.distances[node.nodeId] = node.distance
 	if !slice.Contains(d.visitedNodes, node.NodeId) {
@@ -73,10 +88,16 @@ func (d *UniversalDijkstra) SettleNode(node *DijkstraItem) {
 }
 
 func (d *UniversalDijkstra) RelaxEdges(node *DijkstraItem, pq *MinPath) {
+	if d.debugLevel >= 1 {
+		fmt.Printf("Relax Edges for node %v\n", node.NodeId)
+	}
 	for _, arc := range d.g.GetArcsFrom(node.NodeId) {
 		if d.considerArcFlags && !arc.ArcFlag() {
 			// ignore this arc
 			continue
+		}
+		if d.debugLevel >= 1 {
+			fmt.Printf("Relax Edge %v -> %v", node.NodeId, arc.Destination())
 		}
 		successor := arc.Destination()
 		if d.bidirectional && d.searchSpace[successor] != nil && d.searchSpace[successor].searchDirection != node.searchDirection {
@@ -225,6 +246,9 @@ func (dijkstra *UniversalDijkstra) GetPath(origin, destination int) []int {
 func (d *UniversalDijkstra) extractComputedPath(origin, destination int) []int {
 	path := make([]int, 0)
 	if d.bidirectional {
+		if d.debugLevel >= 1 {
+			fmt.Printf("con: %v, pre: %v, suc: %v\n", d.bidirectionalConnection.nodeId, d.bidirectionalConnection.predecessor, d.bidirectionalConnection.successor)
+		}
 		for nodeId := d.bidirectionalConnection.predecessor; nodeId != -1; nodeId = d.searchSpace[nodeId].predecessor {
 			path = append(path, nodeId)
 		}
@@ -261,4 +285,8 @@ func (d *UniversalDijkstra) SetCostUpperBound(costUpperBound int) {
 
 func (d *UniversalDijkstra) SetMaxNumSettledNodes(maxNumSettledNodes int) {
 	d.maxNumSettledNodes = maxNumSettledNodes
+}
+
+func (d *UniversalDijkstra) SetDebugLevel(level int) {
+	d.debugLevel = level
 }
