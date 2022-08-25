@@ -122,7 +122,9 @@ func (ch *ContractionHierarchies) ComputeInitialNodeOrdering(givenNodeOrder []in
 			if oo.ConsiderProcessedNeighbors() {
 				orderItem.processedNeighbors = processedNeighbors
 			}
-			fmt.Printf("Add node %6v, edge difference: %3v, processed neighbors: %3v\n", i, ed, processedNeighbors)
+			if ch.debugLevel >= 1 {
+				fmt.Printf("Add node %6v, edge difference: %3v, processed neighbors: %3v\n", i, ed, processedNeighbors)
+			}
 			heap.Push(pq, orderItem)
 		}
 	}
@@ -256,7 +258,9 @@ func (ch *ContractionHierarchies) ContractNodes(order *NodeOrder, oo OrderOption
 			ch.orderOfNode[pqItem.nodeId] = level
 			ch.nodeOrdering[level] = pqItem.nodeId
 			ch.ContractNode(pqItem.nodeId, false)
-			fmt.Printf("Level %6v - Contract Node %6v, heap length: %6v, edge difference: %3v, processed neighbors: %3v, updates: %6v\n", level, pqItem.nodeId, order.Len(), currentEdgeDifference, currentProcessedNeighbors, intermediateUpdates)
+			if ch.debugLevel >= 1 {
+				fmt.Printf("Level %6v - Contract Node %6v, heap length: %6v, edge difference: %3v, processed neighbors: %3v, updates: %6v\n", level, pqItem.nodeId, order.Len(), currentEdgeDifference, currentProcessedNeighbors, intermediateUpdates)
+			}
 			intermediateUpdates = 0
 			level++
 		} else {
@@ -312,9 +316,13 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 		// -> just overwrite them
 		oo = MakeOrderOptions().SetDynamic(false).SetRandom(false).SetEdgeDifference(false).SetProcessedNeighbors(false).SetRandom(false)
 	}
-	fmt.Printf("Compute Node Ordering\n")
+	if ch.debugLevel >= 1 {
+		fmt.Printf("Compute Node Ordering\n")
+	}
 	pq := ch.ComputeInitialNodeOrdering(givenNodeOrder, oo)
-	fmt.Printf("Contract Nodes\n")
+	if ch.debugLevel >= 1 {
+		fmt.Printf("Contract Nodes\n")
+	}
 	ch.ContractNodes(pq, oo)
 }
 

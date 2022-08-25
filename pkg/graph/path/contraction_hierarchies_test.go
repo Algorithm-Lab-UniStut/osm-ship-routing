@@ -140,7 +140,7 @@ func TestPathFinding(t *testing.T) {
 	dijkstra = NewUniversalDijkstra(alg)
 	ch = NewContractionHierarchies(alg, dijkstra)
 	nodeOrdering = []int{1, 5, 9, 4, 3, 11, 10, 6, 8, 2, 7, 0, 12}
-	ch.SetDebugLevel(1)
+	//ch.SetDebugLevel(1)
 	ch.Precompute(nodeOrdering, MakeOrderOptions())
 	length = ch.ComputeShortestPath(source, target)
 	if l != length {
@@ -211,7 +211,7 @@ func TestRandomContraction(t *testing.T) {
 		if length != l {
 			t.Errorf("Length does not match - Is: %v. Should: %v", length, l)
 		}
-		ch.SetDebugLevel(1)
+		//ch.SetDebugLevel(1)
 		path := ch.GetPath(source, target)
 		ch.SetDebugLevel(0)
 		searchSpace := ch.GetSearchSpace()
