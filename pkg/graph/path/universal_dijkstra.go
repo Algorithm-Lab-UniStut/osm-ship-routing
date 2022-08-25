@@ -142,14 +142,14 @@ func (dijkstra *UniversalDijkstra) ComputeShortestPath(origin, destination graph
 	numSettledNodes := 0
 	for pq.Len() > 0 {
 		currentNode := heap.Pop(pq).(*DijkstraItem)
+		dijkstra.SettleNode(currentNode)
+		numSettledNodes++
 		if dijkstra.costUpperBound < currentNode.Priority() || dijkstra.maxNumSettledNodes < numSettledNodes {
 			// Each following node exeeds the max allowed cost or the number of allowed nodes is reached
 			// Stop search
 			dijkstra.pathLength = -1
 			return -1
 		}
-		dijkstra.SettleNode(currentNode)
-		numSettledNodes++
 		if dijkstra.bidirectionalConnection != nil && dijkstra.bidirectionalConnection.distance < currentNode.Priority() {
 			// node with lowest priority is the current connection node
 			// -> every edge increases cost/priority
