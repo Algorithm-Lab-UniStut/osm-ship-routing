@@ -70,25 +70,6 @@ func (d *UniversalDijkstra) InitializeSearch(origin, destination graph.NodeId) {
 	}
 }
 
-func (d *UniversalDijkstra) SettleNode(node *DijkstraItem) {
-	if d.debugLevel >= 1 {
-		fmt.Printf("Settle Node %v\n", node.NodeId)
-	}
-	//fmt.Printf("Settling %v, direction: %v\n", node.NodeId, node.searchDirection)
-	searchSpace, visitedNodes := d.searchSpace, d.visitedNodes
-	if node.searchDirection == BACKWARD {
-		searchSpace, visitedNodes = d.backwardSearchSpace, d.backwardVisitedNodes
-	}
-	searchSpace[node.NodeId] = node
-	visitedNodes[node.NodeId] = true
-}
-
-func (d *UniversalDijkstra) IsFullSettled(nodeId graph.NodeId) bool {
-	visited := d.visitedNodes[nodeId]
-	backwardVisited := d.backwardVisitedNodes[nodeId]
-	return visited && backwardVisited
-}
-
 func (dijkstra *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId) int {
 	dijkstra.InitializeSearch(origin, destination)
 	if dijkstra.useHeuristic && dijkstra.bidirectional {
@@ -104,20 +85,20 @@ func (dijkstra *UniversalDijkstra) ComputeShortestPath(origin, destination graph
 	originItem := NewDijkstraItem(origin, 0, -1, heuristic, FORWARD)
 	pq := NewMinPath(originItem)
 	// Initialize
-	dijkstra.SettleNode(originItem)
+	dijkstra.settleNode(originItem)
 
 	// for bidirectional algorithm
 	if dijkstra.bidirectional {
 		destinationItem := NewDijkstraItem(destination, 0, -1, heuristic, BACKWARD)
 		heap.Push(pq, destinationItem)
 		// Initialize
-		dijkstra.SettleNode(destinationItem)
+		dijkstra.settleNode(destinationItem)
 	}
 
 	numSettledNodes := 0
 	for pq.Len() > 0 {
 		currentNode := heap.Pop(pq).(*DijkstraItem)
-		dijkstra.SettleNode(currentNode)
+		dijkstra.settleNode(currentNode)
 		numSettledNodes++
 		if dijkstra.costUpperBound < currentNode.Priority() || dijkstra.maxNumSettledNodes < numSettledNodes {
 			// Each following node exeeds the max allowed cost or the number of allowed nodes is reached
@@ -125,7 +106,7 @@ func (dijkstra *UniversalDijkstra) ComputeShortestPath(origin, destination graph
 			dijkstra.pathLength = -1
 			return -1
 		}
-		if dijkstra.bidirectionalConnection != nil && dijkstra.IsFullSettled(currentNode.NodeId) {
+		if dijkstra.bidirectionalConnection != nil && dijkstra.isFullySettled(currentNode.NodeId) {
 			// node with lowest priority is the current connection node
 			// -> every edge increases cost/priority
 			// -> this has to be the shortest path --> wrong, if one edge is (really) long
@@ -146,7 +127,7 @@ func (dijkstra *UniversalDijkstra) ComputeShortestPath(origin, destination graph
 			}
 		}
 
-		dijkstra.RelaxEdges(currentNode, pq)
+		dijkstra.relaxEdges(currentNode, pq)
 	}
 
 	if destination == -1 {
@@ -177,7 +158,74 @@ func (dijkstra *UniversalDijkstra) ComputeShortestPath(origin, destination graph
 	return length
 }
 
-func (d *UniversalDijkstra) RelaxEdges(node *DijkstraItem, pq *MinPath) {
+func (dijkstra *UniversalDijkstra) GetPath(origin, destination int) []int {
+	if destination == -1 {
+		// path to each node was calculated
+		// return nothing
+		return make([]int, 0)
+	}
+	if dijkstra.pathLength == -1 {
+		// no path found
+		return make([]int, 0)
+	}
+	path := make([]int, 0)
+	if dijkstra.bidirectional {
+		if dijkstra.debugLevel >= 1 {
+			fmt.Printf("con: %v, pre: %v, suc: %v\n", dijkstra.bidirectionalConnection.nodeId, dijkstra.bidirectionalConnection.predecessor, dijkstra.bidirectionalConnection.successor)
+		}
+		for nodeId := dijkstra.bidirectionalConnection.predecessor; nodeId != -1; nodeId = dijkstra.searchSpace[nodeId].predecessor {
+			path = append(path, nodeId)
+		}
+		slice.ReverseIntInPlace(path)
+		path = append(path, dijkstra.bidirectionalConnection.nodeId)
+		for nodeId := dijkstra.bidirectionalConnection.successor; nodeId != -1; nodeId = dijkstra.backwardSearchSpace[nodeId].predecessor {
+			path = append(path, nodeId)
+		}
+	} else {
+		for nodeId := destination; nodeId != -1; nodeId = dijkstra.searchSpace[nodeId].predecessor {
+			path = append(path, nodeId)
+		}
+		// reverse path (to create the correct direction)
+		slice.ReverseIntInPlace(path)
+	}
+
+	return path
+}
+
+func (d *UniversalDijkstra) GetSearchSpace() []*DijkstraItem {
+	searchSpace := make([]*DijkstraItem, len(d.visitedNodes)+len(d.backwardVisitedNodes))
+	i := 0
+	for nodeId := range d.visitedNodes {
+		searchSpace[i] = d.searchSpace[nodeId]
+		i++
+	}
+	for nodeId := range d.backwardVisitedNodes {
+		searchSpace[i] = d.backwardSearchSpace[nodeId]
+		i++
+	}
+	return searchSpace
+}
+
+func (d *UniversalDijkstra) settleNode(node *DijkstraItem) {
+	if d.debugLevel >= 1 {
+		fmt.Printf("Settle Node %v\n", node.NodeId)
+	}
+	//fmt.Printf("Settling %v, direction: %v\n", node.NodeId, node.searchDirection)
+	searchSpace, visitedNodes := d.searchSpace, d.visitedNodes
+	if node.searchDirection == BACKWARD {
+		searchSpace, visitedNodes = d.backwardSearchSpace, d.backwardVisitedNodes
+	}
+	searchSpace[node.NodeId] = node
+	visitedNodes[node.NodeId] = true
+}
+
+func (d *UniversalDijkstra) isFullySettled(nodeId graph.NodeId) bool {
+	visited := d.visitedNodes[nodeId]
+	backwardVisited := d.backwardVisitedNodes[nodeId]
+	return visited && backwardVisited
+}
+
+func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem, pq *MinPath) {
 	if d.debugLevel >= 1 {
 		fmt.Printf("Relax Edges for node %v\n", node.NodeId)
 	}
@@ -228,54 +276,6 @@ func (d *UniversalDijkstra) RelaxEdges(node *DijkstraItem, pq *MinPath) {
 			}
 		}
 	}
-}
-
-func (dijkstra *UniversalDijkstra) GetPath(origin, destination int) []int {
-	if destination == -1 {
-		// path to each node was calculated
-		// return nothing
-		return make([]int, 0)
-	}
-	if dijkstra.pathLength == -1 {
-		// no path found
-		return make([]int, 0)
-	}
-	path := make([]int, 0)
-	if dijkstra.bidirectional {
-		if dijkstra.debugLevel >= 1 {
-			fmt.Printf("con: %v, pre: %v, suc: %v\n", dijkstra.bidirectionalConnection.nodeId, dijkstra.bidirectionalConnection.predecessor, dijkstra.bidirectionalConnection.successor)
-		}
-		for nodeId := dijkstra.bidirectionalConnection.predecessor; nodeId != -1; nodeId = dijkstra.searchSpace[nodeId].predecessor {
-			path = append(path, nodeId)
-		}
-		slice.ReverseIntInPlace(path)
-		path = append(path, dijkstra.bidirectionalConnection.nodeId)
-		for nodeId := dijkstra.bidirectionalConnection.successor; nodeId != -1; nodeId = dijkstra.backwardSearchSpace[nodeId].predecessor {
-			path = append(path, nodeId)
-		}
-	} else {
-		for nodeId := destination; nodeId != -1; nodeId = dijkstra.searchSpace[nodeId].predecessor {
-			path = append(path, nodeId)
-		}
-		// reverse path (to create the correct direction)
-		slice.ReverseIntInPlace(path)
-	}
-
-	return path
-}
-
-func (d *UniversalDijkstra) GetSearchSpace() []*DijkstraItem {
-	searchSpace := make([]*DijkstraItem, len(d.visitedNodes)+len(d.backwardVisitedNodes))
-	i := 0
-	for nodeId := range d.visitedNodes {
-		searchSpace[i] = d.searchSpace[nodeId]
-		i++
-	}
-	for nodeId := range d.backwardVisitedNodes {
-		searchSpace[i] = d.backwardSearchSpace[nodeId]
-		i++
-	}
-	return searchSpace
 }
 
 func (dijkstra *UniversalDijkstra) SetUseHeuristic(useHeuristic bool) {
