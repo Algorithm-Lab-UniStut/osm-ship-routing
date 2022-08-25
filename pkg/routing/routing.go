@@ -76,7 +76,8 @@ func (sr ShipRouter) GetNodes() []geo.Point {
 func (sr ShipRouter) GetSearchSpace() []geo.Point {
 	nodes := sr.navigator.GetSearchSpace()
 	waypoints := make([]geo.Point, 0)
-	for _, node := range nodes {
+	for _, nodeItem := range nodes {
+		node := sr.g.GetNode(nodeItem.NodeId)
 		waypoints = append(waypoints, *nodeToPoint(node))
 	}
 	return waypoints
