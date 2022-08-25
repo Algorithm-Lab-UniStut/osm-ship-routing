@@ -68,12 +68,13 @@ const cuttableGraph = `13
 12 11 3
 `
 
-func TestNodeOrdering(t *testing.T) {
+func TestGivenNodeOrdering(t *testing.T) {
 	alg := graph.NewAdjacencyListFromFmiString(cuttableGraph)
 	dijkstra := NewUniversalDijkstra(alg)
 	ch := NewContractionHierarchies(alg, dijkstra)
 	nodeOrdering := []int{0, 1, 10, 12, 7, 4, 9, 3, 6, 5, 8, 11, 2}
-	ch.nodeOrdering = nodeOrdering
+	//ch.SetDebugLevel(1)
+	ch.Precompute(nodeOrdering, MakeOrderOptions())
 	if len(ch.nodeOrdering) != len(nodeOrdering) {
 		t.Errorf("noder ordering length does not match")
 	}
@@ -93,7 +94,7 @@ func TestContractGraph(t *testing.T) {
 	ch.Precompute(nodeOrdering, MakeOrderOptions())
 	fmt.Printf("node ordering: %v\n", ch.nodeOrdering)
 	fmt.Printf("shortcuts: %v\n", ch.GetShortcuts())
-	if len(ch.addedShortcuts) != 2 {
+	if len(ch.shortcuts)/2 != 2 {
 		t.Errorf("wrong number of nodes shortcuttet.\n")
 	}
 	zeroShortcuts, ok := ch.addedShortcuts[0]
@@ -119,16 +120,41 @@ func TestPathFinding(t *testing.T) {
 	p := dijkstra.GetPath(source, target)
 	ch := NewContractionHierarchies(alg, dijkstra)
 	nodeOrdering := []int{0, 1, 10, 12, 7, 4, 9, 3, 6, 5, 8, 11, 2}
-	//ch.nodeOrdering = nodeOrdering
 	ch.Precompute(nodeOrdering, MakeOrderOptions())
 	length := ch.ComputeShortestPath(source, target)
 	if l != length {
 		t.Errorf("Length do not match")
 	}
-	fmt.Println(ch.GetSearchSpace())
+	searchSpace := ch.GetSearchSpace()
+	fmt.Println("Search space:")
+	for _, s := range searchSpace {
+		fmt.Printf("%v,", s.NodeId)
+	}
+	fmt.Println()
 	path := ch.GetPath(source, target)
 	if len(p) != len(path) || p[0] != path[0] || p[len(p)-1] != path[len(path)-1] {
 		t.Errorf("computed SP do not match")
+	}
+
+	alg = graph.NewAdjacencyListFromFmiString(cuttableGraph)
+	dijkstra = NewUniversalDijkstra(alg)
+	ch = NewContractionHierarchies(alg, dijkstra)
+	nodeOrdering = []int{1, 5, 9, 4, 3, 11, 10, 6, 8, 2, 7, 0, 12}
+	ch.SetDebugLevel(1)
+	ch.Precompute(nodeOrdering, MakeOrderOptions())
+	length = ch.ComputeShortestPath(source, target)
+	if l != length {
+		t.Errorf("Length do not match")
+	}
+	searchSpace = ch.GetSearchSpace()
+	fmt.Println("Search space:")
+	for _, s := range searchSpace {
+		fmt.Printf("%v,", s.NodeId)
+	}
+	fmt.Println()
+	path = ch.GetPath(source, target)
+	if len(p) != len(path) || p[0] != path[0] || p[len(p)-1] != path[len(path)-1] {
+		t.Errorf("computed SP do not match. Shortcuts: %v", ch.shortcuts)
 	}
 }
 
@@ -138,6 +164,8 @@ func TestPrecompute(t *testing.T) {
 	ch := NewContractionHierarchies(alg, dijkstra)
 	ch.debugLevel = 0
 	ch.Precompute(nil, MakeOrderOptions().SetDynamic(true).SetEdgeDifference(true).SetProcessedNeighbors(true))
+	//fmt.Printf("shortcuts: %v\n", len(ch.shortcuts)/2)
+	//fmt.Printf("shortcuts: %v\n", ch.shortcuts)
 }
 
 func TestContractionHierarchies(t *testing.T) {
@@ -156,7 +184,12 @@ func TestContractionHierarchies(t *testing.T) {
 		t.Errorf("Wrong length")
 	}
 	path := ch.GetPath(source, target)
-	fmt.Printf("Search Space: %v\n", ch.GetSearchSpace())
+	searchSpace := ch.GetSearchSpace()
+	fmt.Println("Search space:")
+	for _, s := range searchSpace {
+		fmt.Printf("%v,", s.NodeId)
+	}
+	fmt.Println()
 	if len(p) != len(path) || p[0] != path[0] || p[len(p)-1] != path[len(path)-1] {
 		t.Errorf("computed SP do not match")
 	}
@@ -169,16 +202,27 @@ func TestRandomContraction(t *testing.T) {
 	source, target := 0, 12
 	l := dijkstra.ComputeShortestPath(source, target)
 	p := dijkstra.GetPath(source, target)
-	ch := NewContractionHierarchies(alg, dijkstra)
-	ch.Precompute(nil, MakeOrderOptions().SetDynamic(false).SetRandom(true))
-	length := ch.ComputeShortestPath(source, target)
-	if length != l {
-		t.Errorf("Length does not match - Is: %v. Should: %v", length, l)
+	for i := 0; i < 100; i++ {
+		alg = graph.NewAdjacencyListFromFmiString(cuttableGraph)
+		dijkstra = NewUniversalDijkstra(alg)
+		ch := NewContractionHierarchies(alg, dijkstra)
+		ch.Precompute(nil, MakeOrderOptions().SetDynamic(false).SetRandom(true))
+		length := ch.ComputeShortestPath(source, target)
+		if length != l {
+			t.Errorf("Length does not match - Is: %v. Should: %v", length, l)
+		}
+		ch.SetDebugLevel(1)
+		path := ch.GetPath(source, target)
+		ch.SetDebugLevel(0)
+		searchSpace := ch.GetSearchSpace()
+		fmt.Println("Search space:")
+		for _, s := range searchSpace {
+			fmt.Printf("%v,", s.NodeId)
+		}
+		fmt.Println()
+		if len(p) != len(path) || p[0] != path[0] || p[len(p)-1] != path[len(path)-1] {
+			t.Errorf("computed SP do not match. Shortcuts: %v", ch.shortcuts)
+		}
+		fmt.Println(path)
 	}
-	path := ch.GetPath(source, target)
-	fmt.Printf("Search Space: %v\n", ch.GetSearchSpace())
-	if len(p) != len(path) || p[0] != path[0] || p[len(p)-1] != path[len(path)-1] {
-		t.Errorf("computed SP do not match")
-	}
-	fmt.Println(path)
 }
