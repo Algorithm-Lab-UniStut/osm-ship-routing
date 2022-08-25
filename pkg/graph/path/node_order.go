@@ -2,6 +2,8 @@ package path
 
 import (
 	"container/heap"
+	"fmt"
+	"strings"
 
 	"github.com/natevvv/osm-ship-routing/pkg/graph"
 )
@@ -65,4 +67,20 @@ func (h *NodeOrder) update(pqItem *OrderItem, edgeDifference, processedNeighbors
 
 func (h *NodeOrder) Peek() interface{} {
 	return (*h)[0]
+}
+
+func (h *NodeOrder) PeekAt(index int) interface{} {
+	if index >= h.Len() {
+		return nil
+	}
+	return (*h)[index]
+}
+
+func (h *NodeOrder) String() string {
+	var sb strings.Builder
+	for i := 0; i < h.Len(); i++ {
+		item := h.PeekAt(i).(*OrderItem)
+		sb.WriteString(fmt.Sprintf("%v %v\n", item.nodeId, item.Priority()))
+	}
+	return sb.String()
 }
