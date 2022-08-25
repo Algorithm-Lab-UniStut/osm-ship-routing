@@ -64,6 +64,5 @@ func (h *NodeOrder) update(pqItem *OrderItem, edgeDifference, processedNeighbors
 }
 
 func (h *NodeOrder) Peek() interface{} {
-	n := len(*h)
-	return (*h)[n-1]
+	return (*h)[0]
 }
