@@ -561,3 +561,7 @@ func (oo OrderOptions) IsValid() bool {
 	}
 	return true
 }
+
+func (ch *ContractionHierarchies) SetDebugLevel(level int) {
+	ch.debugLevel = level
+}

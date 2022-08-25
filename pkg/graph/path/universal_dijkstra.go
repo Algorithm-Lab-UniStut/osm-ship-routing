@@ -243,13 +243,10 @@ func (d *UniversalDijkstra) extractComputedPath(origin, destination int) []int {
 	return path
 }
 
-func (d *UniversalDijkstra) GetSearchSpace() []graph.Node {
-	searchSpace := make([]graph.Node, 0)
-	for _, visitedNode := range d.visitedNodes {
-		dijkstraItem := d.searchSpace[visitedNode]
-		node := d.g.GetNode(dijkstraItem.nodeId)
-		searchSpace = append(searchSpace, node)
-
+func (d *UniversalDijkstra) GetSearchSpace() []*DijkstraItem {
+	searchSpace := make([]*DijkstraItem, len(d.visitedNodes))
+	for i, visitedNode := range d.visitedNodes {
+		searchSpace[i] = d.searchSpace[visitedNode]
 	}
 	return searchSpace
 }
