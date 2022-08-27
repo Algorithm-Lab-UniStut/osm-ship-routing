@@ -55,44 +55,44 @@ func NewBidirectionalConnection(nodeId, predecessor, successor graph.NodeId, dis
 // It returns the length of the found path
 // If no path was found, it returns -1
 // If the path to all possible target is calculated (set target to -1), it returns 0
-func (dijkstra *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId) int {
-	dijkstra.initializeSearch(origin, destination)
-	if dijkstra.useHeuristic && dijkstra.bidirectional {
+func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId) int {
+	d.initializeSearch(origin, destination)
+	if d.useHeuristic && d.bidirectional {
 		panic("AStar doesn't work bidirectional so far.")
 	}
-	if destination == -1 && dijkstra.bidirectional {
+	if destination == -1 && d.bidirectional {
 		panic("Can't use bidirectional search with no specified destination")
 	}
 	heuristic := 0
-	if dijkstra.useHeuristic {
-		heuristic = dijkstra.g.EstimateDistance(origin, dijkstra.destination)
+	if d.useHeuristic {
+		heuristic = d.g.EstimateDistance(origin, d.destination)
 	}
 	originItem := NewDijkstraItem(origin, 0, -1, heuristic, FORWARD)
 	pq := NewMinPath(originItem)
 	// Initialize
-	dijkstra.settleNode(originItem)
+	d.settleNode(originItem)
 
 	// for bidirectional algorithm
-	if dijkstra.bidirectional {
+	if d.bidirectional {
 		destinationItem := NewDijkstraItem(destination, 0, -1, 0, BACKWARD)
 		heap.Push(pq, destinationItem)
 		// Initialize
-		dijkstra.settleNode(destinationItem)
+		d.settleNode(destinationItem)
 	}
 
 	numSettledNodes := 0
 	for pq.Len() > 0 {
 		currentNode := heap.Pop(pq).(*DijkstraItem)
-		dijkstra.pqPops++
-		dijkstra.settleNode(currentNode)
+		d.pqPops++
+		d.settleNode(currentNode)
 		numSettledNodes++
-		if dijkstra.costUpperBound < currentNode.Priority() || dijkstra.maxNumSettledNodes < numSettledNodes {
+		if d.costUpperBound < currentNode.Priority() || d.maxNumSettledNodes < numSettledNodes {
 			// Each following node exeeds the max allowed cost or the number of allowed nodes is reached
 			// Stop search
-			dijkstra.pathLength = -1
+			d.pathLength = -1
 			return -1
 		}
-		if dijkstra.bidirectionalConnection != nil && dijkstra.isFullySettled(currentNode.NodeId) {
+		if d.bidirectionalConnection != nil && d.isFullySettled(currentNode.NodeId) {
 			// node with lowest priority is the current connection node
 			// -> every edge increases cost/priority
 			// -> this has to be the shortest path --> wrong, if one edge is (really) long
@@ -107,69 +107,69 @@ func (dijkstra *UniversalDijkstra) ComputeShortestPath(origin, destination graph
 		if destination != -1 {
 			if currentNode.searchDirection == FORWARD && currentNode.NodeId == destination {
 				break
-			} else if dijkstra.bidirectional && currentNode.searchDirection == BACKWARD && currentNode.NodeId == origin {
+			} else if d.bidirectional && currentNode.searchDirection == BACKWARD && currentNode.NodeId == origin {
 				// not necessary?
 				break
 			}
 		}
 
-		dijkstra.relaxEdges(currentNode, pq)
+		d.relaxEdges(currentNode, pq)
 	}
 
 	if destination == -1 {
 		// calculated every distance from source to each possible target
 		//dijkstra.settledNodes = nodes
-		dijkstra.pathLength = 0
+		d.pathLength = 0
 		return 0
 	}
 
-	if dijkstra.bidirectional {
-		if dijkstra.bidirectionalConnection == nil {
+	if d.bidirectional {
+		if d.bidirectionalConnection == nil {
 			// no valid path found
-			dijkstra.pathLength = -1
+			d.pathLength = -1
 			return -1
 		}
-		length := dijkstra.bidirectionalConnection.distance
-		dijkstra.pathLength = length
+		length := d.bidirectionalConnection.distance
+		d.pathLength = length
 		return length
 	}
 
-	if dijkstra.searchSpace[destination] == nil {
+	if d.searchSpace[destination] == nil {
 		// no valid path found
-		dijkstra.pathLength = -1
+		d.pathLength = -1
 		return -1
 	}
-	length := dijkstra.searchSpace[destination].distance
-	dijkstra.pathLength = length
+	length := d.searchSpace[destination].distance
+	d.pathLength = length
 	return length
 }
 
 // Get the path of a previous computation. This contains the nodeIds which lie on the path from source to destination
-func (dijkstra *UniversalDijkstra) GetPath(origin, destination int) []int {
+func (d *UniversalDijkstra) GetPath(origin, destination int) []int {
 	if destination == -1 {
 		// path to each node was calculated
 		// return nothing
 		return make([]int, 0)
 	}
-	if dijkstra.pathLength == -1 {
+	if d.pathLength == -1 {
 		// no path found
 		return make([]int, 0)
 	}
 	path := make([]int, 0)
-	if dijkstra.bidirectional {
-		if dijkstra.debugLevel >= 1 {
-			fmt.Printf("con: %v, pre: %v, suc: %v\n", dijkstra.bidirectionalConnection.nodeId, dijkstra.bidirectionalConnection.predecessor, dijkstra.bidirectionalConnection.successor)
+	if d.bidirectional {
+		if d.debugLevel >= 1 {
+			fmt.Printf("con: %v, pre: %v, suc: %v\n", d.bidirectionalConnection.nodeId, d.bidirectionalConnection.predecessor, d.bidirectionalConnection.successor)
 		}
-		for nodeId := dijkstra.bidirectionalConnection.predecessor; nodeId != -1; nodeId = dijkstra.searchSpace[nodeId].predecessor {
+		for nodeId := d.bidirectionalConnection.predecessor; nodeId != -1; nodeId = d.searchSpace[nodeId].predecessor {
 			path = append(path, nodeId)
 		}
 		slice.ReverseIntInPlace(path)
-		path = append(path, dijkstra.bidirectionalConnection.nodeId)
-		for nodeId := dijkstra.bidirectionalConnection.successor; nodeId != -1; nodeId = dijkstra.backwardSearchSpace[nodeId].predecessor {
+		path = append(path, d.bidirectionalConnection.nodeId)
+		for nodeId := d.bidirectionalConnection.successor; nodeId != -1; nodeId = d.backwardSearchSpace[nodeId].predecessor {
 			path = append(path, nodeId)
 		}
 	} else {
-		for nodeId := destination; nodeId != -1; nodeId = dijkstra.searchSpace[nodeId].predecessor {
+		for nodeId := destination; nodeId != -1; nodeId = d.searchSpace[nodeId].predecessor {
 			path = append(path, nodeId)
 		}
 		// reverse path (to create the correct direction)
@@ -299,13 +299,13 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem, pq *MinPath) {
 }
 
 // Specify whether a heuristic for path finding (AStar) should be used
-func (dijkstra *UniversalDijkstra) SetUseHeuristic(useHeuristic bool) {
-	dijkstra.useHeuristic = useHeuristic
+func (d *UniversalDijkstra) SetUseHeuristic(useHeuristic bool) {
+	d.useHeuristic = useHeuristic
 }
 
 // Specify wheter the search should be done in both directions
-func (dijkstra *UniversalDijkstra) SetBidirectional(bidirectional bool) {
-	dijkstra.bidirectional = bidirectional
+func (d *UniversalDijkstra) SetBidirectional(bidirectional bool) {
+	d.bidirectional = bidirectional
 }
 
 // SPecify if the arc flags of the Arcs should be considered.
