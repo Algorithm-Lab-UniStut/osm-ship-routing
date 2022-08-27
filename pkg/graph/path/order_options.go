@@ -1,27 +1,32 @@
 package path
 
+// Provides different options how the NodeOrder can get computed
 type OrderOptions byte
 
 const (
-	dynamic OrderOptions = 1 << iota
-	random
-	considerEdgeDifference
-	considerProcessedNeighbors
-	periodic
+	dynamic                    OrderOptions = 1 << iota // enable recomputation of the order before every contraction step
+	random                                              // use a random initial order
+	considerEdgeDifference                              // consider the edge difference when computing the order
+	considerProcessedNeighbors                          // consider the processed neighbors (spatial diversity) when computing the order
+	periodic                                            // periodically update the whole order
 )
 
+// Create a new OrderOptions (which in initially empty)
 func MakeOrderOptions() OrderOptions {
 	return OrderOptions(0)
 }
 
+// Set the defined options and return a new OrderOptions
 func (oo OrderOptions) Set(o OrderOptions) OrderOptions {
 	return oo | o
 }
 
+// Reset the defined options and return a new OrderOptions
 func (oo OrderOptions) Reset(o OrderOptions) OrderOptions {
 	return oo & ^o
 }
 
+// Set the dynamic option and return a new OrderOptions
 func (oo OrderOptions) SetDynamic(flag bool) OrderOptions {
 	if flag {
 		return oo.Set(dynamic)

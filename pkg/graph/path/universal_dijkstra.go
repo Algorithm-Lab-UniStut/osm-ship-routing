@@ -9,6 +9,9 @@ import (
 	"github.com/natevvv/osm-ship-routing/pkg/slice"
 )
 
+// UniversalDijkstra implements various path finding algorithms which all are based on Dijkstra.
+// it can be used for plain Dijsktra, Bidirectional search, A* (and maybe more will come).
+// Implements the Navigator Interface.
 type UniversalDijkstra struct {
 	// check if pointers are needed/better
 	g                       graph.Graph
@@ -35,14 +38,22 @@ type BidirectionalConnection struct {
 	distance    int
 }
 
+// Create a new Dijkstra instance with the given graph g
 func NewUniversalDijkstra(g graph.Graph) *UniversalDijkstra {
 	return &UniversalDijkstra{g: g, visitedNodes: make(map[graph.NodeId]bool), backwardVisitedNodes: make(map[graph.NodeId]bool), searchSpace: make([]*DijkstraItem, g.NodeCount()), backwardSearchSpace: make([]*DijkstraItem, g.NodeCount()), bidirectionalConnection: nil, costUpperBound: math.MaxInt, maxNumSettledNodes: math.MaxInt, pathLength: -1}
 }
 
+// Creates a new item which describes a connection between a forward and a backward search
+// The nodeId is the id of the node which connects both searches, the predecessor represents the node of the forward search and the successor the node of the backward search.
+// The distance is the length needed from both searches to reach this node
 func NewBidirectionalConnection(nodeId, predecessor, successor graph.NodeId, distance int) *BidirectionalConnection {
 	return &BidirectionalConnection{nodeId: nodeId, predecessor: predecessor, successor: successor, distance: distance}
 }
 
+// Compute the shortest path from the origin to the destination.
+// It returns the length of the found path
+// If no path was found, it returns -1
+// If the path to all possible target is calculated (set target to -1), it returns 0
 func (dijkstra *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId) int {
 	dijkstra.initializeSearch(origin, destination)
 	if dijkstra.useHeuristic && dijkstra.bidirectional {
@@ -131,6 +142,7 @@ func (dijkstra *UniversalDijkstra) ComputeShortestPath(origin, destination graph
 	return length
 }
 
+// Get the path of a previous computation. This contains the nodeIds which lie on the path from source to destination
 func (dijkstra *UniversalDijkstra) GetPath(origin, destination int) []int {
 	if destination == -1 {
 		// path to each node was calculated
@@ -165,6 +177,7 @@ func (dijkstra *UniversalDijkstra) GetPath(origin, destination int) []int {
 	return path
 }
 
+// Returns the search space of a previous computation. This contains all items which were settled.
 func (d *UniversalDijkstra) GetSearchSpace() []*DijkstraItem {
 	searchSpace := make([]*DijkstraItem, len(d.visitedNodes)+len(d.backwardVisitedNodes))
 	i := 0
@@ -179,6 +192,8 @@ func (d *UniversalDijkstra) GetSearchSpace() []*DijkstraItem {
 	return searchSpace
 }
 
+// Initialize a new search
+// This resets the search space and visited nodes (and all other leftovers of a previous search)
 func (d *UniversalDijkstra) initializeSearch(origin, destination graph.NodeId) {
 	if d.debugLevel >= 1 {
 		fmt.Printf("visited nodes: %v\n", d.visitedNodes)
@@ -197,8 +212,9 @@ func (d *UniversalDijkstra) initializeSearch(origin, destination graph.NodeId) {
 			d.backwardSearchSpace[arc.Destination()] = nil
 		}
 	}
-	d.visitedNodes = make(map[graph.NodeId]bool)
-	d.backwardVisitedNodes = make(map[graph.NodeId]bool)
+	// TODO use slice and reallocate space for them
+	d.visitedNodes = make(map[graph.NodeId]bool)         // TODO use slice
+	d.backwardVisitedNodes = make(map[graph.NodeId]bool) // TODO use slice
 	d.origin = origin
 	d.destination = destination
 	if d.bidirectional {
@@ -206,11 +222,11 @@ func (d *UniversalDijkstra) initializeSearch(origin, destination graph.NodeId) {
 	}
 }
 
+// Settle the given node item
 func (d *UniversalDijkstra) settleNode(node *DijkstraItem) {
 	if d.debugLevel >= 1 {
-		fmt.Printf("Settle Node %v\n", node.NodeId)
+		fmt.Printf("Settling node %v, direction: %v\n", node.NodeId, node.searchDirection)
 	}
-	//fmt.Printf("Settling %v, direction: %v\n", node.NodeId, node.searchDirection)
 	searchSpace, visitedNodes := d.searchSpace, d.visitedNodes
 	if node.searchDirection == BACKWARD {
 		searchSpace, visitedNodes = d.backwardSearchSpace, d.backwardVisitedNodes
@@ -219,12 +235,14 @@ func (d *UniversalDijkstra) settleNode(node *DijkstraItem) {
 	visitedNodes[node.NodeId] = true
 }
 
+// Check whether the given node item is settled in both search directions
 func (d *UniversalDijkstra) isFullySettled(nodeId graph.NodeId) bool {
 	visited := d.visitedNodes[nodeId]
 	backwardVisited := d.backwardVisitedNodes[nodeId]
 	return visited && backwardVisited
 }
 
+// Relax the Edges for the given node item and add the new nodes to the MinPath priority queue
 func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem, pq *MinPath) {
 	if d.debugLevel >= 1 {
 		fmt.Printf("Relax Edges for node %v\n", node.NodeId)
@@ -277,26 +295,34 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem, pq *MinPath) {
 	}
 }
 
+// Specify whether a heuristic for path finding (AStar) should be used
 func (dijkstra *UniversalDijkstra) SetUseHeuristic(useHeuristic bool) {
 	dijkstra.useHeuristic = useHeuristic
 }
 
+// Specify wheter the search should be done in both directions
 func (dijkstra *UniversalDijkstra) SetBidirectional(bidirectional bool) {
 	dijkstra.bidirectional = bidirectional
 }
 
+// SPecify if the arc flags of the Arcs should be considered.
+// If set to false, Arcs with a negative flag will be ignored by the path finding
 func (d *UniversalDijkstra) SetConsiderArcFlags(considerArcFlags bool) {
 	d.considerArcFlags = considerArcFlags
 }
 
+// Set the upper cost for a valid path from source to target
 func (d *UniversalDijkstra) SetCostUpperBound(costUpperBound int) {
 	d.costUpperBound = costUpperBound
 }
 
+// Set the maximum number of nodes that can get settled before the search is terminated
 func (d *UniversalDijkstra) SetMaxNumSettledNodes(maxNumSettledNodes int) {
 	d.maxNumSettledNodes = maxNumSettledNodes
 }
 
+// Set the debug level to show different debug messages.
+// If it is 0, no debug messages are printed
 func (d *UniversalDijkstra) SetDebugLevel(level int) {
 	d.debugLevel = level
 }

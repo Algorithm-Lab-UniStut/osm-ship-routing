@@ -14,6 +14,7 @@ type AdjacencyArrayGraph struct {
 	Offsets []int
 }
 
+// Create an AdjacencyArrayGraph from the given graph
 func NewAdjacencyArrayFromGraph(g Graph) *AdjacencyArrayGraph {
 	nodes := make([]Node, 0)
 	arcs := make([]*Arc, 0)
@@ -36,6 +37,7 @@ func NewAdjacencyArrayFromGraph(g Graph) *AdjacencyArrayGraph {
 	return &aag
 }
 
+// Get the node for the given id
 func (aag *AdjacencyArrayGraph) GetNode(id NodeId) Node {
 	if id < 0 || id >= aag.NodeCount() {
 		panic(fmt.Sprintf("NodeId %d is not contained in the graph.", id))
@@ -43,10 +45,12 @@ func (aag *AdjacencyArrayGraph) GetNode(id NodeId) Node {
 	return aag.Nodes[id]
 }
 
+// get all nodes of the graph
 func (aag *AdjacencyArrayGraph) GetNodes() []Node {
 	return aag.Nodes
 }
 
+// Get the Arcs for the given node id
 func (aag *AdjacencyArrayGraph) GetArcsFrom(id NodeId) []*Arc {
 	if id < 0 || id >= aag.NodeCount() {
 		panic(fmt.Sprintf("NodeId %d is not contained in the graph.", id))
@@ -69,10 +73,12 @@ func (aag *AdjacencyArrayGraph) EdgeCount() int {
 }
 */
 
+// Returns the total number of arcs in the graph
 func (aag *AdjacencyArrayGraph) ArcCount() int {
 	return len(aag.arcs)
 }
 
+// Returns a human readable string of the graph
 func (aag *AdjacencyArrayGraph) AsString() string {
 	var sb strings.Builder
 
@@ -97,6 +103,8 @@ func (aag *AdjacencyArrayGraph) AsString() string {
 	return sb.String()
 }
 
+// Estimate the distance between the given nodes
+// This calculates the direct distance (air line, bird path length) between the nodes
 func (aag *AdjacencyArrayGraph) EstimateDistance(source, target NodeId) int {
 	origin := aag.GetNode(source)
 	destination := aag.GetNode(target)
@@ -105,14 +113,22 @@ func (aag *AdjacencyArrayGraph) EstimateDistance(source, target NodeId) int {
 	return originPoint.IntHaversine(destinationPoint)
 }
 
+// Set the arc flags for all arcs of the given node
 func (aag *AdjacencyArrayGraph) SetArcFlags(id NodeId, flag bool) {
 	// set the arc flags for the outgoing edges
 	for _, arc := range aag.GetArcsFrom(id) {
 		arc.SetArcFlag(flag)
 		//fmt.Printf("set arc %v -> %v: %t\n", nodeId, arc.Destination(), flag)
 	}
+	// maybe this can get improved to directly set the arcs flags without calling GetArcsFrom()
 }
 
+// Set the arc flag for the given arc
+func (aag *AdjacencyArrayGraph) SetArcFlag(id NodeId, arcIndex int, flag bool) {
+	panic("Not implemented")
+}
+
+// Enable all arcs in the graph
 func (aag *AdjacencyArrayGraph) EnableAllArcs() {
 	for i := range aag.GetNodes() {
 		aag.SetArcFlags(i, true)
