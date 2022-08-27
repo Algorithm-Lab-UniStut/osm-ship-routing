@@ -40,15 +40,15 @@ func main() {
 	}
 
 	var navigator path.Navigator
-	if *algorithm == "default" { // 243
+	if *algorithm == "default" {
 		navigator = path.GetNavigator(aag)
-	} else if *algorithm == "dijkstra" { // 330
+	} else if *algorithm == "dijkstra" {
 		navigator = path.NewUniversalDijkstra(aag)
-	} else if *algorithm == "astar" { // 101
+	} else if *algorithm == "astar" {
 		astar := path.NewUniversalDijkstra(aag)
 		astar.SetUseHeuristic(true)
 		navigator = astar
-	} else if *algorithm == "bidijkstra" { // 226
+	} else if *algorithm == "bidijkstra" {
 		bid := path.NewUniversalDijkstra(aag)
 		bid.SetBidirectional(true)
 		navigator = bid
