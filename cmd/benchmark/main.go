@@ -121,7 +121,7 @@ func writeTargets(targets [][2]int, targetFile string) {
 // Run benchmarks on the provided graphs and targets
 func benchmark(navigator path.Navigator, targets [][2]int) {
 
-	runtime := 0
+	var runtime time.Duration = 0
 	for i, target := range targets {
 		origin := target[0]
 		destination := target[1]
@@ -138,7 +138,7 @@ func benchmark(navigator path.Navigator, targets [][2]int) {
 			}
 		}
 
-		runtime += int(elapsed)
+		runtime += elapsed
 	}
-	fmt.Printf("Average runtime: %.3fms\n", float64(runtime/len(targets))/1000000)
+	fmt.Printf("Average runtime: %.3fms\n", float64(int(runtime.Nanoseconds())/len(targets))/1000000)
 }
