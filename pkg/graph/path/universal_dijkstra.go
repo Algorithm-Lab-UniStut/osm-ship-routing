@@ -180,7 +180,6 @@ func (dijkstra *UniversalDijkstra) GetPath(origin, destination int) []int {
 // Returns the search space of a previous computation. This contains all items which were settled.
 func (d *UniversalDijkstra) GetSearchSpace() []*DijkstraItem {
 	visitedNodes := 0
-	// TODO check if visited nodesis needed or same performance could be reached with searchSpace only
 	for _, visited := range d.visitedNodes {
 		if visited {
 			visitedNodes++
@@ -216,7 +215,6 @@ func (d *UniversalDijkstra) initializeSearch(origin, destination graph.NodeId) {
 	}
 	d.searchSpace = make([]*DijkstraItem, d.g.NodeCount())
 	d.backwardSearchSpace = make([]*DijkstraItem, d.g.NodeCount())
-	// TODO check if visited nodes is needed or could be done solely with searchSpace
 	d.visitedNodes = make([]bool, d.g.NodeCount())
 	d.backwardVisitedNodes = make([]bool, d.g.NodeCount())
 	d.origin = origin
