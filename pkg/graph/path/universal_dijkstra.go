@@ -15,15 +15,15 @@ import (
 type UniversalDijkstra struct {
 	// check if pointers are needed/better
 	g                       graph.Graph
-	visitedNodes            map[graph.NodeId]bool // Set which contains the visited nodes (only true values)
-	backwardVisitedNodes    map[graph.NodeId]bool // Set which contains the visited nodes of the backward search
-	searchSpace             []*DijkstraItem       // search space, a map really reduces performance. If node is also visited, this can be seen as "settled"
-	backwardSearchSpace     []*DijkstraItem       // search space for the backward search
-	origin                  graph.NodeId          // the origin of the current search
-	destination             graph.NodeId          // the distination of the current search
-	pathLength              int                   // length of the computed path (-1 if no path found)
-	useHeuristic            bool                  // flag indicating if heuristic (remaining distance) should be used (AStar implementation)
-	bidirectional           bool                  // flag indicating if search shuld be done from both sides
+	visitedNodes            []bool          // Set which contains the visited nodes (only true values)
+	backwardVisitedNodes    []bool          // Set which contains the visited nodes of the backward search
+	searchSpace             []*DijkstraItem // search space, a map really reduces performance. If node is also visited, this can be seen as "settled"
+	backwardSearchSpace     []*DijkstraItem // search space for the backward search
+	origin                  graph.NodeId    // the origin of the current search
+	destination             graph.NodeId    // the distination of the current search
+	pathLength              int             // length of the computed path (-1 if no path found)
+	useHeuristic            bool            // flag indicating if heuristic (remaining distance) should be used (AStar implementation)
+	bidirectional           bool            // flag indicating if search should be done from both sides
 	bidirectionalConnection *BidirectionalConnection
 	considerArcFlags        bool
 	costUpperBound          int
@@ -40,7 +40,7 @@ type BidirectionalConnection struct {
 
 // Create a new Dijkstra instance with the given graph g
 func NewUniversalDijkstra(g graph.Graph) *UniversalDijkstra {
-	return &UniversalDijkstra{g: g, visitedNodes: make(map[graph.NodeId]bool), backwardVisitedNodes: make(map[graph.NodeId]bool), searchSpace: make([]*DijkstraItem, g.NodeCount()), backwardSearchSpace: make([]*DijkstraItem, g.NodeCount()), bidirectionalConnection: nil, costUpperBound: math.MaxInt, maxNumSettledNodes: math.MaxInt, pathLength: -1}
+	return &UniversalDijkstra{g: g, visitedNodes: make([]bool, g.NodeCount()), backwardVisitedNodes: make([]bool, g.NodeCount()), searchSpace: make([]*DijkstraItem, g.NodeCount()), backwardSearchSpace: make([]*DijkstraItem, g.NodeCount()), bidirectionalConnection: nil, costUpperBound: math.MaxInt, maxNumSettledNodes: math.MaxInt, pathLength: -1}
 }
 
 // Creates a new item which describes a connection between a forward and a backward search
@@ -179,15 +179,31 @@ func (dijkstra *UniversalDijkstra) GetPath(origin, destination int) []int {
 
 // Returns the search space of a previous computation. This contains all items which were settled.
 func (d *UniversalDijkstra) GetSearchSpace() []*DijkstraItem {
-	searchSpace := make([]*DijkstraItem, len(d.visitedNodes)+len(d.backwardVisitedNodes))
-	i := 0
-	for nodeId := range d.visitedNodes {
-		searchSpace[i] = d.searchSpace[nodeId]
-		i++
+	visitedNodes := 0
+	// TODO check if visited nodesis needed or same performance could be reached with searchSpace only
+	for _, visited := range d.visitedNodes {
+		if visited {
+			visitedNodes++
+		}
 	}
-	for nodeId := range d.backwardVisitedNodes {
-		searchSpace[i] = d.backwardSearchSpace[nodeId]
-		i++
+	for _, visited := range d.backwardVisitedNodes {
+		if visited {
+			visitedNodes++
+		}
+	}
+	searchSpace := make([]*DijkstraItem, visitedNodes)
+	i := 0
+	for nodeId, visited := range d.visitedNodes {
+		if visited {
+			searchSpace[i] = d.searchSpace[nodeId]
+			i++
+		}
+	}
+	for nodeId, visited := range d.backwardVisitedNodes {
+		if visited {
+			searchSpace[i] = d.backwardSearchSpace[nodeId]
+			i++
+		}
 	}
 	return searchSpace
 }
@@ -198,23 +214,11 @@ func (d *UniversalDijkstra) initializeSearch(origin, destination graph.NodeId) {
 	if d.debugLevel >= 1 {
 		fmt.Printf("visited nodes: %v\n", d.visitedNodes)
 	}
-	for nodeId := range d.visitedNodes {
-		d.searchSpace[nodeId] = nil
-		for _, arc := range d.g.GetArcsFrom(nodeId) {
-			// also reset the potential other enqueued nodes
-			d.searchSpace[arc.Destination()] = nil
-		}
-	}
-	for nodeId := range d.backwardVisitedNodes {
-		d.backwardSearchSpace[nodeId] = nil
-		for _, arc := range d.g.GetArcsFrom(nodeId) {
-			// also reset the potential other enqueued nodes
-			d.backwardSearchSpace[arc.Destination()] = nil
-		}
-	}
-	// TODO use slice and reallocate space for them
-	d.visitedNodes = make(map[graph.NodeId]bool)         // TODO use slice
-	d.backwardVisitedNodes = make(map[graph.NodeId]bool) // TODO use slice
+	d.searchSpace = make([]*DijkstraItem, d.g.NodeCount())
+	d.backwardSearchSpace = make([]*DijkstraItem, d.g.NodeCount())
+	// TODO check if visited nodes is needed or could be done solely with searchSpace
+	d.visitedNodes = make([]bool, d.g.NodeCount())
+	d.backwardVisitedNodes = make([]bool, d.g.NodeCount())
 	d.origin = origin
 	d.destination = destination
 	if d.bidirectional {
