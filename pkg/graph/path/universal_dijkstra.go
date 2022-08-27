@@ -15,16 +15,17 @@ import (
 type UniversalDijkstra struct {
 	// check if pointers are needed/better
 	g                       graph.Graph
-	visitedNodes            []bool          // Set which contains the visited nodes (only true values)
-	backwardVisitedNodes    []bool          // Set which contains the visited nodes of the backward search
-	searchSpace             []*DijkstraItem // search space, a map really reduces performance. If node is also visited, this can be seen as "settled"
-	backwardSearchSpace     []*DijkstraItem // search space for the backward search
-	origin                  graph.NodeId    // the origin of the current search
-	destination             graph.NodeId    // the distination of the current search
-	pathLength              int             // length of the computed path (-1 if no path found)
-	useHeuristic            bool            // flag indicating if heuristic (remaining distance) should be used (AStar implementation)
-	bidirectional           bool            // flag indicating if search should be done from both sides
-	bidirectionalConnection *BidirectionalConnection
+	visitedNodes            []bool                   // Set which contains the visited nodes (only true values)
+	backwardVisitedNodes    []bool                   // Set which contains the visited nodes of the backward search
+	searchSpace             []*DijkstraItem          // search space, a map really reduces performance. If node is also visited, this can be seen as "settled"
+	backwardSearchSpace     []*DijkstraItem          // search space for the backward search
+	origin                  graph.NodeId             // the origin of the current search
+	destination             graph.NodeId             // the distination of the current search
+	pathLength              int                      // length of the computed path (-1 if no path found)
+	useHeuristic            bool                     // flag indicating if heuristic (remaining distance) should be used (AStar implementation)
+	bidirectional           bool                     // flag indicating if search should be done from both sides
+	bidirectionalConnection *BidirectionalConnection // contains the connection between the forward and backward search (if done bidirecitonal). If no connection is found, this is nil
+	pqPops                  int                      // store the amount of Pops which were performed on the priority queue for the computed search
 	considerArcFlags        bool
 	costUpperBound          int
 	maxNumSettledNodes      int
@@ -82,6 +83,7 @@ func (dijkstra *UniversalDijkstra) ComputeShortestPath(origin, destination graph
 	numSettledNodes := 0
 	for pq.Len() > 0 {
 		currentNode := heap.Pop(pq).(*DijkstraItem)
+		dijkstra.pqPops++
 		dijkstra.settleNode(currentNode)
 		numSettledNodes++
 		if dijkstra.costUpperBound < currentNode.Priority() || dijkstra.maxNumSettledNodes < numSettledNodes {
@@ -219,9 +221,8 @@ func (d *UniversalDijkstra) initializeSearch(origin, destination graph.NodeId) {
 	d.backwardVisitedNodes = make([]bool, d.g.NodeCount())
 	d.origin = origin
 	d.destination = destination
-	if d.bidirectional {
-		d.bidirectionalConnection = nil
-	}
+	d.pqPops = 0
+	d.bidirectionalConnection = nil
 }
 
 // Settle the given node item
@@ -322,6 +323,9 @@ func (d *UniversalDijkstra) SetCostUpperBound(costUpperBound int) {
 func (d *UniversalDijkstra) SetMaxNumSettledNodes(maxNumSettledNodes int) {
 	d.maxNumSettledNodes = maxNumSettledNodes
 }
+
+// Returns the amount of priority queue/heap pops which werer performed during the search
+func (d *UniversalDijkstra) GetPqPops() int { return d.pqPops }
 
 // Set the debug level to show different debug messages.
 // If it is 0, no debug messages are printed
