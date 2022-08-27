@@ -269,12 +269,12 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem, pq *MinPath) {
 			connection := inverseSearchSpace[successor]
 			connectionPredecessor := node.NodeId
 			connectionSuccessor := connection.predecessor
-			var con *BidirectionalConnection
-			if node.searchDirection == FORWARD {
-				con = NewBidirectionalConnection(connection.NodeId, connectionPredecessor, connectionSuccessor, node.distance+arc.Cost()+connection.distance)
-			} else {
-				con = NewBidirectionalConnection(connection.NodeId, connectionSuccessor, connectionPredecessor, node.distance+arc.Cost()+connection.distance)
+			if node.searchDirection == BACKWARD {
+				// Default direction is forward
+				// if it is backward, switch successor and predecessor
+				connectionPredecessor, connectionSuccessor = connectionSuccessor, connectionPredecessor
 			}
+			con := NewBidirectionalConnection(connection.NodeId, connectionPredecessor, connectionSuccessor, node.distance+arc.Cost()+connection.distance)
 			if d.bidirectionalConnection == nil || con.distance < d.bidirectionalConnection.distance {
 				d.bidirectionalConnection = con
 			}
