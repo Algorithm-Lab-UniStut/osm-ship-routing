@@ -21,6 +21,7 @@ func main() {
 	useRandomTargets := flag.Bool("random", false, "Create (new) random targets")
 	amountTargets := flag.Int("n", 100, "How many new targets should get created")
 	storeTargets := flag.Bool("store", false, "Store targets (when newly generated)")
+	algorithm := flag.String("search", "default", "Select the search algorithm")
 	flag.Parse()
 
 	start := time.Now()
@@ -38,7 +39,24 @@ func main() {
 		targets = readTargets(targetFile)
 	}
 
-	benchmark(aag, targets)
+	var navigator path.Navigator
+	if *algorithm == "default" { // 243
+		navigator = path.GetNavigator(aag)
+	} else if *algorithm == "dijkstra" { // 330
+		navigator = path.NewUniversalDijkstra(aag)
+	} else if *algorithm == "astar" { // 101
+		astar := path.NewUniversalDijkstra(aag)
+		astar.SetUseHeuristic(true)
+		navigator = astar
+	} else if *algorithm == "bidijkstra" { // 226
+		bid := path.NewUniversalDijkstra(aag)
+		bid.SetBidirectional(true)
+		navigator = bid
+	} else {
+		panic("Navigator not supported")
+	}
+
+	benchmark(navigator, targets)
 }
 
 func readTargets(filename string) [][2]int {
@@ -101,14 +119,12 @@ func writeTargets(targets [][2]int, targetFile string) {
 }
 
 // Run benchmarks on the provided graphs and targets
-func benchmark(aag *graph.AdjacencyArrayGraph, targets [][2]int) {
+func benchmark(navigator path.Navigator, targets [][2]int) {
 
 	runtime := 0
 	for i, target := range targets {
 		origin := target[0]
 		destination := target[1]
-
-		navigator := path.GetNavigator(aag)
 
 		start := time.Now()
 		length := navigator.ComputeShortestPath(origin, destination)
