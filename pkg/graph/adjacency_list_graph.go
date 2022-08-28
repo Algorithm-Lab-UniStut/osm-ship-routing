@@ -24,7 +24,7 @@ func (alg *AdjacencyListGraph) GetNode(id NodeId) Node {
 	return alg.Nodes[id]
 }
 
-// Return all nodes of the graph^
+// Return all nodes of the graph
 func (alg *AdjacencyListGraph) GetNodes() []Node {
 	return alg.Nodes
 }
@@ -34,11 +34,7 @@ func (alg *AdjacencyListGraph) GetArcsFrom(id NodeId) []*Arc {
 	if id < 0 || id >= alg.NodeCount() {
 		panic(id)
 	}
-	arcs := make([]*Arc, 0)
-	for _, arc := range alg.Edges[id] {
-		arcs = append(arcs, arc)
-	}
-	return arcs
+	return alg.Edges[id]
 }
 
 // Return the number of total nodes
@@ -112,6 +108,7 @@ func (alg *AdjacencyListGraph) AddArc(from, to NodeId, distance int) {
 	// Check for duplicates
 	for _, arc := range alg.Edges[from] {
 		if to == arc.To {
+			// TODO check if updating or ignoring edges is better. Does this break some stuff wih the shortcuts?
 			//return // ignore duplicate edges
 			if distance < arc.Distance {
 				// update distance
