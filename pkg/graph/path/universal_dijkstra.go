@@ -41,7 +41,7 @@ type BidirectionalConnection struct {
 
 // Create a new Dijkstra instance with the given graph g
 func NewUniversalDijkstra(g graph.Graph) *UniversalDijkstra {
-	return &UniversalDijkstra{g: g, costUpperBound: math.MaxInt, maxNumSettledNodes: math.MaxInt}
+	return &UniversalDijkstra{g: g, costUpperBound: math.MaxInt, maxNumSettledNodes: math.MaxInt, origin: -1, destination: -1}
 }
 
 // Creates a new item which describes a connection between a forward and a backward search
@@ -56,6 +56,17 @@ func NewBidirectionalConnection(nodeId, predecessor, successor graph.NodeId, dis
 // If no path was found, it returns -1
 // If the path to all possible target is calculated (set target to -1), it returns 0
 func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId) int {
+	if origin == d.origin && !d.bidirectional && d.visitedNodes[destination] {
+		// hot start
+		// TODO think about storing/using old prioroity queue to not recalculate the first settled nodes
+		if d.debugLevel >= 1 {
+			fmt.Printf("Using hot start %v -> %v, distance is %v\n", origin, destination, d.searchSpace[destination].distance)
+		}
+		d.destination = destination
+		d.pqPops = 0
+		d.bidirectionalConnection = nil
+		return d.searchSpace[destination].distance
+	}
 	d.initializeSearch(origin, destination)
 	if d.useHeuristic && d.bidirectional {
 		panic("AStar doesn't work bidirectional so far.")
@@ -276,7 +287,7 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem, pq *MinPath) {
 		if slice.Contains(d.ignoreNodes, arc.Destination()) {
 			// ignore this node
 			if d.debugLevel >= 1 {
-				fmt.Printf("Ignore Edge %v -> %v, because target is disabled\n", node.NodeId, arc.Destination())
+				fmt.Printf("Ignore Edge %v -> %v, because target is in ignore list\n", node.NodeId, arc.Destination())
 			}
 			continue
 		}
@@ -351,6 +362,8 @@ func (d *UniversalDijkstra) SetMaxNumSettledNodes(maxNumSettledNodes int) {
 
 func (d *UniversalDijkstra) SetIgnoreNodes(nodes []graph.NodeId) {
 	d.ignoreNodes = nodes
+	// invalidate previously calculated results
+	d.visitedNodes = make([]bool, d.g.NodeCount())
 }
 
 // Returns the amount of priority queue/heap pops which werer performed during the search
