@@ -41,7 +41,7 @@ type BidirectionalConnection struct {
 
 // Create a new Dijkstra instance with the given graph g
 func NewUniversalDijkstra(g graph.Graph) *UniversalDijkstra {
-	return &UniversalDijkstra{g: g, costUpperBound: math.MaxInt, maxNumSettledNodes: math.MaxInt, origin: -1, destination: -1}
+	return &UniversalDijkstra{g: g, costUpperBound: math.MaxInt, maxNumSettledNodes: math.MaxInt, ignoreNodes: make([]bool, g.NodeCount()), origin: -1, destination: -1}
 }
 
 // Creates a new item which describes a connection between a forward and a backward search
