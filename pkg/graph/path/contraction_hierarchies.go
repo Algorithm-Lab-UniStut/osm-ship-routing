@@ -256,7 +256,8 @@ func (ch *ContractionHierarchies) contractNodes(order *NodeOrder, oo OrderOption
 			if ch.debugLevel >= 2 {
 				fmt.Printf("Contract node %v\n", pqItem.nodeId)
 			}
-			ch.addShortcuts(shortcuts) // avoid recomputation of shortcuts. Just add the previously calculated shortcuts
+			ch.disableArcsForNode(pqItem.nodeId) // when usign ignoreNodes, this may not be necessary
+			ch.addShortcuts(shortcuts)           // avoid recomputation of shortcuts. Just add the previously calculated shortcuts
 			if ch.debugLevel >= 1 {
 				fmt.Printf("Level %6v - Contract Node %6v, heap: %6v, sc: %3v, edges: %3v, ed: %3v pn: %3v, prio: %3v, updates: %6v\n", level, pqItem.nodeId, order.Len(), len(shortcuts), edges, edgeDifference, processedNeighbors, edgeDifference+processedNeighbors, intermediateUpdates)
 			}
@@ -303,15 +304,16 @@ func (ch *ContractionHierarchies) contractNodes(order *NodeOrder, oo OrderOption
 func (ch *ContractionHierarchies) contractNode(nodeId graph.NodeId, computeEdgeDifferenceOnly bool) ([]Shortcut, int, int) {
 	shortcuts := make([]Shortcut, 0)
 	contractedNeighbors := 0
-	arcs := ch.g.GetArcsFrom(nodeId)
+	var runtime time.Duration = 0
+	computations := 0
+	arcs := ch.dg.GetArcsFrom(nodeId)
 	incidentArcsAmount := len(arcs)
+	ch.disableArcsForNode(nodeId)
 	if ch.debugLevel == 2 {
 		fmt.Printf("Incident arcs %v\n", incidentArcsAmount)
 	}
-	ch.disableArcsForNode(nodeId)
-	var runtime time.Duration = 0
-	computations := 0
-	for _, arc := range arcs {
+	for i := 0; i < len(arcs); i++ {
+		arc := arcs[i]
 		source := arc.Destination()
 		if ch.isNodeContracted(source) {
 			if ch.debugLevel >= 2 {
@@ -320,11 +322,12 @@ func (ch *ContractionHierarchies) contractNode(nodeId graph.NodeId, computeEdgeD
 			contractedNeighbors++
 			continue
 		}
-		for _, otherArc := range ch.g.GetArcsFrom(nodeId) {
+		for j := i + 1; j < len(arcs); j++ {
+			otherArc := arcs[j]
 			target := otherArc.Destination()
 			if source == target {
-				// no need to process this path
-				continue
+				// source shouldn't be the same like target
+				panic("This should not happen")
 			}
 			if ch.isNodeContracted(target) {
 				if ch.debugLevel >= 2 {
@@ -333,6 +336,7 @@ func (ch *ContractionHierarchies) contractNode(nodeId graph.NodeId, computeEdgeD
 				//contractedNeighbors++
 				continue
 			}
+
 			if ch.debugLevel >= 2 {
 				fmt.Printf("testing for shortcut %v -> %v\n", source, target)
 			}
@@ -354,18 +358,22 @@ func (ch *ContractionHierarchies) contractNode(nodeId graph.NodeId, computeEdgeD
 					fmt.Printf("Shortcut needed or added\n")
 				}
 				shortcut := Shortcut{source: source, target: target, via: nodeId, cost: maxCost}
-				shortcuts = append(shortcuts, shortcut)
+				// add reverse shortcut since this is only computed once
+				// only calculate source -> target once, don't calculate target -> source
+				reverseShortcut := Shortcut{source: target, target: source, via: nodeId, cost: maxCost}
+				shortcuts = append(shortcuts, []Shortcut{shortcut, reverseShortcut}...)
 				if !computeEdgeDifferenceOnly {
 					ch.addShortcut(source, target, nodeId, maxCost)
+					ch.addShortcut(target, source, nodeId, maxCost)
 				}
 			}
-
 		}
 	}
 	if computeEdgeDifferenceOnly {
 		// reset temporarily disabled arcs
 		ch.enableArcsForNode(nodeId)
 	} else {
+		// TODO check if this should stay here or remove this option and only use addArcs()
 		_, exists := ch.addedShortcuts[len(shortcuts)]
 		if !exists {
 			ch.addedShortcuts[len(shortcuts)] = 1
