@@ -355,7 +355,7 @@ func (ch *ContractionHierarchies) contractNode(nodeId graph.NodeId, computeEdgeD
 				// add shortcut, since the path via this node is the fastest
 				// without this node, the target is either not reachable or the path is longer
 				if ch.debugLevel >= 2 {
-					fmt.Printf("Shortcut needed or added\n")
+					fmt.Printf("Shortcut %v -> %v via %v needed\n", source, target, nodeId)
 				}
 				shortcut := Shortcut{source: source, target: target, via: nodeId, cost: maxCost}
 				// add reverse shortcut since this is only computed once
@@ -423,7 +423,7 @@ func (ch *ContractionHierarchies) addShortcut(source, target, via graph.NodeId, 
 		}
 		ch.shortcutMap[source][target] = nodeId
 	*/
-	if ch.debugLevel == 2 {
+	if ch.debugLevel >= 2 {
 		fmt.Printf("Add shortcut %v %v %v %v\n", source, target, via, cost)
 	}
 }
