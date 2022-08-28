@@ -15,15 +15,15 @@ import (
 type UniversalDijkstra struct {
 	// check if pointers are needed/better
 	g                       graph.Graph
-	visitedNodes            []bool          // Array which indicates if a node (defined by index) was visited in the forward search
-	backwardVisitedNodes    []bool          // Array which indicates if a node (defined by index) was visited in the backward search
-	searchSpace             []*DijkstraItem // search space, a map really reduces performance. If node is also visited, this can be seen as "settled"
-	backwardSearchSpace     []*DijkstraItem // search space for the backward search
-	origin                  graph.NodeId    // the origin of the current search
-	destination             graph.NodeId    // the distination of the current search
-	useHeuristic            bool            // flag indicating if heuristic (remaining distance) should be used (AStar implementation)
-	bidirectional           bool            // flag indicating if search should be done from both sides
-	ignoreNodes             map[graph.NodeId]struct{}
+	visitedNodes            []bool                   // Array which indicates if a node (defined by index) was visited in the forward search
+	backwardVisitedNodes    []bool                   // Array which indicates if a node (defined by index) was visited in the backward search
+	searchSpace             []*DijkstraItem          // search space, a map really reduces performance. If node is also visited, this can be seen as "settled"
+	backwardSearchSpace     []*DijkstraItem          // search space for the backward search
+	origin                  graph.NodeId             // the origin of the current search
+	destination             graph.NodeId             // the distination of the current search
+	useHeuristic            bool                     // flag indicating if heuristic (remaining distance) should be used (AStar implementation)
+	bidirectional           bool                     // flag indicating if search should be done from both sides
+	ignoreNodes             []bool                   // store for each node ID if it is ignored. A map would also be viable (for performance aspect) to achieve this
 	bidirectionalConnection *BidirectionalConnection // contains the connection between the forward and backward search (if done bidirecitonal). If no connection is found, this is nil
 	pqPops                  int                      // store the amount of Pops which were performed on the priority queue for the computed search
 	considerArcFlags        bool
@@ -284,7 +284,7 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem, pq *MinPath) {
 			}
 			continue
 		}
-		if _, exists := d.ignoreNodes[arc.Destination()]; exists {
+		if d.ignoreNodes[arc.Destination()] {
 			// ignore this node
 			if d.debugLevel >= 1 {
 				fmt.Printf("Ignore Edge %v -> %v, because target is in ignore list\n", node.NodeId, arc.Destination())
@@ -361,9 +361,9 @@ func (d *UniversalDijkstra) SetMaxNumSettledNodes(maxNumSettledNodes int) {
 }
 
 func (d *UniversalDijkstra) SetIgnoreNodes(nodes []graph.NodeId) {
-	d.ignoreNodes = make(map[graph.NodeId]struct{}, len(nodes))
+	d.ignoreNodes = make([]bool, d.g.NodeCount())
 	for _, node := range nodes {
-		d.ignoreNodes[node] = struct{}{}
+		d.ignoreNodes[node] = true
 	}
 	// invalidate previously calculated results
 	d.visitedNodes = make([]bool, d.g.NodeCount())
