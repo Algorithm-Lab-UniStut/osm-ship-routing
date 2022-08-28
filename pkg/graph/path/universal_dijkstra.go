@@ -23,7 +23,7 @@ type UniversalDijkstra struct {
 	destination             graph.NodeId    // the distination of the current search
 	useHeuristic            bool            // flag indicating if heuristic (remaining distance) should be used (AStar implementation)
 	bidirectional           bool            // flag indicating if search should be done from both sides
-	ignoreNodes             []graph.NodeId
+	ignoreNodes             map[graph.NodeId]struct{}
 	bidirectionalConnection *BidirectionalConnection // contains the connection between the forward and backward search (if done bidirecitonal). If no connection is found, this is nil
 	pqPops                  int                      // store the amount of Pops which were performed on the priority queue for the computed search
 	considerArcFlags        bool
@@ -284,7 +284,7 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem, pq *MinPath) {
 			}
 			continue
 		}
-		if slice.Contains(d.ignoreNodes, arc.Destination()) {
+		if _, exists := d.ignoreNodes[arc.Destination()]; exists {
 			// ignore this node
 			if d.debugLevel >= 1 {
 				fmt.Printf("Ignore Edge %v -> %v, because target is in ignore list\n", node.NodeId, arc.Destination())
@@ -361,7 +361,10 @@ func (d *UniversalDijkstra) SetMaxNumSettledNodes(maxNumSettledNodes int) {
 }
 
 func (d *UniversalDijkstra) SetIgnoreNodes(nodes []graph.NodeId) {
-	d.ignoreNodes = nodes
+	d.ignoreNodes = make(map[graph.NodeId]struct{}, len(nodes))
+	for _, node := range nodes {
+		d.ignoreNodes[node] = struct{}{}
+	}
 	// invalidate previously calculated results
 	d.visitedNodes = make([]bool, d.g.NodeCount())
 }
