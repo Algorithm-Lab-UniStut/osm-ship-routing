@@ -22,6 +22,16 @@ const (
 	BACKWARD Direction = iota
 )
 
+func (d Direction) String() string {
+	if d == FORWARD {
+		return "FORWARD"
+	}
+	if d == BACKWARD {
+		return "BACKWARD"
+	}
+	return "INVALID"
+}
+
 type DijkstraItem struct {
 	NodeId          graph.NodeId // node id of this item in the graph
 	distance        int          // distance to origin of this node
