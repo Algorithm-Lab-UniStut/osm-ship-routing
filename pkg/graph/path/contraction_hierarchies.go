@@ -41,6 +41,7 @@ type Shortcut struct {
 	source graph.NodeId // the source node
 	target graph.NodeId // the target node
 	via    graph.NodeId // over which node this shortcut is spanned
+	cost   int          // cost of the shortcut
 }
 
 // Create a new Contraciton Hierarchy.
@@ -207,13 +208,13 @@ func (ch *ContractionHierarchies) computeInitialNodeOrder(givenNodeOrder []int, 
 			shortcuts, incidentArcs, processedNeighbors := ch.contractNode(i, true)
 			orderItem := NewOrderItem(i)
 			if oo.ConsiderEdgeDifference() {
-				orderItem.edgeDifference = shortcuts - incidentArcs
+				orderItem.edgeDifference = len(shortcuts) - incidentArcs
 			}
 			if oo.ConsiderProcessedNeighbors() {
 				orderItem.processedNeighbors = processedNeighbors
 			}
 			if ch.debugLevel >= 2 {
-				fmt.Printf("Add node %6v, edge difference: %3v, processed neighbors: %3v\n", i, shortcuts-incidentArcs, processedNeighbors)
+				fmt.Printf("Add node %6v, edge difference: %3v, processed neighbors: %3v\n", i, len(shortcuts)-incidentArcs, processedNeighbors)
 			}
 			heap.Push(pq, orderItem)
 		}
@@ -237,9 +238,8 @@ func (ch *ContractionHierarchies) contractNodes(order *NodeOrder, oo OrderOption
 			fmt.Printf("Test contraction of Node %v\n", pqItem.nodeId)
 		}
 		ch.dijkstra.SetIgnoreNodes(append(ch.nodeOrdering[0:level], pqItem.nodeId))
-		// TODO return computed (needed shortcuts)
-		neededShortcuts, edges, processedNeighbors := ch.contractNode(pqItem.nodeId, true)
-		edgeDifference := neededShortcuts - edges
+		shortcuts, edges, processedNeighbors := ch.contractNode(pqItem.nodeId, true)
+		edgeDifference := len(shortcuts) - edges
 		if oo.ConsiderEdgeDifference() {
 			pqItem.edgeDifference = edgeDifference
 		}
@@ -256,10 +256,9 @@ func (ch *ContractionHierarchies) contractNodes(order *NodeOrder, oo OrderOption
 			if ch.debugLevel >= 2 {
 				fmt.Printf("Contract node %v\n", pqItem.nodeId)
 			}
-			// TODO directly add previously computed shortcuts instead of doing the work twice
-			ch.contractNode(pqItem.nodeId, false)
+			ch.addShortcuts(shortcuts) // avoid recomputation of shortcuts. Just add the previously calculated shortcuts
 			if ch.debugLevel >= 1 {
-				fmt.Printf("Level %6v - Contract Node %6v, heap: %6v, sc: %3v, edges: %3v, ed: %3v pn: %3v, prio: %3v, updates: %6v\n", level, pqItem.nodeId, order.Len(), neededShortcuts, edges, edgeDifference, processedNeighbors, edgeDifference+processedNeighbors, intermediateUpdates)
+				fmt.Printf("Level %6v - Contract Node %6v, heap: %6v, sc: %3v, edges: %3v, ed: %3v pn: %3v, prio: %3v, updates: %6v\n", level, pqItem.nodeId, order.Len(), len(shortcuts), edges, edgeDifference, processedNeighbors, edgeDifference+processedNeighbors, intermediateUpdates)
 			}
 			intermediateUpdates = 0
 			level++
@@ -277,7 +276,7 @@ func (ch *ContractionHierarchies) contractNodes(order *NodeOrder, oo OrderOption
 					fmt.Printf("Test priority update for node %v\n", orderItem.nodeId)
 				}
 				sc, edges, pn := ch.contractNode(orderItem.nodeId, true)
-				ed := sc - edges
+				ed := len(sc) - edges
 				if oo.ConsiderEdgeDifference() {
 					orderItem.edgeDifference = ed
 				}
@@ -301,8 +300,8 @@ func (ch *ContractionHierarchies) contractNodes(order *NodeOrder, oo OrderOption
 //	- number of added/needed shortcuts
 //	- number of (active) incident arcs to that node (arcs from nodes which are not contracted, yet)
 //	- number of already contracted neighbors
-func (ch *ContractionHierarchies) contractNode(nodeId graph.NodeId, computeEdgeDifferenceOnly bool) (int, int, int) {
-	shortcuts := 0
+func (ch *ContractionHierarchies) contractNode(nodeId graph.NodeId, computeEdgeDifferenceOnly bool) ([]Shortcut, int, int) {
+	shortcuts := make([]Shortcut, 0)
 	contractedNeighbors := 0
 	arcs := ch.g.GetArcsFrom(nodeId)
 	incidentArcsAmount := len(arcs)
@@ -354,7 +353,8 @@ func (ch *ContractionHierarchies) contractNode(nodeId graph.NodeId, computeEdgeD
 				if ch.debugLevel >= 2 {
 					fmt.Printf("Shortcut needed or added\n")
 				}
-				shortcuts++
+				shortcut := Shortcut{source: source, target: target, via: nodeId, cost: maxCost}
+				shortcuts = append(shortcuts, shortcut)
 				if !computeEdgeDifferenceOnly {
 					ch.addShortcut(source, target, nodeId, maxCost)
 				}
@@ -366,11 +366,11 @@ func (ch *ContractionHierarchies) contractNode(nodeId graph.NodeId, computeEdgeD
 		// reset temporarily disabled arcs
 		ch.enableArcsForNode(nodeId)
 	} else {
-		_, exists := ch.addedShortcuts[shortcuts]
+		_, exists := ch.addedShortcuts[len(shortcuts)]
 		if !exists {
-			ch.addedShortcuts[shortcuts] = 1
+			ch.addedShortcuts[len(shortcuts)] = 1
 		} else {
-			ch.addedShortcuts[shortcuts]++
+			ch.addedShortcuts[len(shortcuts)]++
 		}
 	}
 
@@ -382,10 +382,24 @@ func (ch *ContractionHierarchies) contractNode(nodeId graph.NodeId, computeEdgeD
 	incidentArcsAmount -= contractedNeighbors
 
 	if ch.debugLevel == 2 && !computeEdgeDifferenceOnly {
-		fmt.Printf("Added Shortcuts: %v, incident Arcs: %v, contractedNeighbors: %v\n", shortcuts/2, incidentArcsAmount, contractedNeighbors)
+		fmt.Printf("Added Shortcuts: %v, incident Arcs: %v, contractedNeighbors: %v\n", len(shortcuts), incidentArcsAmount, contractedNeighbors)
 	}
 	// number of shortcuts is doubled, since we have two arcs for each each (because symmetric graph)
-	return shortcuts / 2, incidentArcsAmount, contractedNeighbors
+	// TODO maybe divide len(shortcuts) by 2 when using them
+	return shortcuts, incidentArcsAmount, contractedNeighbors
+}
+
+// Add the shortcuts to the graph (by adding new arcs)
+func (ch *ContractionHierarchies) addShortcuts(shortcuts []Shortcut) {
+	for _, sc := range shortcuts {
+		ch.addShortcut(sc.source, sc.target, sc.via, sc.cost)
+	}
+	_, exists := ch.addedShortcuts[len(shortcuts)]
+	if !exists {
+		ch.addedShortcuts[len(shortcuts)] = 1
+	} else {
+		ch.addedShortcuts[len(shortcuts)]++
+	}
 }
 
 // Adds a shortcut to the graph from source to target with length cost which is spanned over node defined by via.
