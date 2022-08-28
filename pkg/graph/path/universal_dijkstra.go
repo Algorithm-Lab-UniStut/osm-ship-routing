@@ -15,14 +15,15 @@ import (
 type UniversalDijkstra struct {
 	// check if pointers are needed/better
 	g                       graph.Graph
-	visitedNodes            []bool                   // Array which indicates if a node (defined by index) was visited in the forward search
-	backwardVisitedNodes    []bool                   // Array which indicates if a node (defined by index) was visited in the backward search
-	searchSpace             []*DijkstraItem          // search space, a map really reduces performance. If node is also visited, this can be seen as "settled"
-	backwardSearchSpace     []*DijkstraItem          // search space for the backward search
-	origin                  graph.NodeId             // the origin of the current search
-	destination             graph.NodeId             // the distination of the current search
-	useHeuristic            bool                     // flag indicating if heuristic (remaining distance) should be used (AStar implementation)
-	bidirectional           bool                     // flag indicating if search should be done from both sides
+	visitedNodes            []bool          // Array which indicates if a node (defined by index) was visited in the forward search
+	backwardVisitedNodes    []bool          // Array which indicates if a node (defined by index) was visited in the backward search
+	searchSpace             []*DijkstraItem // search space, a map really reduces performance. If node is also visited, this can be seen as "settled"
+	backwardSearchSpace     []*DijkstraItem // search space for the backward search
+	origin                  graph.NodeId    // the origin of the current search
+	destination             graph.NodeId    // the distination of the current search
+	useHeuristic            bool            // flag indicating if heuristic (remaining distance) should be used (AStar implementation)
+	bidirectional           bool            // flag indicating if search should be done from both sides
+	ignoreNodes             []graph.NodeId
 	bidirectionalConnection *BidirectionalConnection // contains the connection between the forward and backward search (if done bidirecitonal). If no connection is found, this is nil
 	pqPops                  int                      // store the amount of Pops which were performed on the priority queue for the computed search
 	considerArcFlags        bool
@@ -84,9 +85,7 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 		currentNode := heap.Pop(pq).(*DijkstraItem)
 		d.pqPops++
 		if d.debugLevel >= 1 {
-			if d.debugLevel >= 1 {
-				fmt.Printf("Settling node %v, direction: %v\n", currentNode.NodeId, currentNode.searchDirection)
-			}
+			fmt.Printf("Settling node %v, direction: %v, distance %v\n", currentNode.NodeId, currentNode.searchDirection, currentNode.distance)
 		}
 		d.settleNode(currentNode)
 		numSettledNodes++
@@ -94,7 +93,7 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 			// Each following node exeeds the max allowed cost or the number of allowed nodes is reached
 			// Stop search
 			if d.debugLevel >= 1 {
-				fmt.Printf("Exceeded limits - cost upper bound: %v, current cost: %v, max settled nodes: %v, current settled nodes: %v", d.costUpperBound, currentNode.Priority(), d.maxNumSettledNodes, numSettledNodes)
+				fmt.Printf("Exceeded limits - cost upper bound: %v, current cost: %v, max settled nodes: %v, current settled nodes: %v\n", d.costUpperBound, currentNode.Priority(), d.maxNumSettledNodes, numSettledNodes)
 			}
 			return -1
 		}
@@ -122,6 +121,10 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 		d.relaxEdges(currentNode, pq)
 	}
 
+	if d.debugLevel >= 1 {
+		fmt.Printf("Finished search\n")
+	}
+
 	if destination == -1 {
 		// calculated every distance from source to each possible target
 		//dijkstra.settledNodes = nodes
@@ -139,8 +142,16 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 
 	if d.searchSpace[destination] == nil {
 		// no valid path found
+		if d.debugLevel >= 1 {
+			fmt.Printf("No path found\n")
+		}
 		return -1
 	}
+
+	if d.debugLevel >= 1 {
+		fmt.Printf("Found path with distance %v\n", d.searchSpace[destination].distance)
+	}
+
 	return d.searchSpace[destination].distance
 }
 
@@ -216,8 +227,14 @@ func (d *UniversalDijkstra) GetSearchSpace() []*DijkstraItem {
 // Initialize a new search
 // This resets the search space and visited nodes (and all other leftovers of a previous search)
 func (d *UniversalDijkstra) initializeSearch(origin, destination graph.NodeId) {
-	if d.debugLevel >= 1 {
-		fmt.Printf("visited nodes: %v\n", d.visitedNodes)
+	if d.debugLevel >= 99 {
+		var visitedNodes []graph.NodeId
+		for node, visited := range d.visitedNodes {
+			if visited {
+				visitedNodes = append(visitedNodes, node)
+			}
+		}
+		fmt.Printf("visited nodes: %v\n", visitedNodes)
 	}
 	d.searchSpace = make([]*DijkstraItem, d.g.NodeCount())
 	d.backwardSearchSpace = make([]*DijkstraItem, d.g.NodeCount())
@@ -248,17 +265,24 @@ func (d *UniversalDijkstra) isFullySettled(nodeId graph.NodeId) bool {
 
 // Relax the Edges for the given node item and add the new nodes to the MinPath priority queue
 func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem, pq *MinPath) {
-	if d.debugLevel >= 1 {
-		fmt.Printf("Relax Edges for node %v\n", node.NodeId)
-	}
 	for _, arc := range d.g.GetArcsFrom(node.NodeId) {
 		if d.considerArcFlags && !arc.ArcFlag() {
 			// ignore this arc
+			if d.debugLevel >= 1 {
+				fmt.Printf("Ignore Edge %v -> %v\n", node.NodeId, arc.Destination())
+			}
+			continue
+		}
+		if slice.Contains(d.ignoreNodes, arc.Destination()) {
+			// ignore this node
+			if d.debugLevel >= 1 {
+				fmt.Printf("Ignore Edge %v -> %v, because target is disabled\n", node.NodeId, arc.Destination())
+			}
 			continue
 		}
 
 		if d.debugLevel >= 1 {
-			fmt.Printf("Relax Edge %v -> %v", node.NodeId, arc.Destination())
+			fmt.Printf("Relax Edge %v -> %v\n", node.NodeId, arc.Destination())
 		}
 		successor := arc.Destination()
 		searchSpace, inverseSearchSpace := d.searchSpace, d.backwardSearchSpace
@@ -323,6 +347,10 @@ func (d *UniversalDijkstra) SetCostUpperBound(costUpperBound int) {
 // Set the maximum number of nodes that can get settled before the search is terminated
 func (d *UniversalDijkstra) SetMaxNumSettledNodes(maxNumSettledNodes int) {
 	d.maxNumSettledNodes = maxNumSettledNodes
+}
+
+func (d *UniversalDijkstra) SetIgnoreNodes(nodes []graph.NodeId) {
+	d.ignoreNodes = nodes
 }
 
 // Returns the amount of priority queue/heap pops which werer performed during the search
