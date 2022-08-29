@@ -163,11 +163,11 @@ func benchmark(navigator path.Navigator, targets [][3]int) {
 	}
 
 	fmt.Printf("Average runtime: %.3fms\n", float64(int(runtime.Nanoseconds())/len(targets))/1000000)
-	fmt.Printf("%v invalid path lengths.\n", len(invalidLengths))
+	fmt.Printf("%v/%v invalid path lengths.\n", len(invalidLengths), len(targets))
 	for i, testCase := range invalidLengths {
 		fmt.Printf("%v: Case %v has invalid length. Difference: %v\n", i, testCase[0], testCase[1])
 	}
-	fmt.Printf("%v invalid Result (source/target).\n", len(invalidResults))
+	fmt.Printf("%v/%v invalid Result (source/target).\n", len(invalidResults), len(targets))
 	for i, result := range invalidResults {
 		fmt.Printf("%v: Case %v has invalid result\n", i, result)
 	}
