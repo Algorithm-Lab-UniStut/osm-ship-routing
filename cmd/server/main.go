@@ -16,11 +16,14 @@ import (
 	server "github.com/natevvv/osm-ship-routing/pkg/server/openapi_server"
 )
 
-const fileName = "graphs/ocean_equi_4.fmi"
+const plainGraphFile = "graphs/ocean_10k.fmi"
+const contractedGraphFile = "contracted_graph.fmi"
+const shortcutFile = "shortcuts.txt"
+const nodeOrderingFile = "node_ordering.txt"
 
 func main() {
-	log.Printf("Loading graph '%s' into memory", fileName)
-	DefaultApiService := server.NewDefaultApiService(fileName)
+	log.Printf("Loading graph '%s' into memory", plainGraphFile)
+	DefaultApiService := server.NewDefaultApiService(plainGraphFile, contractedGraphFile, shortcutFile, nodeOrderingFile)
 	DefaultApiController := server.NewDefaultApiController(DefaultApiService)
 
 	router := server.NewRouter(DefaultApiController)

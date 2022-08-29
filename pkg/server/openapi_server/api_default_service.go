@@ -8,6 +8,7 @@ import (
 
 	"github.com/natevvv/osm-ship-routing/pkg/geometry"
 	"github.com/natevvv/osm-ship-routing/pkg/graph"
+	"github.com/natevvv/osm-ship-routing/pkg/graph/path"
 	"github.com/natevvv/osm-ship-routing/pkg/routing"
 )
 
@@ -19,9 +20,12 @@ type DefaultApiService struct {
 }
 
 // NewDefaultApiService creates a default api service
-func NewDefaultApiService(graphFile string) DefaultApiServicer {
+func NewDefaultApiService(graphFile, contractedGraphFile, shortcutFile, nodeOrderingFile string) DefaultApiServicer {
 	g := graph.NewAdjacencyArrayFromFmiFile(graphFile)
-	sr := routing.NewShipRouter(g)
+	contractedGraph := graph.NewAdjacencyArrayFromFmiFile(contractedGraphFile)
+	shortcuts := path.ReadShortcutFile(shortcutFile)
+	nodeOrdering := path.ReadNodeOrderingFile(nodeOrderingFile)
+	sr := routing.NewShipRouter(g, contractedGraph, shortcuts, nodeOrdering)
 	return &DefaultApiService{shipRouter: sr}
 }
 

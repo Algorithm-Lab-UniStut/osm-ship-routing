@@ -17,12 +17,15 @@ type Route struct {
 }
 
 type ShipRouter struct {
-	g         graph.Graph
-	navigator path.Navigator
+	g               graph.Graph
+	contractedGraph graph.Graph
+	shortcuts       []path.Shortcut
+	nodeOrdering    []int
+	navigator       path.Navigator
 }
 
-func NewShipRouter(g graph.Graph) *ShipRouter {
-	return &ShipRouter{g: g, navigator: path.GetNavigator(g)}
+func NewShipRouter(g, contractedGraph graph.Graph, shortcuts []path.Shortcut, nodeOrdering []int) *ShipRouter {
+	return &ShipRouter{g: g, contractedGraph: contractedGraph, navigator: path.GetNavigator(g), shortcuts: shortcuts, nodeOrdering: nodeOrdering}
 }
 
 func (sr ShipRouter) closestNodes(p1, p2 geo.Point) (n1, n2 int) {
@@ -99,7 +102,10 @@ func (sr *ShipRouter) SetNavigator(navigator string) bool {
 		sr.navigator = bidijkstra
 		return true
 	case "contraction-hierarchies":
-		return false
+		dijkstra := path.NewUniversalDijkstra(sr.contractedGraph)
+		ch := path.NewContractionHierarchiesInitialized(sr.contractedGraph, dijkstra, sr.shortcuts, sr.nodeOrdering)
+		sr.navigator = ch
+		return true
 	case "alt":
 		return false
 	}
