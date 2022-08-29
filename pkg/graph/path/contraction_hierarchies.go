@@ -414,6 +414,9 @@ func (ch *ContractionHierarchies) addShortcuts(shortcuts []Shortcut) {
 // Adds a shortcut to the graph from source to target with length cost which is spanned over node defined by via.
 // This adds a new arc in the graph.
 func (ch *ContractionHierarchies) addShortcut(source, target, via graph.NodeId, cost int) {
+	if ch.debugLevel >= 2 {
+		fmt.Printf("Add shortcut %v %v %v %v\n", source, target, via, cost)
+	}
 	ch.dg.AddArc(source, target, cost)
 	sc := Shortcut{source: source, target: target, via: via}
 	ch.shortcuts = append(ch.shortcuts, sc)
@@ -424,9 +427,6 @@ func (ch *ContractionHierarchies) addShortcut(source, target, via graph.NodeId, 
 		}
 		ch.shortcutMap[source][target] = nodeId
 	*/
-	if ch.debugLevel >= 2 {
-		fmt.Printf("Add shortcut %v %v %v %v\n", source, target, via, cost)
-	}
 }
 
 // Enable all arcs for the node given by nodeId.
