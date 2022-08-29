@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"math"
 	"math/rand"
 	"os"
 	"strings"
@@ -45,9 +44,9 @@ func main() {
 		navigator = bid
 	} else if *algorithm == "ch" {
 		start := time.Now()
-		aag = graph.NewAdjacencyArrayFromFmiFile("contracted_graph_10k.fmi")
-		shortcuts := path.ReadShortcutFile("shortcuts_10k.txt")
-		nodeOrdering := path.ReadNodeOrderingFile("node_ordering_10k.txt")
+		aag = graph.NewAdjacencyArrayFromFmiFile("contracted_graph.fmi")
+		shortcuts := path.ReadShortcutFile("shortcuts.txt")
+		nodeOrdering := path.ReadNodeOrderingFile("node_ordering.txt")
 		elapsed := time.Since(start)
 		fmt.Printf("[TIME-Import for shortcut files (and graph)] = %s\n", elapsed)
 		dijkstra := path.NewUniversalDijkstra(aag)
@@ -58,7 +57,7 @@ func main() {
 		panic("Navigator not supported")
 	}
 
-	var targets [][3]int
+	var targets [][4]int
 	if *useRandomTargets {
 		targets = createTargets(*amountTargets, aag, targetFile)
 		if *storeTargets {
@@ -71,7 +70,7 @@ func main() {
 	benchmark(navigator, targets)
 }
 
-func readTargets(filename string) [][3]int {
+func readTargets(filename string) [][4]int {
 	file, err := os.Open(filename)
 	if err != nil {
 		log.Fatal(err)
@@ -81,7 +80,7 @@ func readTargets(filename string) [][3]int {
 	scanner := bufio.NewScanner(file)
 	scanner.Split(bufio.ScanLines)
 
-	targets := make([][3]int, 0)
+	targets := make([][4]int, 0)
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -92,17 +91,17 @@ func readTargets(filename string) [][3]int {
 			// skip comments
 			continue
 		}
-		var origin, destination, length int
-		fmt.Sscanf(line, "%d %d %d", &origin, &destination, &length)
-		target := [3]int{origin, destination, length}
+		var origin, destination, length, hops int
+		fmt.Sscanf(line, "%d %d %d %d", &origin, &destination, &length, &hops)
+		target := [4]int{origin, destination, length, hops}
 		targets = append(targets, target)
 	}
 	return targets
 }
 
-func createTargets(n int, aag *graph.AdjacencyArrayGraph, filename string) [][3]int {
-	// targets: origin, destination, length
-	targets := make([][3]int, n)
+func createTargets(n int, aag *graph.AdjacencyArrayGraph, filename string) [][4]int {
+	// targets: origin, destination, length, #hops (nodes from source to target)
+	targets := make([][4]int, n)
 	seed := rand.NewSource(time.Now().UnixNano())
 	rng := rand.New(seed)
 	// reference algorithm to compute path
@@ -111,15 +110,16 @@ func createTargets(n int, aag *graph.AdjacencyArrayGraph, filename string) [][3]
 		origin := rng.Intn(aag.NodeCount())
 		destination := rng.Intn(aag.NodeCount())
 		length := dijkstra.ComputeShortestPath(origin, destination)
-		targets[i] = [3]int{origin, destination, length}
+		hops := len(dijkstra.GetPath(origin, destination))
+		targets[i] = [4]int{origin, destination, length, hops}
 	}
 	return targets
 }
 
-func writeTargets(targets [][3]int, targetFile string) {
+func writeTargets(targets [][4]int, targetFile string) {
 	var sb strings.Builder
 	for _, target := range targets {
-		sb.WriteString(fmt.Sprintf("%v %v %v\n", target[0], target[1], target[2]))
+		sb.WriteString(fmt.Sprintf("%v %v %v %v\n", target[0], target[1], target[2], target[3]))
 	}
 
 	//fmt.Printf("Targets:\n%s", sb.String())
@@ -135,14 +135,16 @@ func writeTargets(targets [][3]int, targetFile string) {
 }
 
 // Run benchmarks on the provided graphs and targets
-func benchmark(navigator path.Navigator, targets [][3]int) {
+func benchmark(navigator path.Navigator, targets [][4]int) {
 	var runtime time.Duration = 0
 	invalidLengths := make([][2]int, 0)
 	invalidResults := make([]int, 0)
+	invalidHops := make([][3]int, 0)
 	for i, target := range targets {
 		origin := target[0]
 		destination := target[1]
 		referenceLength := target[2]
+		referenceHops := target[3]
 
 		start := time.Now()
 		length := navigator.ComputeShortestPath(origin, destination)
@@ -151,12 +153,13 @@ func benchmark(navigator path.Navigator, targets [][3]int) {
 		fmt.Printf("[%3v TIME-Navigate] = %s\n", i, elapsed)
 
 		if length != referenceLength {
-			invalidLengths = append(invalidLengths, [2]int{i, int(math.Abs(float64(length) - float64(referenceLength)))})
-			continue
+			invalidLengths = append(invalidLengths, [2]int{i, length - referenceLength})
 		}
 		if length > -1 && (path[0] != origin || path[len(path)-1] != destination) {
 			invalidResults = append(invalidResults, i)
-			continue
+		}
+		if referenceHops != len(path) {
+			invalidHops = append(invalidHops, [3]int{i, len(path), referenceHops})
 		}
 
 		runtime += elapsed
@@ -170,5 +173,12 @@ func benchmark(navigator path.Navigator, targets [][3]int) {
 	fmt.Printf("%v/%v invalid Result (source/target).\n", len(invalidResults), len(targets))
 	for i, result := range invalidResults {
 		fmt.Printf("%v: Case %v has invalid result\n", i, result)
+	}
+	fmt.Printf("%v/%v invalid hops number.\n", len(invalidHops), len(targets))
+	for i, hops := range invalidHops {
+		testcase := hops[0]
+		actualHops := hops[1]
+		referenceHops := hops[2]
+		fmt.Printf("%v: Case %v has invalid #hops. Has: %v, reference: %v, difference: %v\n", i, testcase, actualHops, referenceHops, actualHops-referenceHops)
 	}
 }
