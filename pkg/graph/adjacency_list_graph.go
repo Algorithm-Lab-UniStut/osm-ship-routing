@@ -129,7 +129,7 @@ func (alg *AdjacencyListGraph) EstimateDistance(source, target NodeId) int {
 	destination := alg.GetNode(target)
 	originPoint := geo.NewPoint(origin.Lat, origin.Lon)
 	destinationPoint := geo.NewPoint(destination.Lat, destination.Lon)
-	return originPoint.IntHaversine(destinationPoint)
+	return int(0.99 * float64(originPoint.IntHaversine(destinationPoint)))
 }
 
 // Set the arc flags for all arcs of the given node
