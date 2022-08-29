@@ -29,16 +29,6 @@ func main() {
 	elapsed := time.Since(start)
 	fmt.Printf("[TIME-Import] = %s\n", elapsed)
 
-	var targets [][2]int
-	if *useRandomTargets {
-		targets = createTargets(*amountTargets, aag, targetFile)
-		if *storeTargets {
-			writeTargets(targets, targetFile)
-		}
-	} else {
-		targets = readTargets(targetFile)
-	}
-
 	var navigator path.Navigator
 	if *algorithm == "default" {
 		navigator = path.GetNavigator(aag)
@@ -52,14 +42,35 @@ func main() {
 		bid := path.NewUniversalDijkstra(aag)
 		bid.SetBidirectional(true)
 		navigator = bid
+	} else if *algorithm == "ch" {
+		start := time.Now()
+		aag = graph.NewAdjacencyArrayFromFmiFile("contracted_graph_10k.fmi")
+		shortcuts := path.ReadShortcutFile("shortcuts_10k.txt")
+		nodeOrdering := path.ReadNodeOrderingFile("node_ordering_10k.txt")
+		elapsed := time.Since(start)
+		fmt.Printf("[TIME-Import for shortcut files (and graph)] = %s\n", elapsed)
+		dijkstra := path.NewUniversalDijkstra(aag)
+		ch := path.NewContractionHierarchiesInitialized(aag, dijkstra, shortcuts, nodeOrdering)
+		navigator = ch
+		//navigator = dijkstra
 	} else {
 		panic("Navigator not supported")
+	}
+
+	var targets [][3]int
+	if *useRandomTargets {
+		targets = createTargets(*amountTargets, aag, targetFile)
+		if *storeTargets {
+			writeTargets(targets, targetFile)
+		}
+	} else {
+		targets = readTargets(targetFile)
 	}
 
 	benchmark(navigator, targets)
 }
 
-func readTargets(filename string) [][2]int {
+func readTargets(filename string) [][3]int {
 	file, err := os.Open(filename)
 	if err != nil {
 		log.Fatal(err)
@@ -69,7 +80,7 @@ func readTargets(filename string) [][2]int {
 	scanner := bufio.NewScanner(file)
 	scanner.Split(bufio.ScanLines)
 
-	targets := make([][2]int, 0)
+	targets := make([][3]int, 0)
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -80,30 +91,34 @@ func readTargets(filename string) [][2]int {
 			// skip comments
 			continue
 		}
-		var origin, destination int
-		fmt.Sscanf(line, "%d %d", &origin, &destination)
-		target := [2]int{origin, destination}
+		var origin, destination, length int
+		fmt.Sscanf(line, "%d %d %d", &origin, &destination, &length)
+		target := [3]int{origin, destination, length}
 		targets = append(targets, target)
 	}
 	return targets
 }
 
-func createTargets(n int, aag *graph.AdjacencyArrayGraph, filename string) [][2]int {
-	targets := make([][2]int, n)
+func createTargets(n int, aag *graph.AdjacencyArrayGraph, filename string) [][3]int {
+	// targets: origin, destination, length
+	targets := make([][3]int, n)
 	seed := rand.NewSource(time.Now().UnixNano())
 	rng := rand.New(seed)
+	// reference algorithm to compute path
+	dijkstra := path.NewDijkstra(aag)
 	for i := 0; i < n; i++ {
 		origin := rng.Intn(aag.NodeCount())
 		destination := rng.Intn(aag.NodeCount())
-		targets[i] = [2]int{origin, destination}
+		length := dijkstra.ComputeShortestPath(origin, destination)
+		targets[i] = [3]int{origin, destination, length}
 	}
 	return targets
 }
 
-func writeTargets(targets [][2]int, targetFile string) {
+func writeTargets(targets [][3]int, targetFile string) {
 	var sb strings.Builder
 	for _, target := range targets {
-		sb.WriteString(fmt.Sprintf("%v %v\n", target[0], target[1]))
+		sb.WriteString(fmt.Sprintf("%v %v %v\n", target[0], target[1], target[2]))
 	}
 
 	//fmt.Printf("Targets:\n%s", sb.String())
@@ -119,12 +134,13 @@ func writeTargets(targets [][2]int, targetFile string) {
 }
 
 // Run benchmarks on the provided graphs and targets
-func benchmark(navigator path.Navigator, targets [][2]int) {
+func benchmark(navigator path.Navigator, targets [][3]int) {
 
 	var runtime time.Duration = 0
 	for i, target := range targets {
 		origin := target[0]
 		destination := target[1]
+		referenceLength := target[2]
 
 		start := time.Now()
 		length := navigator.ComputeShortestPath(origin, destination)
@@ -132,10 +148,11 @@ func benchmark(navigator path.Navigator, targets [][2]int) {
 		elapsed := time.Since(start)
 		fmt.Printf("[%3v TIME-Navigate] = %s\n", i, elapsed)
 
-		if length > -1 {
-			if path[0] != origin || path[len(path)-1] != destination {
-				panic("Invalid routing result")
-			}
+		if length != referenceLength {
+			panic(fmt.Sprintf("Invalid routing result. Reference path length: %v, calculated path length: %v\n", referenceLength, length))
+		}
+		if length > -1 && (path[0] != origin || path[len(path)-1] != destination) {
+			panic("Invalid routing result")
 		}
 
 		runtime += elapsed
