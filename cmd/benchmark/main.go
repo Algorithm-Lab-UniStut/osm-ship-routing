@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math"
 	"math/rand"
 	"os"
 	"strings"
@@ -135,8 +136,9 @@ func writeTargets(targets [][3]int, targetFile string) {
 
 // Run benchmarks on the provided graphs and targets
 func benchmark(navigator path.Navigator, targets [][3]int) {
-
 	var runtime time.Duration = 0
+	invalidLengths := make([][2]int, 0)
+	invalidResults := make([]int, 0)
 	for i, target := range targets {
 		origin := target[0]
 		destination := target[1]
@@ -149,13 +151,24 @@ func benchmark(navigator path.Navigator, targets [][3]int) {
 		fmt.Printf("[%3v TIME-Navigate] = %s\n", i, elapsed)
 
 		if length != referenceLength {
-			panic(fmt.Sprintf("Invalid routing result. Reference path length: %v, calculated path length: %v\n", referenceLength, length))
+			invalidLengths = append(invalidLengths, [2]int{i, int(math.Abs(float64(length) - float64(referenceLength)))})
+			continue
 		}
 		if length > -1 && (path[0] != origin || path[len(path)-1] != destination) {
-			panic("Invalid routing result")
+			invalidResults = append(invalidResults, i)
+			continue
 		}
 
 		runtime += elapsed
 	}
+
 	fmt.Printf("Average runtime: %.3fms\n", float64(int(runtime.Nanoseconds())/len(targets))/1000000)
+	fmt.Printf("%v invalid path lengths.\n", len(invalidLengths))
+	for i, testCase := range invalidLengths {
+		fmt.Printf("%v: Case %v has invalid length. Difference: %v\n", i, testCase[0], testCase[1])
+	}
+	fmt.Printf("%v invalid Result (source/target).\n", len(invalidResults))
+	for i, result := range invalidResults {
+		fmt.Printf("%v: Case %v has invalid result\n", i, result)
+	}
 }
