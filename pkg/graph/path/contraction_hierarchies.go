@@ -33,6 +33,13 @@ type ContractionHierarchies struct {
 	graphFilename        string      // the filename were the file gets stored
 	shortcutsFilename    string      // the filename were the shourtcuts gets stored
 	nodeOrderingFilename string      // the filname were the node ordering gets stored
+
+	// Forsome debuging
+	initialTime     time.Time
+	runtime         []time.Duration
+	shortcutCounter []int
+	milestones      []float64
+	milestoneIndex  int
 }
 
 // Describes a shortcut.
@@ -65,6 +72,12 @@ func NewContractionHierarchiesInitialized(g graph.Graph, dijkstra *UniversalDijk
 // givenNodeOrder predefines the order of the nodes.
 // oo defines how the node ordering will be calculated.
 func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptions) {
+	ch.runtime = make([]time.Duration, 0)
+	ch.shortcutCounter = make([]int, 0)
+	ch.milestones = []float64{0, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 99.99}
+	ch.milestoneIndex = 0
+	ch.initialTime = time.Now()
+
 	ch.dijkstra.SetConsiderArcFlags(true)
 	ch.dijkstra.SetBidirectional(false)
 	ch.dijkstra.SetUseHeuristic(false)             // TODO test true
@@ -95,6 +108,11 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 		fmt.Printf("Compute Node Ordering\n")
 	}
 	pq := ch.computeInitialNodeOrder(givenNodeOrder, oo)
+
+	ch.runtime = append(ch.runtime, time.Since(ch.initialTime))
+	ch.shortcutCounter = append(ch.shortcutCounter, 0)
+	ch.milestoneIndex++
+
 	if ch.debugLevel >= 1 {
 		fmt.Printf("%v\n", pq)
 		fmt.Printf("Contract Nodes\n")
@@ -108,6 +126,23 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 	}
 	// store the computed shortcuts in the map
 	ch.SetShortcuts(ch.shortcuts)
+
+	for i, m := range ch.milestones {
+		runtime := ch.runtime[i]
+		timeDif := ch.runtime[i]
+		if i > 0 {
+			timeDif -= ch.runtime[i-1]
+		}
+		totalShortcuts := ch.shortcutCounter[i]
+		previousShortcuts := ch.shortcutCounter[0]
+		if i > 0 {
+			previousShortcuts = ch.shortcutCounter[i-1]
+		}
+		addedDifference := totalShortcuts - previousShortcuts
+		if ch.debugLevel >= 1 {
+			fmt.Printf("Milestone %05.2f %% - Runtime: %.3f s, difference: %.3f s, total Shortcuts: %5v, added Shortcuts: %5v\n", m, float64(runtime.Microseconds())/1000000, float64(timeDif.Microseconds())/1000000, totalShortcuts, addedDifference)
+		}
+	}
 }
 
 // Compute the shortest path for the given query (from origin to destination node).
@@ -233,6 +268,7 @@ func (ch *ContractionHierarchies) contractNodes(order *NodeOrder, oo OrderOption
 	}
 	level := 0
 	intermediateUpdates := 0
+	shortcutCounter := 0
 	for order.Len() > 0 {
 		pqItem := heap.Pop(order).(*OrderItem)
 		if ch.debugLevel >= 2 {
@@ -264,6 +300,14 @@ func (ch *ContractionHierarchies) contractNodes(order *NodeOrder, oo OrderOption
 			}
 			intermediateUpdates = 0
 			level++
+
+			shortcutCounter += len(shortcuts)
+			if float64(level)/float64(len(ch.nodeOrdering)) > ch.milestones[ch.milestoneIndex]/100 {
+				ch.runtime = append(ch.runtime, time.Since(ch.initialTime))
+				ch.shortcutCounter = append(ch.shortcutCounter, shortcutCounter)
+				ch.milestoneIndex++
+			}
+
 		} else {
 			if ch.debugLevel >= 2 {
 				fmt.Printf("Update order\n")
@@ -417,6 +461,9 @@ func (ch *ContractionHierarchies) addShortcut(source, target, via graph.NodeId, 
 	if ch.debugLevel >= 2 {
 		fmt.Printf("Add shortcut %v %v %v %v\n", source, target, via, cost)
 	}
+	if ch.orderOfNode[source] != -1 || ch.orderOfNode[target] != -1 {
+		panic("Edge Node already contracted")
+	}
 	ch.dg.AddArc(source, target, cost)
 	sc := Shortcut{source: source, target: target, via: via}
 	ch.shortcuts = append(ch.shortcuts, sc)
@@ -473,6 +520,12 @@ func (ch *ContractionHierarchies) SetShortcuts(shortcuts []Shortcut) {
 		if _, exists := ch.shortcutMap[sc.source]; !exists {
 			ch.shortcutMap[sc.source] = make(map[graph.NodeId]graph.NodeId)
 		}
+		/*
+			if via, exists := ch.shortcutMap[sc.source][sc.target]; exists {
+				// TODO Add panic for testing. But should be no problem
+				panic(fmt.Sprintf("Shortcut already exists. Old connector: %v, new connector: %v", via, sc.via))
+			}
+		*/
 		ch.shortcutMap[sc.source][sc.target] = sc.via
 	}
 }
