@@ -28,6 +28,7 @@ func main() {
 	aag := graph.NewAdjacencyArrayFromFmiFile(graphFile)
 	elapsed := time.Since(start)
 	fmt.Printf("[TIME-Import] = %s\n", elapsed)
+	referenceDijkstra := path.NewDijkstra(aag)
 
 	var navigator path.Navigator
 	if *algorithm == "default" {
@@ -44,15 +45,17 @@ func main() {
 		navigator = bid
 	} else if *algorithm == "ch" {
 		start := time.Now()
-		aag = graph.NewAdjacencyArrayFromFmiFile("contracted_graph.fmi")
+		aag = graph.NewAdjacencyArrayFromFmiFile("ocean_10k.fmi")
+		contracted_aag := graph.NewAdjacencyArrayFromFmiFile("contracted_graph.fmi")
+		referenceDijkstra = path.NewDijkstra(graph.NewAdjacencyArrayFromFmiFile("ocean_10k.fmi"))
 		shortcuts := path.ReadShortcutFile("shortcuts.txt")
 		nodeOrdering := path.ReadNodeOrderingFile("node_ordering.txt")
 		elapsed := time.Since(start)
 		fmt.Printf("[TIME-Import for shortcut files (and graph)] = %s\n", elapsed)
-		dijkstra := path.NewUniversalDijkstra(aag)
-		ch := path.NewContractionHierarchiesInitialized(aag, dijkstra, shortcuts, nodeOrdering)
+		dijkstra := path.NewUniversalDijkstra(contracted_aag)
+		ch := path.NewContractionHierarchiesInitialized(contracted_aag, dijkstra, shortcuts, nodeOrdering)
 		navigator = ch
-		//navigator = dijkstra
+		//navigator = referenceDijkstra
 	} else {
 		panic("Navigator not supported")
 	}
@@ -67,7 +70,7 @@ func main() {
 		targets = readTargets(targetFile)
 	}
 
-	benchmark(navigator, targets)
+	benchmark(navigator, targets, referenceDijkstra)
 }
 
 func readTargets(filename string) [][4]int {
@@ -135,7 +138,7 @@ func writeTargets(targets [][4]int, targetFile string) {
 }
 
 // Run benchmarks on the provided graphs and targets
-func benchmark(navigator path.Navigator, targets [][4]int) {
+func benchmark(navigator path.Navigator, targets [][4]int, referenceDijkstra *path.Dijkstra) {
 	var runtime time.Duration = 0
 	invalidLengths := make([][2]int, 0)
 	invalidResults := make([]int, 0)
@@ -148,8 +151,8 @@ func benchmark(navigator path.Navigator, targets [][4]int) {
 
 		start := time.Now()
 		length := navigator.ComputeShortestPath(origin, destination)
-		path := navigator.GetPath(origin, destination)
 		elapsed := time.Since(start)
+		path := navigator.GetPath(origin, destination)
 		fmt.Printf("[%3v TIME-Navigate] = %s\n", i, elapsed)
 
 		if length != referenceLength {
@@ -160,6 +163,10 @@ func benchmark(navigator path.Navigator, targets [][4]int) {
 		}
 		if referenceHops != len(path) {
 			invalidHops = append(invalidHops, [3]int{i, len(path), referenceHops})
+			fmt.Printf("%v: Hops: %v\n", i, path)
+			referenceDijkstra.ComputeShortestPath(origin, destination)
+			rp := referenceDijkstra.GetPath(origin, destination)
+			fmt.Printf("Reference: %v\n", rp)
 		}
 
 		runtime += elapsed
@@ -168,17 +175,17 @@ func benchmark(navigator path.Navigator, targets [][4]int) {
 	fmt.Printf("Average runtime: %.3fms\n", float64(int(runtime.Nanoseconds())/len(targets))/1000000)
 	fmt.Printf("%v/%v invalid path lengths.\n", len(invalidLengths), len(targets))
 	for i, testCase := range invalidLengths {
-		fmt.Printf("%v: Case %v has invalid length. Difference: %v\n", i, testCase[0], testCase[1])
+		fmt.Printf("%v: Case %v (%v -> %v) has invalid length. Difference: %v\n", i, testCase[0], targets[testCase[0]][0], targets[testCase[0]][1], testCase[1])
 	}
 	fmt.Printf("%v/%v invalid Result (source/target).\n", len(invalidResults), len(targets))
 	for i, result := range invalidResults {
-		fmt.Printf("%v: Case %v has invalid result\n", i, result)
+		fmt.Printf("%v: Case %v (%v -> %v) has invalid result\n", i, result, targets[result][0], targets[result][1])
 	}
 	fmt.Printf("%v/%v invalid hops number.\n", len(invalidHops), len(targets))
 	for i, hops := range invalidHops {
 		testcase := hops[0]
 		actualHops := hops[1]
 		referenceHops := hops[2]
-		fmt.Printf("%v: Case %v has invalid #hops. Has: %v, reference: %v, difference: %v\n", i, testcase, actualHops, referenceHops, actualHops-referenceHops)
+		fmt.Printf("%v: Case %v (%v -> %v) has invalid #hops. Has: %v, reference: %v, difference: %v\n", i, testcase, targets[testcase][0], targets[testcase][1], actualHops, referenceHops, actualHops-referenceHops)
 	}
 }
