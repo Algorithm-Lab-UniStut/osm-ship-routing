@@ -62,9 +62,9 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 		if d.debugLevel >= 1 {
 			fmt.Printf("Using hot start %v -> %v, distance is %v\n", origin, destination, d.searchSpace[destination].distance)
 		}
-		d.destination = destination
+		//d.destination = destination
 		d.pqPops = 0
-		d.bidirectionalConnection = nil
+		//d.bidirectionalConnection = nil
 		return d.searchSpace[destination].distance
 	}
 	d.initializeSearch(origin, destination)
@@ -124,7 +124,8 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 			if currentNode.searchDirection == FORWARD && currentNode.NodeId == destination {
 				break
 			} else if d.bidirectional && currentNode.searchDirection == BACKWARD && currentNode.NodeId == origin {
-				// not necessary?
+				// not necessary? - should be catched in bidirectionalConnection
+				panic("I'm just curious if this could happen somehow...")
 				break
 			}
 		}
@@ -298,7 +299,7 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem, pq *MinPath) {
 		successor := arc.Destination()
 		searchSpace, inverseSearchSpace := d.searchSpace, d.backwardSearchSpace
 		if node.searchDirection == BACKWARD {
-			searchSpace, inverseSearchSpace = d.backwardSearchSpace, d.searchSpace
+			searchSpace, inverseSearchSpace = inverseSearchSpace, searchSpace
 		}
 		if d.bidirectional && inverseSearchSpace[successor] != nil {
 			// store potential connection node, needed for later
