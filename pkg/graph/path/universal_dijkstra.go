@@ -143,7 +143,8 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 				break
 			} else if d.bidirectional && currentNode.searchDirection == BACKWARD && currentNode.NodeId == origin {
 				// not necessary? - should be catched in bidirectionalConnection
-				panic("I'm just curious if this could happen somehow...")
+				// appearently this can happen (at least for contraction hierarchies when calculated bidirecitonal)
+				// -> first path/conneciton is found which has higher distance than possible (directed) path from destinaiton to source
 				break
 			}
 		}

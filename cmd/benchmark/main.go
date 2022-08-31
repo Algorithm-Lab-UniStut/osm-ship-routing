@@ -140,6 +140,7 @@ func writeTargets(targets [][4]int, targetFile string) {
 // Run benchmarks on the provided graphs and targets
 func benchmark(navigator path.Navigator, targets [][4]int, referenceDijkstra *path.Dijkstra) {
 	var runtime time.Duration = 0
+	pqPops := 0
 	invalidLengths := make([][2]int, 0)
 	invalidResults := make([]int, 0)
 	invalidHops := make([][3]int, 0)
@@ -152,8 +153,9 @@ func benchmark(navigator path.Navigator, targets [][4]int, referenceDijkstra *pa
 		start := time.Now()
 		length := navigator.ComputeShortestPath(origin, destination)
 		elapsed := time.Since(start)
+		pqPops += navigator.GetPqPops()
 		path := navigator.GetPath(origin, destination)
-		fmt.Printf("[%3v TIME-Navigate] = %s\n", i, elapsed)
+		fmt.Printf("[%3v TIME-Navigate, PQ Pops] = %s, %d\n", i, elapsed, navigator.GetPqPops())
 
 		if length != referenceLength {
 			invalidLengths = append(invalidLengths, [2]int{i, length - referenceLength})
@@ -173,6 +175,7 @@ func benchmark(navigator path.Navigator, targets [][4]int, referenceDijkstra *pa
 	}
 
 	fmt.Printf("Average runtime: %.3fms\n", float64(int(runtime.Nanoseconds())/len(targets))/1000000)
+	fmt.Printf("Average pq pops: %d\n", pqPops/len(targets))
 	fmt.Printf("%v/%v invalid path lengths.\n", len(invalidLengths), len(targets))
 	for i, testCase := range invalidLengths {
 		fmt.Printf("%v: Case %v (%v -> %v) has invalid length. Difference: %v\n", i, testCase[0], targets[testCase[0]][0], targets[testCase[0]][1], testCase[1])
