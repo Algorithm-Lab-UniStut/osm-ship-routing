@@ -71,6 +71,7 @@ func NewContractionHierarchiesInitialized(g graph.Graph, dijkstra *UniversalDijk
 	ch := NewContractionHierarchies(g, dijkstra)
 	ch.SetShortcuts(shortcuts)
 	ch.SetNodeOrdering(nodeOrdering)
+	ch.matchArcsWithNodeOrder()
 	return ch
 }
 
@@ -134,6 +135,8 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 	}
 	// store the computed shortcuts in the map
 	ch.SetShortcuts(ch.shortcuts)
+	// match arcs with node order
+	ch.matchArcsWithNodeOrder()
 
 	for i, m := range ch.milestones {
 		runtime := ch.runtime[i]
@@ -164,7 +167,6 @@ func (ch *ContractionHierarchies) ComputeShortestPath(origin, destination graph.
 	ch.dijkstra.SetUseHeuristic(false)
 	ch.dijkstra.SetIgnoreNodes(make([]graph.NodeId, 0))
 	ch.dijkstra.SetHotStart(false)
-	ch.matchArcsWithNodeOrder()
 	if ch.debugLevel >= 1 {
 		fmt.Printf("Compute path from %v to %v\n", origin, destination)
 		fmt.Printf("Node ordering: %v\n", ch.nodeOrdering)
