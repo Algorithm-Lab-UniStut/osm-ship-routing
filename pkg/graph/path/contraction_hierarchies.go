@@ -35,11 +35,12 @@ type ContractionHierarchies struct {
 	nodeOrderingFilename string      // the filname were the node ordering gets stored
 
 	// For some debuging
-	initialTime     time.Time
-	runtime         []time.Duration
-	shortcutCounter []int
-	milestones      []float64
-	milestoneIndex  int
+	initialTime       time.Time
+	runtime           []time.Duration
+	shortcutCounter   []int
+	milestones        []float64
+	milestoneIndex    int
+	milestoneFilename string
 
 	// search items needed for path calculation
 	visitedNodes         []bool
@@ -62,7 +63,7 @@ type Shortcut struct {
 // Create a new Contraciton Hierarchy.
 // Before a query can get executed, the Precomputation has to be done
 func NewContractionHierarchies(g graph.Graph, dijkstra *UniversalDijkstra) *ContractionHierarchies {
-	return &ContractionHierarchies{g: g, dijkstra: dijkstra, graphFilename: "contracted_graph.fmi", shortcutsFilename: "shortcuts.txt", nodeOrderingFilename: "node_ordering.txt"}
+	return &ContractionHierarchies{g: g, dijkstra: dijkstra, graphFilename: "contracted_graph.fmi", shortcutsFilename: "shortcuts.txt", nodeOrderingFilename: "node_ordering.txt", milestoneFilename: "milestones.txt"}
 }
 
 // Create a new Contraction Hierarchy which is already initialized with the shortcuts and node ordering.
@@ -117,8 +118,20 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 	pq := ch.computeInitialNodeOrder(givenNodeOrder, oo)
 
 	if ch.milestones != nil && ch.milestones[0] == 0 {
-		ch.runtime[ch.milestoneIndex] = time.Since(ch.initialTime)
+		runtime := time.Since(ch.initialTime)
+		milestone := ch.milestones[ch.milestoneIndex]
+		ch.runtime[ch.milestoneIndex] = runtime
 		ch.shortcutCounter[ch.milestoneIndex] = 0
+
+		f, err := os.OpenFile(ch.milestoneFilename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+		if err != nil {
+			panic(err)
+		}
+
+		defer f.Close()
+		if _, err = f.WriteString(fmt.Sprintf("Milestone %05.2f %% - Runtime: %6.3f s, difference: %.3f s, total Shortcuts: %5v, added Shortcuts: %5v\n", milestone, float64(runtime.Microseconds())/1000000, float64(runtime.Microseconds())/1000000, 0, 0)); err != nil {
+			panic(err)
+		}
 		ch.milestoneIndex++
 	}
 
@@ -377,8 +390,31 @@ func (ch *ContractionHierarchies) contractNodes(order *NodeOrder, oo OrderOption
 
 			shortcutCounter += len(shortcuts)
 			if float64(level)/float64(len(ch.nodeOrdering)) > ch.milestones[ch.milestoneIndex]/100 {
-				ch.runtime[ch.milestoneIndex] = time.Since(ch.initialTime)
+				runtime := time.Since(ch.initialTime)
+				timeDif := runtime
+				if ch.milestoneIndex > 0 {
+					timeDif -= ch.runtime[ch.milestoneIndex-1]
+				}
+				milestone := ch.milestones[ch.milestoneIndex]
+				ch.runtime[ch.milestoneIndex] = runtime
 				ch.shortcutCounter[ch.milestoneIndex] = shortcutCounter
+				totalShortcuts := ch.shortcutCounter[ch.milestoneIndex]
+				previousShortcuts := ch.shortcutCounter[0]
+				if ch.milestoneIndex > 0 {
+					previousShortcuts = ch.shortcutCounter[ch.milestoneIndex-1]
+				}
+				addedDifference := totalShortcuts - previousShortcuts
+
+				f, err := os.OpenFile(ch.milestoneFilename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+				if err != nil {
+					panic(err)
+				}
+
+				defer f.Close()
+				if _, err = f.WriteString(fmt.Sprintf("Milestone %05.2f %% - Runtime: %6.3f s, difference: %.3f s, total Shortcuts: %5v, added Shortcuts: %5v\n", milestone, float64(runtime.Microseconds())/1000000, float64(timeDif.Microseconds())/1000000, totalShortcuts, addedDifference)); err != nil {
+					panic(err)
+				}
+
 				ch.milestoneIndex++
 			}
 
