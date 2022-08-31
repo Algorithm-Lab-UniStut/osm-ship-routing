@@ -119,7 +119,7 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 			}
 			return -1
 		}
-		if d.bidirectionalConnection != nil && d.isFullySettled(currentNode.NodeId) {
+		if !d.considerArcFlags && d.bidirectionalConnection != nil && d.isFullySettled(currentNode.NodeId) {
 			// node with lowest priority is the current connection node
 			// -> every edge increases cost/priority
 			// -> this has to be the shortest path --> wrong, if one edge is (really) long
@@ -128,6 +128,13 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 			// -> Wrong, this condition just made a "normal" Dijkstra out of the Bidirectional Dijkstra
 			// Correction: check if the node was already settled in both directions, this is a connection
 			// the connection item contains the information, which one is the real connection (this has not to be the current one)
+			break
+		}
+		if d.considerArcFlags && d.bidirectionalConnection != nil && currentNode.Priority() > d.bidirectionalConnection.distance {
+			// exit condition for contraction hierarchies
+			// if path is directed, it is not enough to test if node is settled from both sides, since the direction can block to reach the node from one side
+			// for normal Dijkstra, this would force that the search space is in the bidirectional search as big as unidirecitonal search
+			// check if the current visited node has already a higher priority (distance) than the connection. If this is the case, no lower connection can get found
 			break
 		}
 

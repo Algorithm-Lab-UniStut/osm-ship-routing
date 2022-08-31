@@ -159,7 +159,7 @@ func (ch *ContractionHierarchies) ComputeShortestPath(origin, destination graph.
 	ch.dijkstra.SetMaxNumSettledNodes(math.MaxInt)
 	ch.dijkstra.SetCostUpperBound(math.MaxInt)
 	ch.dijkstra.SetConsiderArcFlags(true)
-	ch.dijkstra.SetBidirectional(false)
+	ch.dijkstra.SetBidirectional(true)
 	ch.dijkstra.SetUseHeuristic(false)
 	ch.dijkstra.SetIgnoreNodes(make([]graph.NodeId, 0))
 	ch.dijkstra.SetHotStart(false)
@@ -168,6 +168,11 @@ func (ch *ContractionHierarchies) ComputeShortestPath(origin, destination graph.
 		fmt.Printf("Compute path from %v to %v\n", origin, destination)
 		fmt.Printf("Node ordering: %v\n", ch.nodeOrdering)
 	}
+
+	if ch.dijkstra.bidirectional {
+		return ch.dijkstra.ComputeShortestPath(origin, destination)
+	}
+	// compute shortest path manually since two unidirectinoal dijkstras were used
 	ch.dijkstra.ComputeShortestPath(origin, -1)
 	ch.visitedNodes = ch.dijkstra.visitedNodes
 	ch.searchSpace = ch.dijkstra.searchSpace
@@ -188,6 +193,7 @@ func (ch *ContractionHierarchies) ComputeShortestPath(origin, destination graph.
 	if ch.connection == -1 {
 		return -1
 	}
+
 	return shortestLength
 }
 
@@ -199,13 +205,18 @@ func (ch *ContractionHierarchies) GetPath(origin, destination graph.NodeId) []in
 		return make([]int, 0)
 	}
 	path := make([]int, 0)
-	for nodeId := ch.searchSpace[ch.connection].predecessor; nodeId != -1; nodeId = ch.searchSpace[nodeId].predecessor {
-		path = append(path, nodeId)
-	}
-	slice.ReverseIntInPlace(path)
-	path = append(path, ch.connection)
-	for nodeId := ch.backwardSearchSpace[ch.connection].predecessor; nodeId != -1; nodeId = ch.backwardSearchSpace[nodeId].predecessor {
-		path = append(path, nodeId)
+	if ch.dijkstra.bidirectional {
+		path = ch.dijkstra.GetPath(origin, destination)
+	} else {
+		// compute path manually, since two unidirectional dijkstras were used
+		for nodeId := ch.searchSpace[ch.connection].predecessor; nodeId != -1; nodeId = ch.searchSpace[nodeId].predecessor {
+			path = append(path, nodeId)
+		}
+		slice.ReverseIntInPlace(path)
+		path = append(path, ch.connection)
+		for nodeId := ch.backwardSearchSpace[ch.connection].predecessor; nodeId != -1; nodeId = ch.backwardSearchSpace[nodeId].predecessor {
+			path = append(path, nodeId)
+		}
 	}
 	if ch.debugLevel >= 1 {
 		fmt.Println(path)
@@ -240,6 +251,10 @@ func (ch *ContractionHierarchies) GetPath(origin, destination graph.NodeId) []in
 // Get the search space of the path finding query
 // S slice is returned which contains all settled nodes of the query (containing the search information, e.g. distance to source node, which search direction was used for this item, ...)
 func (ch *ContractionHierarchies) GetSearchSpace() []*DijkstraItem {
+	if ch.dijkstra.bidirectional {
+		return ch.dijkstra.GetSearchSpace()
+	}
+	// compute search space manually, since two unidirectional dijkstras were used
 	searchSpace := make([]*DijkstraItem, 0)
 	for i := 0; i < ch.g.NodeCount(); i++ {
 		if ch.visitedNodes[i] {
