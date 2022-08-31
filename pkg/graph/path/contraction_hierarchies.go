@@ -40,6 +40,12 @@ type ContractionHierarchies struct {
 	shortcutCounter []int
 	milestones      []float64
 	milestoneIndex  int
+
+	visitedNodes         []bool
+	backwardVisitedNodes []bool
+	searchSpace          []*DijkstraItem
+	backwardSearchSpace  []*DijkstraItem
+	connection           graph.NodeId
 }
 
 // Describes a shortcut.
@@ -72,11 +78,8 @@ func NewContractionHierarchiesInitialized(g graph.Graph, dijkstra *UniversalDijk
 // givenNodeOrder predefines the order of the nodes.
 // oo defines how the node ordering will be calculated.
 func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptions) {
-	ch.runtime = make([]time.Duration, 0)
-	ch.shortcutCounter = make([]int, 0)
-	ch.milestones = []float64{0, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 99.99}
-	ch.milestoneIndex = 0
 	ch.initialTime = time.Now()
+	ch.milestoneIndex = 0
 
 	ch.dijkstra.SetConsiderArcFlags(true)
 	ch.dijkstra.SetBidirectional(false)
@@ -109,9 +112,11 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 	}
 	pq := ch.computeInitialNodeOrder(givenNodeOrder, oo)
 
-	ch.runtime = append(ch.runtime, time.Since(ch.initialTime))
-	ch.shortcutCounter = append(ch.shortcutCounter, 0)
-	ch.milestoneIndex++
+	if ch.milestones != nil && ch.milestones[0] == 0 {
+		ch.runtime[ch.milestoneIndex] = time.Since(ch.initialTime)
+		ch.shortcutCounter[ch.milestoneIndex] = 0
+		ch.milestoneIndex++
+	}
 
 	if ch.debugLevel >= 1 {
 		fmt.Printf("%v\n", pq)
@@ -140,7 +145,7 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 		}
 		addedDifference := totalShortcuts - previousShortcuts
 		if ch.debugLevel >= 1 {
-			fmt.Printf("Milestone %05.2f %% - Runtime: %.3f s, difference: %.3f s, total Shortcuts: %5v, added Shortcuts: %5v\n", m, float64(runtime.Microseconds())/1000000, float64(timeDif.Microseconds())/1000000, totalShortcuts, addedDifference)
+			fmt.Printf("Milestone %05.2f %% - Runtime: %6.3f s, difference: %.3f s, total Shortcuts: %5v, added Shortcuts: %5v\n", m, float64(runtime.Microseconds())/1000000, float64(timeDif.Microseconds())/1000000, totalShortcuts, addedDifference)
 		}
 	}
 }
@@ -152,7 +157,7 @@ func (ch *ContractionHierarchies) ComputeShortestPath(origin, destination graph.
 	ch.dijkstra.SetMaxNumSettledNodes(math.MaxInt)
 	ch.dijkstra.SetCostUpperBound(math.MaxInt)
 	ch.dijkstra.SetConsiderArcFlags(true)
-	ch.dijkstra.SetBidirectional(true)
+	ch.dijkstra.SetBidirectional(false)
 	ch.dijkstra.SetUseHeuristic(false)
 	ch.dijkstra.SetIgnoreNodes(make([]graph.NodeId, 0))
 	ch.matchArcsWithNodeOrder()
@@ -160,15 +165,45 @@ func (ch *ContractionHierarchies) ComputeShortestPath(origin, destination graph.
 		fmt.Printf("Compute path from %v to %v\n", origin, destination)
 		fmt.Printf("Node ordering: %v\n", ch.nodeOrdering)
 	}
-	length := ch.dijkstra.ComputeShortestPath(origin, destination)
-	return length
+	ch.dijkstra.ComputeShortestPath(origin, -1)
+	ch.visitedNodes = ch.dijkstra.visitedNodes
+	ch.searchSpace = ch.dijkstra.searchSpace
+	ch.dijkstra.ComputeShortestPath(destination, -1)
+	ch.backwardVisitedNodes = ch.dijkstra.visitedNodes
+	ch.backwardSearchSpace = ch.dijkstra.searchSpace
+	ch.connection = -1
+	shortestLength := math.MaxInt
+	for nodeId := 0; nodeId < ch.g.NodeCount(); nodeId++ {
+		if ch.visitedNodes[nodeId] && ch.backwardVisitedNodes[nodeId] {
+			length := ch.searchSpace[nodeId].distance + ch.backwardSearchSpace[nodeId].distance
+			if length < shortestLength {
+				shortestLength = length
+				ch.connection = nodeId
+			}
+		}
+	}
+	if ch.connection == -1 {
+		return -1
+	}
+	return shortestLength
 }
 
 // Get the computed path.
 // A slice is returned which contains the node IDs in order from source to target
 func (ch *ContractionHierarchies) GetPath(origin, destination graph.NodeId) []int {
 	// TODO: this probably gets more efficient with other data structures (store shortcuts as map -> faster access)
-	path := ch.dijkstra.GetPath(origin, destination)
+	if ch.connection == -1 {
+		return make([]int, 0)
+	}
+	path := make([]int, 0)
+	for nodeId := ch.searchSpace[ch.connection].predecessor; nodeId != -1; nodeId = ch.searchSpace[nodeId].predecessor {
+		path = append(path, nodeId)
+	}
+	slice.ReverseIntInPlace(path)
+	path = append(path, ch.connection)
+	for nodeId := ch.backwardSearchSpace[ch.connection].predecessor; nodeId != -1; nodeId = ch.backwardSearchSpace[nodeId].predecessor {
+		path = append(path, nodeId)
+	}
 	if ch.debugLevel >= 1 {
 		fmt.Println(path)
 	}
@@ -202,7 +237,15 @@ func (ch *ContractionHierarchies) GetPath(origin, destination graph.NodeId) []in
 // Get the search space of the path finding query
 // S slice is returned which contains all settled nodes of the query (containing the search information, e.g. distance to source node, which search direction was used for this item, ...)
 func (ch *ContractionHierarchies) GetSearchSpace() []*DijkstraItem {
-	return ch.dijkstra.GetSearchSpace()
+	searchSpace := make([]*DijkstraItem, 0)
+	for i := 0; i < ch.g.NodeCount(); i++ {
+		if ch.visitedNodes[i] {
+			searchSpace = append(searchSpace, ch.searchSpace[i])
+		} else if ch.backwardVisitedNodes[i] {
+			searchSpace = append(searchSpace, ch.backwardSearchSpace[i])
+		}
+	}
+	return searchSpace
 }
 
 // Compute an initial node order. If givenNodeOrder is not nil, the OrderOption oo are ignored.
@@ -303,8 +346,8 @@ func (ch *ContractionHierarchies) contractNodes(order *NodeOrder, oo OrderOption
 
 			shortcutCounter += len(shortcuts)
 			if float64(level)/float64(len(ch.nodeOrdering)) > ch.milestones[ch.milestoneIndex]/100 {
-				ch.runtime = append(ch.runtime, time.Since(ch.initialTime))
-				ch.shortcutCounter = append(ch.shortcutCounter, shortcutCounter)
+				ch.runtime[ch.milestoneIndex] = time.Since(ch.initialTime)
+				ch.shortcutCounter[ch.milestoneIndex] = shortcutCounter
 				ch.milestoneIndex++
 			}
 
@@ -558,6 +601,13 @@ func (ch *ContractionHierarchies) SetNodeOrdering(nodeOrdering []int) {
 // Set the debug level.
 func (ch *ContractionHierarchies) SetDebugLevel(level int) {
 	ch.debugLevel = level
+}
+
+func (ch *ContractionHierarchies) SetPrecomputationMilestones(milestones []float64) {
+	ch.milestones = milestones
+	ch.milestoneIndex = 0
+	ch.runtime = make([]time.Duration, len(milestones))
+	ch.shortcutCounter = make([]int, len(milestones))
 }
 
 // Write the graph to a file
