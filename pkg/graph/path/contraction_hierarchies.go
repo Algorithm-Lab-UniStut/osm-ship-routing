@@ -34,13 +34,14 @@ type ContractionHierarchies struct {
 	shortcutsFilename    string      // the filename were the shourtcuts gets stored
 	nodeOrderingFilename string      // the filname were the node ordering gets stored
 
-	// Forsome debuging
+	// For some debuging
 	initialTime     time.Time
 	runtime         []time.Duration
 	shortcutCounter []int
 	milestones      []float64
 	milestoneIndex  int
 
+	// search items needed for path calculation
 	visitedNodes         []bool
 	backwardVisitedNodes []bool
 	searchSpace          []*DijkstraItem
@@ -85,6 +86,7 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 	ch.dijkstra.SetBidirectional(false)
 	ch.dijkstra.SetUseHeuristic(false)             // TODO test true
 	ch.dijkstra.SetMaxNumSettledNodes(math.MaxInt) // TODO maybe test 60 (or something else)
+	ch.dijkstra.SetHotStart(true)
 	ch.addedShortcuts = make(map[int]int)
 	//ch.shortcutMap = make(map[graph.NodeId]map[graph.NodeId]graph.NodeId)
 	ch.shortcuts = make([]Shortcut, 0)
@@ -160,6 +162,7 @@ func (ch *ContractionHierarchies) ComputeShortestPath(origin, destination graph.
 	ch.dijkstra.SetBidirectional(false)
 	ch.dijkstra.SetUseHeuristic(false)
 	ch.dijkstra.SetIgnoreNodes(make([]graph.NodeId, 0))
+	ch.dijkstra.SetHotStart(false)
 	ch.matchArcsWithNodeOrder()
 	if ch.debugLevel >= 1 {
 		fmt.Printf("Compute path from %v to %v\n", origin, destination)
