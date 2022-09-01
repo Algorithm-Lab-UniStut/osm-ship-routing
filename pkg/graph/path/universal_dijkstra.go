@@ -106,7 +106,7 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 	for pq.Len() > 0 {
 		currentNode := heap.Pop(pq).(*DijkstraItem)
 		d.pqPops++
-		if d.debugLevel >= 1 {
+		if d.debugLevel >= 2 {
 			fmt.Printf("Settling node %v, direction: %v, distance %v\n", currentNode.NodeId, currentNode.searchDirection, currentNode.distance)
 		}
 		d.settleNode(currentNode)
@@ -114,7 +114,7 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 		if d.costUpperBound < currentNode.Priority() || d.maxNumSettledNodes < numSettledNodes {
 			// Each following node exeeds the max allowed cost or the number of allowed nodes is reached
 			// Stop search
-			if d.debugLevel >= 1 {
+			if d.debugLevel >= 2 {
 				fmt.Printf("Exceeded limits - cost upper bound: %v, current cost: %v, max settled nodes: %v, current settled nodes: %v\n", d.costUpperBound, currentNode.Priority(), d.maxNumSettledNodes, numSettledNodes)
 			}
 			return -1
@@ -299,20 +299,20 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem, pq *MinPath) {
 	for _, arc := range d.g.GetArcsFrom(node.NodeId) {
 		if d.considerArcFlags && !arc.ArcFlag() {
 			// ignore this arc
-			if d.debugLevel >= 1 {
+			if d.debugLevel >= 3 {
 				fmt.Printf("Ignore Edge %v -> %v\n", node.NodeId, arc.Destination())
 			}
 			continue
 		}
 		if d.ignoreNodes[arc.Destination()] {
 			// ignore this node
-			if d.debugLevel >= 1 {
+			if d.debugLevel >= 3 {
 				fmt.Printf("Ignore Edge %v -> %v, because target is in ignore list\n", node.NodeId, arc.Destination())
 			}
 			continue
 		}
 
-		if d.debugLevel >= 1 {
+		if d.debugLevel >= 3 {
 			fmt.Printf("Relax Edge %v -> %v\n", node.NodeId, arc.Destination())
 		}
 		successor := arc.Destination()
