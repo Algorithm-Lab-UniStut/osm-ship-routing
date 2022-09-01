@@ -75,10 +75,12 @@ func loadPolyJsonPolygons(file string) []geometry.Polygon {
 func createContractedGraph() {
 	fmt.Printf("Read graph file\n")
 	alg := graph.NewAdjacencyListFromFmiFile("ocean_10k.fmi")
+	//alg = graph.NewAdjacencyListFromFmiFile("ocean_equi_4.fmi")
 	dijkstra := path.NewUniversalDijkstra(alg)
 	fmt.Printf("Contract Graph\n")
 	ch := path.NewContractionHierarchies(alg, dijkstra)
-	ch.SetDebugLevel(1)
+	ch.SetDebugLevel(0)
+	ch.SetPrecomputationMilestones([]float64{0, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 99.99})
 	fmt.Printf("Initialized Contraction Hierarchies\n")
 	ch.Precompute(nil, path.MakeOrderOptions().SetDynamic(true).SetEdgeDifference(true).SetProcessedNeighbors(true).SetPeriodic(false))
 	ch.WriteContractionResult()
