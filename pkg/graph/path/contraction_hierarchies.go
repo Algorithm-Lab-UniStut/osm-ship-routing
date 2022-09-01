@@ -389,7 +389,7 @@ func (ch *ContractionHierarchies) contractNodes(order *NodeOrder, oo OrderOption
 			level++
 
 			shortcutCounter += len(shortcuts)
-			if float64(level)/float64(len(ch.nodeOrdering)) > ch.milestones[ch.milestoneIndex]/100 {
+			if ch.milestones != nil && float64(level)/float64(len(ch.nodeOrdering)) > ch.milestones[ch.milestoneIndex]/100 {
 				runtime := time.Since(ch.initialTime)
 				timeDif := runtime
 				if ch.milestoneIndex > 0 {
