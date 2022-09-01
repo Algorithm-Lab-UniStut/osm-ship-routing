@@ -117,6 +117,9 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 	}
 	pq := ch.computeInitialNodeOrder(givenNodeOrder, oo)
 
+	if ch.debugLevel >= 2 {
+		fmt.Printf("%v\n", pq)
+	}
 	if ch.milestones != nil && ch.milestones[0] == 0 {
 		runtime := time.Since(ch.initialTime)
 		milestone := ch.milestones[ch.milestoneIndex]
@@ -136,7 +139,6 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 	}
 
 	if ch.debugLevel >= 1 {
-		fmt.Printf("%v\n", pq)
 		fmt.Printf("Contract Nodes\n")
 	}
 	ch.contractNodes(pq, oo)
@@ -182,6 +184,9 @@ func (ch *ContractionHierarchies) ComputeShortestPath(origin, destination graph.
 	ch.dijkstra.SetHotStart(false)
 	if ch.debugLevel >= 1 {
 		fmt.Printf("Compute path from %v to %v\n", origin, destination)
+	}
+
+	if ch.debugLevel >= 3 {
 		fmt.Printf("Node ordering: %v\n", ch.nodeOrdering)
 	}
 
@@ -237,7 +242,7 @@ func (ch *ContractionHierarchies) GetPath(origin, destination graph.NodeId) []in
 		}
 	}
 	if ch.debugLevel >= 1 {
-		fmt.Println(path)
+		fmt.Printf("Path with shortcuts: %v\n", path)
 	}
 	for i := 0; i < len(path)-1; i++ {
 		source := path[i]
@@ -245,7 +250,7 @@ func (ch *ContractionHierarchies) GetPath(origin, destination graph.NodeId) []in
 
 		if via, exists := ch.shortcutMap[source][target]; exists {
 			path = slice.InsertInt(path, i+1, via)
-			if ch.debugLevel >= 1 {
+			if ch.debugLevel >= 2 {
 				fmt.Printf("Added node %v -> %v -> %v\n", source, via, target)
 			}
 			i-- // reevaluate, if the source has a shortcut to the currently added node
@@ -324,7 +329,7 @@ func (ch *ContractionHierarchies) computeInitialNodeOrder(givenNodeOrder []int, 
 	} else {
 		pq = NewNodeOrder(nil)
 		for i := 0; i < ch.g.NodeCount(); i++ {
-			if ch.debugLevel >= 1 {
+			if ch.debugLevel >= 3 {
 				fmt.Printf("Calculate contraction priority for node %v\n", i)
 			}
 			ch.dijkstra.SetIgnoreNodes([]graph.NodeId{i})
@@ -336,7 +341,7 @@ func (ch *ContractionHierarchies) computeInitialNodeOrder(givenNodeOrder []int, 
 			if oo.ConsiderProcessedNeighbors() {
 				orderItem.processedNeighbors = processedNeighbors
 			}
-			if ch.debugLevel >= 1 {
+			if ch.debugLevel >= 2 {
 				fmt.Printf("Add node %6v, edge difference: %3v, processed neighbors: %3v\n", i, len(shortcuts)-incidentArcs, processedNeighbors)
 			}
 			heap.Push(pq, orderItem)
@@ -358,7 +363,7 @@ func (ch *ContractionHierarchies) contractNodes(order *NodeOrder, oo OrderOption
 	shortcutCounter := 0
 	for order.Len() > 0 {
 		pqItem := heap.Pop(order).(*OrderItem)
-		if ch.debugLevel >= 2 {
+		if ch.debugLevel >= 3 {
 			fmt.Printf("Test contraction of Node %v\n", pqItem.nodeId)
 		}
 		ch.dijkstra.SetIgnoreNodes(append(ch.nodeOrdering[0:level], pqItem.nodeId))
@@ -377,12 +382,12 @@ func (ch *ContractionHierarchies) contractNodes(order *NodeOrder, oo OrderOption
 			}
 			ch.orderOfNode[pqItem.nodeId] = level
 			ch.nodeOrdering[level] = pqItem.nodeId
-			if ch.debugLevel >= 2 {
+			if ch.debugLevel >= 3 {
 				fmt.Printf("Contract node %v\n", pqItem.nodeId)
 			}
 			ch.disableArcsForNode(pqItem.nodeId) // when usign ignoreNodes, this may not be necessary
 			ch.addShortcuts(shortcuts)           // avoid recomputation of shortcuts. Just add the previously calculated shortcuts
-			if ch.debugLevel >= 1 {
+			if ch.debugLevel >= 2 {
 				fmt.Printf("Level %6v - Contract Node %6v, heap: %6v, sc: %3v, edges: %3v, ed: %3v pn: %3v, prio: %3v, updates: %6v\n", level, pqItem.nodeId, order.Len(), len(shortcuts), edges, edgeDifference, processedNeighbors, edgeDifference+processedNeighbors, intermediateUpdates)
 			}
 			intermediateUpdates = 0
@@ -419,7 +424,7 @@ func (ch *ContractionHierarchies) contractNodes(order *NodeOrder, oo OrderOption
 			}
 
 		} else {
-			if ch.debugLevel >= 2 {
+			if ch.debugLevel >= 3 {
 				fmt.Printf("Update order\n")
 			}
 			heap.Push(order, pqItem)
@@ -428,7 +433,7 @@ func (ch *ContractionHierarchies) contractNodes(order *NodeOrder, oo OrderOption
 		if oo.IsPeriodic() && level%100 == 0 {
 			for i := 0; i < order.Len(); i++ {
 				orderItem := order.PeekAt(i).(*OrderItem)
-				if ch.debugLevel >= 2 {
+				if ch.debugLevel >= 3 {
 					fmt.Printf("Test priority update for node %v\n", orderItem.nodeId)
 				}
 				sc, edges, pn := ch.contractNode(orderItem.nodeId, true)
@@ -464,14 +469,14 @@ func (ch *ContractionHierarchies) contractNode(nodeId graph.NodeId, computeEdgeD
 	arcs := ch.dg.GetArcsFrom(nodeId)
 	incidentArcsAmount := len(arcs)
 	ch.disableArcsForNode(nodeId)
-	if ch.debugLevel == 2 {
+	if ch.debugLevel >= 3 {
 		fmt.Printf("Incident arcs %v\n", incidentArcsAmount)
 	}
 	for i := 0; i < len(arcs); i++ {
 		arc := arcs[i]
 		source := arc.Destination()
 		if ch.isNodeContracted(source) {
-			if ch.debugLevel >= 2 {
+			if ch.debugLevel >= 3 {
 				fmt.Printf("source %v already processed\n", source)
 			}
 			contractedNeighbors++
@@ -485,14 +490,14 @@ func (ch *ContractionHierarchies) contractNode(nodeId graph.NodeId, computeEdgeD
 				panic("This should not happen")
 			}
 			if ch.isNodeContracted(target) {
-				if ch.debugLevel >= 2 {
+				if ch.debugLevel >= 3 {
 					fmt.Printf("target %v already processed\n", target)
 				}
 				//contractedNeighbors++
 				continue
 			}
 
-			if ch.debugLevel >= 2 {
+			if ch.debugLevel >= 3 {
 				fmt.Printf("testing for shortcut %v -> %v\n", source, target)
 			}
 			maxCost := arc.Cost() + otherArc.Cost()
@@ -503,13 +508,13 @@ func (ch *ContractionHierarchies) contractNode(nodeId graph.NodeId, computeEdgeD
 			runtime += elapsed
 			computations++
 
-			if ch.debugLevel >= 2 {
+			if ch.debugLevel >= 3 {
 				fmt.Printf("Length: %v, cost via node: %v, pq pops: %v\n", length, maxCost, ch.dijkstra.GetPqPops())
 			}
 			if length == -1 || length > maxCost {
 				// add shortcut, since the path via this node is the fastest
 				// without this node, the target is either not reachable or the path is longer
-				if ch.debugLevel >= 2 {
+				if ch.debugLevel >= 3 {
 					fmt.Printf("Shortcut %v -> %v via %v needed\n", source, target, nodeId)
 				}
 				shortcut := Shortcut{source: source, target: target, via: nodeId, cost: maxCost}
@@ -537,14 +542,14 @@ func (ch *ContractionHierarchies) contractNode(nodeId graph.NodeId, computeEdgeD
 		}
 	}
 
-	if ch.debugLevel >= 1 && computations > 0 {
+	if ch.debugLevel >= 2 && computations > 0 {
 		fmt.Printf("Dijkstra Runtime: %v us * %v, node %v\n", float64(int(runtime.Nanoseconds())/computations)/1000, computations, nodeId)
 	}
 
 	// Fix incident arcs: Remove number of already contracted neighbors
 	incidentArcsAmount -= contractedNeighbors
 
-	if ch.debugLevel == 2 && !computeEdgeDifferenceOnly {
+	if ch.debugLevel >= 3 && !computeEdgeDifferenceOnly {
 		fmt.Printf("Added Shortcuts: %v, incident Arcs: %v, contractedNeighbors: %v\n", len(shortcuts), incidentArcsAmount, contractedNeighbors)
 	}
 	// number of shortcuts is doubled, since we have two arcs for each each (because symmetric graph)
@@ -568,7 +573,7 @@ func (ch *ContractionHierarchies) addShortcuts(shortcuts []Shortcut) {
 // Adds a shortcut to the graph from source to target with length cost which is spanned over node defined by via.
 // This adds a new arc in the graph.
 func (ch *ContractionHierarchies) addShortcut(source, target, via graph.NodeId, cost int) {
-	if ch.debugLevel >= 2 {
+	if ch.debugLevel >= 3 {
 		fmt.Printf("Add shortcut %v %v %v %v\n", source, target, via, cost)
 	}
 	if ch.orderOfNode[source] != -1 || ch.orderOfNode[target] != -1 {
@@ -589,7 +594,7 @@ func (ch *ContractionHierarchies) addShortcut(source, target, via graph.NodeId, 
 // Enable all arcs for the node given by nodeId.
 func (ch *ContractionHierarchies) enableArcsForNode(nodeId graph.NodeId) {
 	ch.g.SetArcFlags(nodeId, true)
-	if ch.debugLevel >= 2 {
+	if ch.debugLevel >= 3 {
 		fmt.Printf("enable arcs of node %v\n", nodeId)
 	}
 }
@@ -597,7 +602,7 @@ func (ch *ContractionHierarchies) enableArcsForNode(nodeId graph.NodeId) {
 // Disable all arcs for the node given by nodeId.
 func (ch *ContractionHierarchies) disableArcsForNode(nodeId graph.NodeId) {
 	ch.g.SetArcFlags(nodeId, false)
-	if ch.debugLevel >= 2 {
+	if ch.debugLevel >= 3 {
 		fmt.Printf("disable arcs of node %v\n", nodeId)
 	}
 }
