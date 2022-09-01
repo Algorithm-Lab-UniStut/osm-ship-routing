@@ -88,7 +88,9 @@ func TestGivenNodeOrdering(t *testing.T) {
 func TestContractGraph(t *testing.T) {
 	alg := graph.NewAdjacencyListFromFmiString(cuttableGraph)
 	dijkstra := NewUniversalDijkstra(alg)
+	dijkstra.SetDebugLevel(1)
 	ch := NewContractionHierarchies(alg, dijkstra)
+	ch.SetDebugLevel(2)
 	nodeOrdering := []int{0, 1, 10, 12, 7, 4, 9, 3, 6, 5, 8, 11, 2}
 	ch.Precompute(nodeOrdering, MakeOrderOptions())
 	if slice.CompareInt(nodeOrdering, ch.nodeOrdering) != 0 {
@@ -160,7 +162,9 @@ func TestContractionHierarchies(t *testing.T) {
 	source, target := 0, 12
 	l := dijkstra.ComputeShortestPath(source, target)
 	p := dijkstra.GetPath(source, target)
+	dijkstra.SetDebugLevel(1)
 	ch := NewContractionHierarchies(alg, dijkstra)
+	ch.SetDebugLevel(2)
 	ch.Precompute(nil, MakeOrderOptions().SetDynamic(true).SetEdgeDifference(true).SetProcessedNeighbors(true))
 	length := ch.ComputeShortestPath(source, target)
 	if length != l {
@@ -185,6 +189,7 @@ func TestRandomContraction(t *testing.T) {
 		alg = graph.NewAdjacencyListFromFmiString(cuttableGraph)
 		dijkstra = NewUniversalDijkstra(alg)
 		ch := NewContractionHierarchies(alg, dijkstra)
+		ch.SetDebugLevel(2)
 		ch.Precompute(nil, MakeOrderOptions().SetDynamic(false).SetRandom(true))
 		length := ch.ComputeShortestPath(source, target)
 		if length != l {
