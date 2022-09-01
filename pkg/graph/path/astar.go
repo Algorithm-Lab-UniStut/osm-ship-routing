@@ -14,13 +14,52 @@ type AStarPriorityQueueItem struct {
 	Settled                 bool // not sure
 }
 
-func NewAStarPriorityQueueItem(id, priority, predecessor, index, distance int, settled bool) AStarPriorityQueueItem {
-	//pqi := AStarPriorityQueueItem{PriorityQueueItem{ItemId: id, Priority: priority, Predecessor: predecessor, Index: index}, distance, settled}
-	pqi := AStarPriorityQueueItem{PriorityQueueItem: queue.PriorityQueueItem{ItemId: id, Priority: priority, Predecessor: predecessor, Index: index}, Distance: distance, Settled: settled}
-	return pqi
+type AStarPriorityQueue []*AStarPriorityQueueItem
+
+type AStar struct {
+	g graph.Graph
 }
 
-type AStarPriorityQueue []*AStarPriorityQueueItem
+type ImprovedAStar struct {
+	g        graph.Graph
+	dijkstra *UniversalDijkstra
+}
+
+func NewImproveAStar(g graph.Graph, dijkstra *UniversalDijkstra) *ImprovedAStar {
+	return &ImprovedAStar{g: g, dijkstra: dijkstra}
+}
+
+func (astar *ImprovedAStar) ComputeShortestPath(origin, destination int) int {
+	astar.dijkstra.SetUseHeuristic(true)
+	length := astar.dijkstra.ComputeShortestPath(origin, destination)
+	return length
+}
+
+func (astar *ImprovedAStar) GetPath(origin, destination int) []int {
+	// calculate heuristic
+	// not needed. it is more performantly to compute this on the fly
+	/*
+		heuristic := make([]int, astar.g.NodeCount(), astar.g.NodeCount())
+		destNode := astar.g.GetNode(destination)
+		destPoint := geo.NewPoint(destNode.Lat, destNode.Lon)
+		for i := 0; i < astar.g.NodeCount(); i++ {
+			sourceNode := astar.g.GetNode(i)
+			sourcePoint := geo.NewPoint(sourceNode.Lat, sourceNode.Lon)
+			h := sourcePoint.IntHaversine(destPoint)
+			heuristic[i] = h
+		}
+	*/
+
+	// execute query
+	path := astar.dijkstra.GetPath(origin, destination)
+	return path
+}
+
+func NewAStarPriorityQueueItem(id, priority, predecessor, distance int) *AStarPriorityQueueItem {
+	//pqi := AStarPriorityQueueItem{PriorityQueueItem{ItemId: id, Priority: priority, Predecessor: predecessor, Index: index}, distance, settled}
+	pqi := AStarPriorityQueueItem{PriorityQueueItem: *queue.NewPriorityQueueItem(id, priority, predecessor) /*{ItemId: id, Priority: priority, Predecessor: predecessor, Index: index}*/, Distance: distance, Settled: false}
+	return &pqi
+}
 
 func (h AStarPriorityQueue) Len() int { return len(h) }
 
@@ -56,10 +95,6 @@ func (h *AStarPriorityQueue) update(pqItem *AStarPriorityQueueItem, newPriority 
 	heap.Fix(h, pqItem.Index)
 }
 
-type AStar struct {
-	g graph.Graph
-}
-
 func NewAStar(g graph.Graph) AStar {
 	return AStar{g: g}
 }
@@ -75,8 +110,8 @@ func (a AStar) estimatedDistance(originNodeId, destinationNodeId int) int {
 
 func (a AStar) GetPath(origin, destination int) ([]int, int) {
 	dijkstraItems := make([]*AStarPriorityQueueItem, a.g.NodeCount(), a.g.NodeCount())
-	originItem := AStarPriorityQueueItem{PriorityQueueItem: queue.PriorityQueueItem{ItemId: origin, Priority: 0, Predecessor: -1, Index: -1}}
-	dijkstraItems[origin] = &originItem
+	originItem := NewAStarPriorityQueueItem(origin, 0, -1, 0) //{PriorityQueueItem: queue.PriorityQueueItem{ItemId: origin, Priority: 0, Predecessor: -1, Index: -1}}
+	dijkstraItems[origin] = originItem
 
 	pq := make(AStarPriorityQueue, 0)
 	heap.Init(&pq)
@@ -86,18 +121,18 @@ func (a AStar) GetPath(origin, destination int) ([]int, int) {
 		currentPqItem := heap.Pop(&pq).(*AStarPriorityQueueItem)
 		currentNodeId := currentPqItem.ItemId
 
-		for _, edge := range a.g.GetEdgesFrom(currentNodeId) {
-			successor := edge.To
+		for _, arc := range a.g.GetArcsFrom(currentNodeId) {
+			successor := arc.Destination()
 
 			if dijkstraItems[successor] == nil {
-				newDistance := currentPqItem.Distance + edge.Distance
+				newDistance := currentPqItem.Distance + arc.Cost()
 				newPriority := newDistance + a.estimatedDistance(successor, destination)
-				pqItem := AStarPriorityQueueItem{PriorityQueueItem: queue.PriorityQueueItem{ItemId: successor, Priority: newPriority, Predecessor: currentNodeId, Index: -1}, Distance: newDistance}
-				dijkstraItems[successor] = &pqItem
-				heap.Push(&pq, &pqItem)
+				pqItem := NewAStarPriorityQueueItem(successor, newPriority, currentNodeId, newDistance) //{PriorityQueueItem: queue.PriorityQueueItem{ItemId: successor, Priority: newPriority, Predecessor: currentNodeId, Index: -1}, Distance: newDistance}
+				dijkstraItems[successor] = pqItem
+				heap.Push(&pq, pqItem)
 			} else {
-				if updatedPriority := currentPqItem.Distance + edge.Distance + a.estimatedDistance(successor, destination); updatedPriority < dijkstraItems[successor].Priority {
-					pq.update(dijkstraItems[successor], updatedPriority, currentPqItem.Distance+edge.Distance)
+				if updatedPriority := currentPqItem.Distance + arc.Cost() + a.estimatedDistance(successor, destination); updatedPriority < dijkstraItems[successor].Priority {
+					pq.update(dijkstraItems[successor], updatedPriority, currentPqItem.Distance+arc.Cost())
 					dijkstraItems[successor].Predecessor = currentNodeId
 				}
 			}
@@ -119,4 +154,8 @@ func (a AStar) GetPath(origin, destination int) ([]int, int) {
 	}
 
 	return path, length
+}
+
+func (a AStar) GetSearchSpace() []graph.Node {
+	panic("not implemented")
 }

@@ -17,12 +17,15 @@ type Route struct {
 }
 
 type ShipRouter struct {
-	g         graph.Graph
-	navigator path.Navigator
+	g               graph.Graph
+	contractedGraph graph.Graph
+	shortcuts       []path.Shortcut
+	nodeOrdering    []int
+	navigator       path.Navigator
 }
 
-func NewShipRouter(g graph.Graph) *ShipRouter {
-	return &ShipRouter{g: g, navigator: path.GetNavigator(g)}
+func NewShipRouter(g, contractedGraph graph.Graph, shortcuts []path.Shortcut, nodeOrdering []int) *ShipRouter {
+	return &ShipRouter{g: g, contractedGraph: contractedGraph, navigator: path.GetNavigator(g), shortcuts: shortcuts, nodeOrdering: nodeOrdering}
 }
 
 func (sr ShipRouter) closestNodes(p1, p2 geo.Point) (n1, n2 int) {
@@ -47,7 +50,8 @@ func (sr ShipRouter) closestNodes(p1, p2 geo.Point) (n1, n2 int) {
 
 func (sr ShipRouter) ComputeRoute(origin, destination geo.Point) (route Route) {
 	originNode, desdestinationNode := sr.closestNodes(origin, destination)
-	nodePath, length := sr.navigator.GetPath(originNode, desdestinationNode)
+	length := sr.navigator.ComputeShortestPath(originNode, desdestinationNode)
+	nodePath := sr.navigator.GetPath(originNode, desdestinationNode)
 
 	if length > -1 {
 		// shortest path exists
@@ -61,6 +65,51 @@ func (sr ShipRouter) ComputeRoute(origin, destination geo.Point) (route Route) {
 		route = Route{Origin: origin, Destination: destination, Exists: false}
 	}
 	return route
+}
+
+func (sr ShipRouter) GetNodes() []geo.Point {
+	nodes := sr.g.GetNodes()
+	waypoints := make([]geo.Point, 0)
+	for _, node := range nodes {
+		waypoints = append(waypoints, *nodeToPoint(node))
+	}
+	return waypoints
+}
+
+func (sr ShipRouter) GetSearchSpace() []geo.Point {
+	nodes := sr.navigator.GetSearchSpace()
+	waypoints := make([]geo.Point, 0)
+	for _, nodeItem := range nodes {
+		node := sr.g.GetNode(nodeItem.NodeId)
+		waypoints = append(waypoints, *nodeToPoint(node))
+	}
+	return waypoints
+}
+
+func (sr *ShipRouter) SetNavigator(navigator string) bool {
+	switch navigator {
+	case "dijkstra":
+		sr.navigator = path.NewUniversalDijkstra(sr.g)
+		return true
+	case "astar":
+		astar := path.NewUniversalDijkstra(sr.g)
+		astar.SetUseHeuristic(true)
+		sr.navigator = astar
+		return true
+	case "bidirectional-dijkstra":
+		bidijkstra := path.NewUniversalDijkstra(sr.g)
+		bidijkstra.SetBidirectional(true)
+		sr.navigator = bidijkstra
+		return true
+	case "contraction-hierarchies":
+		dijkstra := path.NewUniversalDijkstra(sr.contractedGraph)
+		ch := path.NewContractionHierarchiesInitialized(sr.contractedGraph, dijkstra, sr.shortcuts, sr.nodeOrdering)
+		sr.navigator = ch
+		return true
+	case "alt":
+		return false
+	}
+	return false
 }
 
 func nodeToPoint(n graph.Node) *geo.Point {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/natevvv/osm-ship-routing/pkg/geometry"
 	"github.com/natevvv/osm-ship-routing/pkg/graph"
+	"github.com/natevvv/osm-ship-routing/pkg/graph/path"
 	"github.com/natevvv/osm-ship-routing/pkg/routing"
 )
 
@@ -19,9 +20,12 @@ type DefaultApiService struct {
 }
 
 // NewDefaultApiService creates a default api service
-func NewDefaultApiService(graphFile string) DefaultApiServicer {
-	g := graph.NewAdjacencyArrayFromFmi(graphFile)
-	sr := routing.NewShipRouter(g)
+func NewDefaultApiService(graphFile, contractedGraphFile, shortcutFile, nodeOrderingFile string) DefaultApiServicer {
+	g := graph.NewAdjacencyArrayFromFmiFile(graphFile)
+	contractedGraph := graph.NewAdjacencyArrayFromFmiFile(contractedGraphFile)
+	shortcuts := path.ReadShortcutFile(shortcutFile)
+	nodeOrdering := path.ReadNodeOrderingFile(nodeOrderingFile)
+	sr := routing.NewShipRouter(g, contractedGraph, shortcuts, nodeOrdering)
 	return &DefaultApiService{shipRouter: sr}
 }
 
@@ -46,4 +50,39 @@ func (s *DefaultApiService) ComputeRoute(ctx context.Context, routeRequest Route
 	}
 
 	return Response(http.StatusOK, routeResult), nil
+}
+
+func (s *DefaultApiService) GetNodes(ctx context.Context) (ImplResponse, error) {
+	points := s.shipRouter.GetNodes()
+
+	vertices := make([]Point, 0)
+	for _, point := range points {
+		p := Point{Lat: float32(point.Lat()), Lon: float32(point.Lon())}
+		vertices = append(vertices, p)
+	}
+	nodes := Nodes{Waypoints: vertices}
+
+	return Response(http.StatusOK, nodes), nil
+}
+
+func (s *DefaultApiService) GetSearchSpace(ctx context.Context) (ImplResponse, error) {
+	points := s.shipRouter.GetSearchSpace()
+
+	vertices := make([]Point, 0)
+	for _, point := range points {
+		p := Point{Lat: float32(point.Lat()), Lon: float32(point.Lon())}
+		vertices = append(vertices, p)
+	}
+	nodes := Nodes{Waypoints: vertices}
+
+	return Response(http.StatusOK, nodes), nil
+}
+
+func (s *DefaultApiService) SetNavigator(ctx context.Context, navigatorRequest NavigatorRequest) (ImplResponse, error) {
+	success := s.shipRouter.SetNavigator(navigatorRequest.Navigator)
+
+	if !success {
+		return Response(http.StatusBadRequest, "Unknown Navigator"), nil
+	}
+	return Response(http.StatusOK, navigatorRequest.Navigator), nil
 }
