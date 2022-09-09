@@ -9,6 +9,7 @@ const (
 	considerEdgeDifference                              // consider the edge difference when computing the order
 	considerProcessedNeighbors                          // consider the processed neighbors (spatial diversity) when computing the order
 	periodic                                            // periodically update the whole order
+	updateNeighbors                                     // update the neighbors of a contracted node
 )
 
 // Create a new OrderOptions (which in initially empty)
@@ -85,6 +86,18 @@ func (oo OrderOptions) SetPeriodic(flag bool) OrderOptions {
 
 func (oo OrderOptions) IsPeriodic() bool {
 	return oo&periodic != 0
+}
+
+func (oo OrderOptions) SetUpdateNeighbors(flag bool) OrderOptions {
+	if flag {
+		return oo.Set(updateNeighbors)
+	} else {
+		return oo.Reset(updateNeighbors)
+	}
+}
+
+func (oo OrderOptions) UpdateNeighbors() bool {
+	return oo&updateNeighbors != 0
 }
 
 func (oo OrderOptions) IsValid() bool {
