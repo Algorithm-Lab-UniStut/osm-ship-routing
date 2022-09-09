@@ -15,6 +15,7 @@ import (
 type UniversalDijkstra struct {
 	// check if pointers are needed/better
 	g                       graph.Graph
+	pq                      *MinPath                 // priority queue to find the shortest path
 	visitedNodes            []bool                   // Array which indicates if a node (defined by index) was visited in the forward search
 	backwardVisitedNodes    []bool                   // Array which indicates if a node (defined by index) was visited in the backward search
 	searchSpace             []*DijkstraItem          // search space, a map really reduces performance. If node is also visited, this can be seen as "settled"
@@ -27,6 +28,7 @@ type UniversalDijkstra struct {
 	ignoreNodes             []bool                   // store for each node ID if it is ignored. A map would also be viable (for performance aspect) to achieve this
 	bidirectionalConnection *BidirectionalConnection // contains the connection between the forward and backward search (if done bidirecitonal). If no connection is found, this is nil
 	pqPops                  int                      // store the amount of Pops which were performed on the priority queue for the computed search
+	numSettledNodes         int                      // number of settled nodes
 	considerArcFlags        bool
 	costUpperBound          int
 	maxNumSettledNodes      int
@@ -57,65 +59,50 @@ func NewBidirectionalConnection(nodeId, predecessor, successor graph.NodeId, dis
 // If no path was found, it returns -1
 // If the path to all possible target is calculated (set target to -1), it returns 0
 func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId) int {
-	if d.useHotStart && origin == d.origin && !d.bidirectional && destination >= 0 && d.visitedNodes[destination] {
-		// hot start
-		if destination < 0 {
-			panic("Can't use Hot start when calculating path to everywhere")
-		}
-		if d.bidirectional {
-			panic("Can't use Hot start for bidirectional search")
-		}
-
-		if origin == d.origin && d.visitedNodes[destination] {
-			// TODO think about storing/using old priority queue to not recalculate the first settled nodes
-			if d.debugLevel >= 1 {
-				fmt.Printf("Using hot start %v -> %v, distance is %v\n", origin, destination, d.searchSpace[destination].distance)
-			}
-			//d.destination = destination
-			d.pqPops = 0
-			//d.bidirectionalConnection = nil
-			return d.searchSpace[destination].distance
-		}
-	}
 	if d.useHeuristic && d.bidirectional {
 		panic("AStar doesn't work bidirectional so far.")
 	}
-	if destination < 0 && d.bidirectional {
-		panic("Can't use bidirectional search with no specified destination")
+	if d.useHotStart && d.bidirectional {
+		panic("Can't use Hot start for bidirectional search.")
+	}
+	if d.bidirectional && destination < 0 {
+		panic("Can't use bidirectional search with no specified destination.")
+	}
+	if d.useHotStart && destination < 0 {
+		panic("Can't use Hot start when calculating path to everywhere.")
+	}
+	if origin < 0 {
+		panic("Origin not legally specified.")
+	}
+
+	if d.useHotStart && d.origin == origin && d.visitedNodes[destination] {
+		// hot start, already found the node in a previous search
+		// just load the distance
+		if d.debugLevel >= 1 {
+			fmt.Printf("Using hot start - loading %v -> %v, distance is %v\n", origin, destination, d.searchSpace[destination].distance)
+		}
+		//d.destination = destination
+		//d.bidirectionalConnection = nil
+		d.pqPops = 0
+		return d.searchSpace[destination].distance
 	}
 
 	d.initializeSearch(origin, destination)
-	heuristic := 0
-	if d.useHeuristic {
-		heuristic = d.g.EstimateDistance(origin, d.destination)
-	}
-	originItem := NewDijkstraItem(origin, 0, -1, heuristic, FORWARD)
-	pq := NewMinPath(originItem)
-	// Initialize
-	d.settleNode(originItem)
 
-	// for bidirectional algorithm
-	if d.bidirectional {
-		destinationItem := NewDijkstraItem(destination, 0, -1, 0, BACKWARD)
-		heap.Push(pq, destinationItem)
-		// Initialize
-		d.settleNode(destinationItem)
-	}
-
-	numSettledNodes := 0
-	for pq.Len() > 0 {
-		currentNode := heap.Pop(pq).(*DijkstraItem)
+	for d.pq.Len() > 0 {
+		currentNode := heap.Pop(d.pq).(*DijkstraItem)
 		d.pqPops++
 		if d.debugLevel >= 2 {
 			fmt.Printf("Settling node %v, direction: %v, distance %v\n", currentNode.NodeId, currentNode.searchDirection, currentNode.distance)
 		}
 		d.settleNode(currentNode)
-		numSettledNodes++
-		if d.costUpperBound < currentNode.Priority() || d.maxNumSettledNodes < numSettledNodes {
+		d.numSettledNodes++
+		d.relaxEdges(currentNode) // edges need to get relaxed before checking for termination to guarantee that hot start works. if peeking is used, this may get done a bit differently
+		if d.costUpperBound < currentNode.Priority() || d.maxNumSettledNodes < d.numSettledNodes {
 			// Each following node exeeds the max allowed cost or the number of allowed nodes is reached
 			// Stop search
 			if d.debugLevel >= 2 {
-				fmt.Printf("Exceeded limits - cost upper bound: %v, current cost: %v, max settled nodes: %v, current settled nodes: %v\n", d.costUpperBound, currentNode.Priority(), d.maxNumSettledNodes, numSettledNodes)
+				fmt.Printf("Exceeded limits - cost upper bound: %v, current cost: %v, max settled nodes: %v, current settled nodes: %v\n", d.costUpperBound, currentNode.Priority(), d.maxNumSettledNodes, d.numSettledNodes)
 			}
 			return -1
 		}
@@ -149,26 +136,26 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 			}
 		}
 
-		d.relaxEdges(currentNode, pq)
-	}
-
-	if d.debugLevel >= 1 {
-		fmt.Printf("Finished search\n")
 	}
 
 	if destination == -1 {
+		if d.debugLevel >= 1 {
+			fmt.Printf("Finished search\n")
+		}
 		// calculated every distance from source to each possible target
 		//dijkstra.settledNodes = nodes
 		return 0
 	}
 
 	if d.bidirectional {
+		if d.debugLevel >= 1 {
+			fmt.Printf("Finished search\n")
+		}
 		if d.bidirectionalConnection == nil {
 			// no valid path found
 			return -1
 		}
-		length := d.bidirectionalConnection.distance
-		return length
+		return d.bidirectionalConnection.distance
 	}
 
 	if d.searchSpace[destination] == nil {
@@ -180,7 +167,7 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 	}
 
 	if d.debugLevel >= 1 {
-		fmt.Printf("Found path with distance %v\n", d.searchSpace[destination].distance)
+		fmt.Printf("Found path %v -> %v with distance %v\n", origin, destination, d.searchSpace[destination].distance)
 	}
 
 	return d.searchSpace[destination].distance
@@ -267,14 +254,44 @@ func (d *UniversalDijkstra) initializeSearch(origin, destination graph.NodeId) {
 		}
 		fmt.Printf("visited nodes: %v\n", visitedNodes)
 	}
-	d.searchSpace = make([]*DijkstraItem, d.g.NodeCount())
-	d.backwardSearchSpace = make([]*DijkstraItem, d.g.NodeCount())
-	d.visitedNodes = make([]bool, d.g.NodeCount())
-	d.backwardVisitedNodes = make([]bool, d.g.NodeCount())
-	d.origin = origin
-	d.destination = destination
-	d.pqPops = 0
-	d.bidirectionalConnection = nil
+
+	if !d.useHotStart || d.origin != origin {
+		// don't or can't use hot start
+		if d.debugLevel >= 2 {
+			// TODO decide debug level
+			fmt.Printf("Initialize new search, origin: %v\n", origin)
+		}
+		d.searchSpace = make([]*DijkstraItem, d.g.NodeCount())
+		d.backwardSearchSpace = make([]*DijkstraItem, d.g.NodeCount())
+		d.visitedNodes = make([]bool, d.g.NodeCount())
+		d.backwardVisitedNodes = make([]bool, d.g.NodeCount())
+		d.origin = origin
+		d.destination = destination
+		d.pqPops = 0
+		d.numSettledNodes = 0
+		d.bidirectionalConnection = nil
+
+		// Initialize priority queue
+		heuristic := 0
+		if d.useHeuristic {
+			heuristic = d.g.EstimateDistance(d.origin, d.destination)
+		}
+		originItem := NewDijkstraItem(d.origin, 0, -1, heuristic, FORWARD)
+		d.pq = NewMinPath(originItem)
+		d.settleNode(originItem)
+
+		// for bidirectional algorithm
+		if d.bidirectional {
+			destinationItem := NewDijkstraItem(d.destination, 0, -1, 0, BACKWARD)
+			heap.Push(d.pq, destinationItem)
+			d.settleNode(destinationItem)
+		}
+	} else {
+		if d.debugLevel >= 2 {
+			// TODO decide debug level
+			fmt.Printf("Use hot start\n")
+		}
+	}
 }
 
 // Settle the given node item
@@ -295,7 +312,7 @@ func (d *UniversalDijkstra) isFullySettled(nodeId graph.NodeId) bool {
 }
 
 // Relax the Edges for the given node item and add the new nodes to the MinPath priority queue
-func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem, pq *MinPath) {
+func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 	for _, arc := range d.g.GetArcsFrom(node.NodeId) {
 		if d.considerArcFlags && !arc.ArcFlag() {
 			// ignore this arc
@@ -344,10 +361,10 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem, pq *MinPath) {
 			}
 			nextNode := NewDijkstraItem(successor, cost, node.NodeId, heuristic, node.searchDirection)
 			searchSpace[successor] = nextNode
-			heap.Push(pq, nextNode)
+			heap.Push(d.pq, nextNode)
 		} else {
 			if updatedPriority := node.distance + arc.Cost() + searchSpace[successor].heuristic; updatedPriority < searchSpace[successor].Priority() {
-				pq.update(searchSpace[successor], node.distance+arc.Cost())
+				d.pq.update(searchSpace[successor], node.distance+arc.Cost())
 				searchSpace[successor].predecessor = node.NodeId
 			}
 		}
@@ -386,7 +403,7 @@ func (d *UniversalDijkstra) SetIgnoreNodes(nodes []graph.NodeId) {
 		d.ignoreNodes[node] = true
 	}
 	// invalidate previously calculated results
-	d.visitedNodes = make([]bool, d.g.NodeCount())
+	d.origin = -1
 }
 
 func (d *UniversalDijkstra) SetHotStart(useHotStart bool) {

@@ -189,7 +189,7 @@ func TestRandomContraction(t *testing.T) {
 		alg = graph.NewAdjacencyListFromFmiString(cuttableGraph)
 		dijkstra = NewUniversalDijkstra(alg)
 		ch := NewContractionHierarchies(alg, dijkstra)
-		ch.SetDebugLevel(2)
+		//ch.SetDebugLevel(2)
 		ch.Precompute(nil, MakeOrderOptions().SetDynamic(false).SetRandom(true))
 		length := ch.ComputeShortestPath(source, target)
 		if length != l {
