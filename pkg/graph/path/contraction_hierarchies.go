@@ -344,7 +344,7 @@ func (ch *ContractionHierarchies) computeInitialNodeOrder(givenNodeOrder []int, 
 			if ch.debugLevel >= 3 {
 				fmt.Printf("Calculate contraction priority for node %v\n", i)
 			}
-			shortcuts, incidentArcs, processedNeighbors := ch.contractNode(i, []graph.NodeId{i})
+			shortcuts, incidentArcs, processedNeighbors := ch.computeNodeContraction(i, []graph.NodeId{i})
 			orderItem := NewOrderItem(i)
 			if oo.ConsiderEdgeDifference() {
 				orderItem.edgeDifference = len(shortcuts) - incidentArcs
@@ -378,7 +378,7 @@ func (ch *ContractionHierarchies) contractNodes(order *NodeOrder, oo OrderOption
 		if ch.debugLevel >= 3 {
 			fmt.Printf("Test contraction of Node %v\n", pqItem.nodeId)
 		}
-		shortcuts, edges, processedNeighbors := ch.contractNode(pqItem.nodeId, append(ch.nodeOrdering[0:level], pqItem.nodeId))
+		shortcuts, edges, processedNeighbors := ch.computeNodeContraction(pqItem.nodeId, append(ch.nodeOrdering[0:level], pqItem.nodeId))
 		edgeDifference := len(shortcuts) - edges
 		if oo.ConsiderEdgeDifference() {
 			pqItem.edgeDifference = edgeDifference
@@ -410,7 +410,7 @@ func (ch *ContractionHierarchies) contractNodes(order *NodeOrder, oo OrderOption
 					if ch.isNodeContracted(destination) {
 						continue
 					}
-					sc, edges, pn := ch.contractNode(destination, append(ch.nodeOrdering[0:level], pqItem.nodeId))
+					sc, edges, pn := ch.computeNodeContraction(destination, append(ch.nodeOrdering[0:level], pqItem.nodeId))
 					ed := len(sc) - edges
 					if !oo.ConsiderEdgeDifference() {
 						ed = 0
@@ -465,7 +465,7 @@ func (ch *ContractionHierarchies) contractNodes(order *NodeOrder, oo OrderOption
 				if ch.debugLevel >= 3 {
 					fmt.Printf("Test priority update for node %v\n", orderItem.nodeId)
 				}
-				sc, edges, pn := ch.contractNode(orderItem.nodeId, append(ch.nodeOrdering[0:level], pqItem.nodeId))
+				sc, edges, pn := ch.computeNodeContraction(orderItem.nodeId, append(ch.nodeOrdering[0:level], pqItem.nodeId))
 				ed := len(sc) - edges
 				if oo.ConsiderEdgeDifference() {
 					orderItem.edgeDifference = ed
@@ -490,7 +490,7 @@ func (ch *ContractionHierarchies) contractNodes(order *NodeOrder, oo OrderOption
 //	- number of added/needed shortcuts
 //	- number of (active) incident arcs to that node (arcs from nodes which are not contracted, yet)
 //	- number of already contracted neighbors
-func (ch *ContractionHierarchies) contractNode(nodeId graph.NodeId, ignoreNodes []graph.NodeId) ([]Shortcut, int, int) {
+func (ch *ContractionHierarchies) computeNodeContraction(nodeId graph.NodeId, ignoreNodes []graph.NodeId) ([]Shortcut, int, int) {
 	shortcuts := make([]Shortcut, 0)
 	contractedNeighbors := 0
 	dijkstra := NewUniversalDijkstra(ch.g)
