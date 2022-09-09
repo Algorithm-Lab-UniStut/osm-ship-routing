@@ -14,25 +14,29 @@ import (
 // Implements the Navigator Interface.
 type UniversalDijkstra struct {
 	// check if pointers are needed/better
-	g                       graph.Graph
-	pq                      *MinPath                 // priority queue to find the shortest path
+	g  graph.Graph
+	pq *MinPath // priority queue to find the shortest path
+
+	origin      graph.NodeId // the origin of the current search
+	destination graph.NodeId // the distination of the current search
+
 	visitedNodes            []bool                   // Array which indicates if a node (defined by index) was visited in the forward search
 	backwardVisitedNodes    []bool                   // Array which indicates if a node (defined by index) was visited in the backward search
 	searchSpace             []*DijkstraItem          // search space, a map really reduces performance. If node is also visited, this can be seen as "settled"
 	backwardSearchSpace     []*DijkstraItem          // search space for the backward search
-	origin                  graph.NodeId             // the origin of the current search
-	destination             graph.NodeId             // the distination of the current search
-	useHeuristic            bool                     // flag indicating if heuristic (remaining distance) should be used (AStar implementation)
-	bidirectional           bool                     // flag indicating if search should be done from both sides
-	useHotStart             bool                     // flag indicating if the previously cached results should get used
-	ignoreNodes             []bool                   // store for each node ID if it is ignored. A map would also be viable (for performance aspect) to achieve this
 	bidirectionalConnection *BidirectionalConnection // contains the connection between the forward and backward search (if done bidirecitonal). If no connection is found, this is nil
-	pqPops                  int                      // store the amount of Pops which were performed on the priority queue for the computed search
-	numSettledNodes         int                      // number of settled nodes
-	considerArcFlags        bool
-	costUpperBound          int
-	maxNumSettledNodes      int
-	debugLevel              int
+
+	useHeuristic       bool   // flag indicating if heuristic (remaining distance) should be used (AStar implementation)
+	bidirectional      bool   // flag indicating if search should be done from both sides
+	useHotStart        bool   // flag indicating if the previously cached results should get used
+	considerArcFlags   bool   // flag indicating if arc flags (basically deactivate some edges) should be considered
+	ignoreNodes        []bool // store for each node ID if it is ignored. A map would also be viable (for performance aspect) to achieve this
+	costUpperBound     int    // upper bound of cost from origin to destination
+	maxNumSettledNodes int    // maximum number of settled nodes before search is terminated
+
+	pqPops          int // store the amount of Pops which were performed on the priority queue for the computed search
+	numSettledNodes int // number of settled nodes
+	debugLevel      int // debug level for logging purpose
 }
 
 type BidirectionalConnection struct {
@@ -115,24 +119,40 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 			// -> Wrong, this condition just made a "normal" Dijkstra out of the Bidirectional Dijkstra
 			// Correction: check if the node was already settled in both directions, this is a connection
 			// the connection item contains the information, which one is the real connection (this has not to be the current one)
-			break
+			if d.debugLevel >= 1 {
+				fmt.Printf("Finished search\n")
+			}
+			return d.bidirectionalConnection.distance
 		}
 		if d.considerArcFlags && d.bidirectionalConnection != nil && currentNode.Priority() > d.bidirectionalConnection.distance {
 			// exit condition for contraction hierarchies
 			// if path is directed, it is not enough to test if node is settled from both sides, since the direction can block to reach the node from one side
 			// for normal Dijkstra, this would force that the search space is in the bidirectional search as big as unidirecitonal search
 			// check if the current visited node has already a higher priority (distance) than the connection. If this is the case, no lower connection can get found
-			break
+			if d.debugLevel >= 1 {
+				fmt.Printf("Finished search\n")
+			}
+			return d.bidirectionalConnection.distance
 		}
 
 		if destination != -1 {
 			if currentNode.searchDirection == FORWARD && currentNode.NodeId == destination {
-				break
+				if d.debugLevel >= 1 {
+					fmt.Printf("Found path %v -> %v with distance %v\n", origin, destination, d.searchSpace[destination].distance)
+				}
+				return d.searchSpace[destination].distance
 			} else if d.bidirectional && currentNode.searchDirection == BACKWARD && currentNode.NodeId == origin {
 				// not necessary? - should be catched in bidirectionalConnection
-				// appearently this can happen (at least for contraction hierarchies when calculated bidirecitonal)
-				// -> first path/conneciton is found which has higher distance than possible (directed) path from destinaiton to source
-				break
+				// appearently this can happen (at least for contraction hierarchies when calculated bidirectional)
+				// -> first path/connection is found which has higher distance than possible (directed) path from destination to source
+				if d.bidirectionalConnection == nil {
+					// TODO Verify if this can happen
+					panic("connection should not be nil")
+				}
+				if d.debugLevel >= 1 {
+					fmt.Printf("Finished search\n")
+				}
+				return d.bidirectionalConnection.distance
 			}
 		}
 
@@ -143,7 +163,6 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 			fmt.Printf("Finished search\n")
 		}
 		// calculated every distance from source to each possible target
-		//dijkstra.settledNodes = nodes
 		return 0
 	}
 
@@ -155,6 +174,7 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 			// no valid path found
 			return -1
 		}
+		// TODO check why this can happen
 		return d.bidirectionalConnection.distance
 	}
 
@@ -166,11 +186,7 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 		return -1
 	}
 
-	if d.debugLevel >= 1 {
-		fmt.Printf("Found path %v -> %v with distance %v\n", origin, destination, d.searchSpace[destination].distance)
-	}
-
-	return d.searchSpace[destination].distance
+	panic("Normal search should get finished before")
 }
 
 // Get the path of a previous computation. This contains the nodeIds which lie on the path from source to destination
