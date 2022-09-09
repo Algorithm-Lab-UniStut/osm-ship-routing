@@ -87,11 +87,6 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 	ch.initialTime = time.Now()
 	ch.milestoneIndex = 0
 
-	ch.dijkstra.SetConsiderArcFlags(false)
-	ch.dijkstra.SetBidirectional(false)
-	ch.dijkstra.SetUseHeuristic(false)             // TODO test true
-	ch.dijkstra.SetMaxNumSettledNodes(math.MaxInt) // TODO maybe test 60 (or something else)
-	ch.dijkstra.SetHotStart(true)
 	ch.addedShortcuts = make(map[int]int)
 	//ch.shortcutMap = make(map[graph.NodeId]map[graph.NodeId]graph.NodeId)
 	ch.shortcuts = make([]Shortcut, 0)
@@ -108,7 +103,6 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 		panic("Given Graph is no dynamic graph. Adding Arcs will not be possible")
 	}
 	ch.dg = dg
-	ch.dg.EnableAllArcs()
 	if givenNodeOrder != nil {
 		// ignore the order options
 		// -> just overwrite them
@@ -496,8 +490,9 @@ func (ch *ContractionHierarchies) computeNodeContraction(nodeId graph.NodeId, ig
 	dijkstra := NewUniversalDijkstra(ch.g)
 	dijkstra.SetHotStart(true)
 	dijkstra.SetIgnoreNodes(ignoreNodes)
-	dijkstra.SetBidirectional(false) // TODO test true
-	dijkstra.SetUseHeuristic(false)  // TODO test true
+	dijkstra.SetBidirectional(false)               // TODO test true
+	dijkstra.SetUseHeuristic(false)                // TODO test true
+	ch.dijkstra.SetMaxNumSettledNodes(math.MaxInt) // TODO maybe test 60 (or something else)
 
 	var runtime time.Duration = 0
 	computations := 0
