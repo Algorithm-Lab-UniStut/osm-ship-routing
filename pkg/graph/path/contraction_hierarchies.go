@@ -8,6 +8,7 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -144,8 +145,13 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 	ch.contractNodes(pq, oo)
 	if ch.debugLevel >= 1 {
 		fmt.Printf("Shortcuts:\n")
-		for shortcutOrder, addedShortcuts := range ch.addedShortcuts {
-			fmt.Printf("%v x %v Shortcuts\n", addedShortcuts, shortcutOrder)
+		shortcutOrder := make([]int, 0, len(ch.addedShortcuts))
+		for shortcutAmount := range ch.addedShortcuts {
+			shortcutOrder = append(shortcutOrder, shortcutAmount)
+		}
+		sort.Ints(shortcutOrder)
+		for _, amount := range shortcutOrder {
+			fmt.Printf("%v x %v Shortcuts\n", ch.addedShortcuts[amount], amount)
 		}
 	}
 	// store the computed shortcuts in the map
