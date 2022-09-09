@@ -555,13 +555,6 @@ func (ch *ContractionHierarchies) computeNodeContraction(nodeId graph.NodeId, ig
 			}
 		}
 	}
-	// TODO check if this should stay here or remove this option and only use addArcs()
-	_, exists := ch.addedShortcuts[len(shortcuts)]
-	if !exists {
-		ch.addedShortcuts[len(shortcuts)] = 1
-	} else {
-		ch.addedShortcuts[len(shortcuts)]++
-	}
 
 	if ch.debugLevel >= 2 && computations > 0 {
 		fmt.Printf("Dijkstra Runtime: %v us * %v, node %v\n", float64(int(runtime.Nanoseconds())/computations)/1000, computations, nodeId)
