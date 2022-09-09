@@ -24,6 +24,7 @@ type ContractionHierarchies struct {
 	dijkstra     *UniversalDijkstra // the dijkstra algorithm to perform the searches
 	nodeOrdering []graph.NodeId     // the node ordering (in which order the nodes were contracted)
 	orderOfNode  []int              // the order of the node ("reverse" node ordering). At which position the specified node was contracted
+	orderItems   []*OrderItem
 
 	// decide for one, currently both are needed (but probalby could get rid of the slice)
 	shortcuts   []Shortcut                                     // array which contains all shortcuts
@@ -309,11 +310,14 @@ func (ch *ContractionHierarchies) GetPqPops() int {
 // It returns the calculated node order in a priority queue
 func (ch *ContractionHierarchies) computeInitialNodeOrder(givenNodeOrder []int, oo OrderOptions) *NodeOrder {
 	var pq *NodeOrder
+	ch.orderItems = make([]*OrderItem, ch.g.NodeCount())
 	if givenNodeOrder != nil {
 		order := make(NodeOrder, ch.g.NodeCount())
 		for i := 0; i < ch.g.NodeCount(); i++ {
-			order[i] = NewOrderItem(givenNodeOrder[i])
-			order[i].edgeDifference = i // needed?
+			orderItem := NewOrderItem(givenNodeOrder[i])
+			orderItem.edgeDifference = i // TODO needed?
+			order[i] = orderItem
+			ch.orderItems[orderItem.nodeId] = orderItem
 		}
 		pq = &order
 		heap.Init(pq)
@@ -327,7 +331,9 @@ func (ch *ContractionHierarchies) computeInitialNodeOrder(givenNodeOrder []int, 
 
 		order := make(NodeOrder, ch.g.NodeCount())
 		for i := 0; i < ch.g.NodeCount(); i++ {
-			order[i] = NewOrderItem(nodeOrdering[i])
+			orderItem := NewOrderItem(nodeOrdering[i])
+			order[i] = orderItem
+			ch.orderItems[orderItem.nodeId] = orderItem
 			//order[i].edgeDifference = i
 		}
 		pq = &order
@@ -351,6 +357,7 @@ func (ch *ContractionHierarchies) computeInitialNodeOrder(givenNodeOrder []int, 
 				fmt.Printf("Add node %6v, edge difference: %3v, processed neighbors: %3v\n", i, len(shortcuts)-incidentArcs, processedNeighbors)
 			}
 			heap.Push(pq, orderItem)
+			ch.orderItems[orderItem.nodeId] = orderItem
 		}
 	}
 	return pq
@@ -398,6 +405,25 @@ func (ch *ContractionHierarchies) contractNodes(order *NodeOrder, oo OrderOption
 			}
 			intermediateUpdates = 0
 			level++
+
+			// update neighbors
+			if oo.UpdateNeighbors() {
+				for _, arc := range ch.g.GetArcsFrom(pqItem.nodeId) {
+					destination := arc.To
+					if ch.isNodeContracted(destination) {
+						continue
+					}
+					sc, edges, pn := ch.contractNode(destination, true)
+					ed := len(sc) - edges
+					if !oo.ConsiderEdgeDifference() {
+						ed = 0
+					}
+					if !oo.ConsiderProcessedNeighbors() {
+						pn = 0
+					}
+					order.update(ch.orderItems[destination], ed, pn)
+				}
+			}
 
 			shortcutCounter += len(shortcuts)
 			if ch.milestones != nil && float64(level)/float64(len(ch.nodeOrdering)) > ch.milestones[ch.milestoneIndex]/100 {
