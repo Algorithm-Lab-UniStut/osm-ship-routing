@@ -84,4 +84,5 @@ func createContractedGraph() {
 	fmt.Printf("Initialized Contraction Hierarchies, start precomputation\n")
 	ch.Precompute(nil, path.MakeOrderOptions().SetDynamic(true).SetEdgeDifference(true).SetProcessedNeighbors(true).SetPeriodic(false))
 	ch.WriteContractionResult()
+	fmt.Printf("Finished Contraction\n")
 }
