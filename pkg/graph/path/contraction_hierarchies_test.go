@@ -90,7 +90,7 @@ func TestContractGraph(t *testing.T) {
 	dijkstra := NewUniversalDijkstra(alg)
 	dijkstra.SetDebugLevel(1)
 	ch := NewContractionHierarchies(alg, dijkstra)
-	ch.SetDebugLevel(2)
+	ch.SetDebugLevel(1)
 	nodeOrdering := []int{0, 1, 10, 12, 7, 4, 9, 3, 6, 5, 8, 11, 2}
 	ch.Precompute(nodeOrdering, MakeOrderOptions())
 	if slice.CompareInt(nodeOrdering, ch.nodeOrdering) != 0 {
@@ -107,11 +107,9 @@ func TestContractGraph(t *testing.T) {
 	if twoShortcuts != 2 {
 		t.Errorf("wrong number of 2 shortcuts\n")
 	}
-	//fmt.Println(ch.g.AsString())
 	if ch.g.ArcCount() != 46 {
 		t.Errorf("wrong number of Arcs added")
 	}
-	//ch.WriteContractionResult()
 }
 
 func TestPathFinding(t *testing.T) {
@@ -151,7 +149,8 @@ func TestPrecompute(t *testing.T) {
 	alg := graph.NewAdjacencyListFromFmiString(cuttableGraph)
 	dijkstra := NewUniversalDijkstra(alg)
 	ch := NewContractionHierarchies(alg, dijkstra)
-	ch.Precompute(nil, MakeOrderOptions().SetDynamic(true).SetEdgeDifference(true).SetProcessedNeighbors(true))
+	ch.SetDebugLevel(2)
+	ch.Precompute(nil, MakeOrderOptions().SetDynamic(true).SetEdgeDifference(true).SetProcessedNeighbors(true).SetUpdateNeighbors(true))
 	//fmt.Printf("shortcuts: %v\n", len(ch.shortcuts)/2)
 	//fmt.Printf("shortcuts: %v\n", ch.shortcuts)
 }
