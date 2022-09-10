@@ -372,6 +372,8 @@ func (ch *ContractionHierarchies) contractNodes(order *NodeOrder, oo OrderOption
 		if ch.debugLevel >= 3 {
 			fmt.Printf("Test contraction of Node %v\n", pqItem.nodeId)
 		}
+		// Recalculate shortcuts, incident edges and processed neighbors
+		// TODO may not be necessary when updateing the neighbors with every contraction
 		shortcuts, edges, processedNeighbors := ch.computeNodeContraction(pqItem.nodeId, append(ch.nodeOrdering[0:level], pqItem.nodeId))
 		edgeDifference := len(shortcuts) - edges
 		if oo.ConsiderEdgeDifference() {
@@ -400,7 +402,7 @@ func (ch *ContractionHierarchies) contractNodes(order *NodeOrder, oo OrderOption
 			// update neighbors
 			if oo.UpdateNeighbors() {
 				// collect all nodes which have to get updates
-				updateNodes := make([]graph.NodeId, 0)
+				updateNodes := make([]graph.NodeId, 0, len(ch.g.GetArcsFrom(pqItem.nodeId)))
 				for _, arc := range ch.g.GetArcsFrom(pqItem.nodeId) {
 					destination := arc.To
 					if !ch.isNodeContracted(destination) {
