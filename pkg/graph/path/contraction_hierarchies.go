@@ -399,29 +399,51 @@ func (ch *ContractionHierarchies) contractNodes(order *NodeOrder, oo OrderOption
 
 			// update neighbors
 			if oo.UpdateNeighbors() {
+				// collect all nodes which have to get updates
+				updateNodes := make([]graph.NodeId, 0)
 				for _, arc := range ch.g.GetArcsFrom(pqItem.nodeId) {
 					destination := arc.To
-					if ch.isNodeContracted(destination) {
-						continue
+					if !ch.isNodeContracted(destination) {
+						updateNodes = append(updateNodes, destination)
 					}
-					sc, edges, pn := ch.computeNodeContraction(destination, append(ch.nodeOrdering[0:level], destination))
-					ed := len(sc) - edges
-					if !oo.ConsiderEdgeDifference() {
-						ed = 0
-					}
-					if !oo.ConsiderProcessedNeighbors() {
-						pn = 0
-					}
+				}
 
-					oldPrio := ch.orderItems[destination].Priority()
-					oldPos := ch.orderItems[destination].index
+				// create goroutines to parallel calculate the update
+				// TODO maybe limit the max amount of goroutines
+				updates := make(chan [3]int, len(updateNodes))
+				for i, node := range updateNodes {
+					ignoreNodes := make([]graph.NodeId, level)
+					copy(ignoreNodes, ch.nodeOrdering[0:level])
+					ignoreNodes = append(ignoreNodes, node)
+					go func(nodeId graph.NodeId, ignoreNodes []graph.NodeId, index int, orderUpdate chan [3]int) {
+						sc, edges, pn := ch.computeNodeContraction(nodeId, ignoreNodes)
+						ed := len(sc) - edges
+						if !oo.ConsiderEdgeDifference() {
+							ed = 0
+						}
+						if !oo.ConsiderProcessedNeighbors() {
+							pn = 0
+						}
+						orderUpdate <- [3]int{index, ed, pn}
+					}(node, ignoreNodes, i, updates)
 
-					order.update(ch.orderItems[destination], ed, pn)
+				}
 
-					newPrio := ch.orderItems[destination].Priority()
-					newPos := ch.orderItems[destination].index
+				// finally, update the nodes in the priority queue (synchronously)
+				for i := 0; i < len(updateNodes); i++ {
+					update := <-updates
+					nodeIndex, ed, pn := update[0], update[1], update[2]
+					node := updateNodes[nodeIndex]
+
+					oldPrio := ch.orderItems[node].Priority()
+					oldPos := ch.orderItems[node].index
+
+					order.update(ch.orderItems[node], ed, pn)
+
+					newPrio := ch.orderItems[node].Priority()
+					newPos := ch.orderItems[node].index
 					if ch.debugLevel >= 2 {
-						fmt.Printf("Updating node %v. old priority: %v, new priority: %v, old position: %v, new position: %v\n", destination, oldPrio, newPrio, oldPos, newPos)
+						fmt.Printf("Updating node %v. old priority: %v, new priority: %v, old position: %v, new position: %v\n", node, oldPrio, newPrio, oldPos, newPos)
 					}
 				}
 			}
