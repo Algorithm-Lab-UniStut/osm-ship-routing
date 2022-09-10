@@ -10,6 +10,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/natevvv/osm-ship-routing/pkg/graph"
@@ -25,6 +26,7 @@ type ContractionHierarchies struct {
 	nodeOrdering []graph.NodeId     // the node ordering (in which order the nodes were contracted)
 	orderOfNode  []int              // the order of the node ("reverse" node ordering). At which position the specified node was contracted
 	orderItems   []*OrderItem
+	orderMutex   sync.Mutex
 
 	// decide for one, currently both are needed (but probalby could get rid of the slice)
 	shortcuts   []Shortcut                                     // array which contains all shortcuts
@@ -410,14 +412,15 @@ func (ch *ContractionHierarchies) contractNodes(order *NodeOrder, oo OrderOption
 					}
 				}
 
-				// create goroutines to parallel calculate the update
+				// create goroutines to parallely calculate the update
 				// TODO maybe limit the max amount of goroutines
-				updates := make(chan [3]int, len(updateNodes))
+				var wg sync.WaitGroup
+				wg.Add(len(updateNodes))
 				for i, node := range updateNodes {
 					ignoreNodes := make([]graph.NodeId, level)
 					copy(ignoreNodes, ch.nodeOrdering[0:level])
 					ignoreNodes = append(ignoreNodes, node)
-					go func(nodeId graph.NodeId, ignoreNodes []graph.NodeId, index int, orderUpdate chan [3]int) {
+					go func(nodeId graph.NodeId, ignoreNodes []graph.NodeId, index int) {
 						sc, edges, pn := ch.computeNodeContraction(nodeId, ignoreNodes)
 						ed := len(sc) - edges
 						if !oo.ConsiderEdgeDifference() {
@@ -426,28 +429,23 @@ func (ch *ContractionHierarchies) contractNodes(order *NodeOrder, oo OrderOption
 						if !oo.ConsiderProcessedNeighbors() {
 							pn = 0
 						}
-						orderUpdate <- [3]int{index, ed, pn}
-					}(node, ignoreNodes, i, updates)
+						ch.orderMutex.Lock()
+						oldPrio := ch.orderItems[nodeId].Priority()
+						oldPos := ch.orderItems[nodeId].index
 
+						order.update(ch.orderItems[nodeId], ed, pn)
+
+						newPrio := ch.orderItems[nodeId].Priority()
+						newPos := ch.orderItems[nodeId].index
+						ch.orderMutex.Unlock()
+						if ch.debugLevel >= 2 {
+							fmt.Printf("Updating node %v. old priority: %v, new priority: %v, old position: %v, new position: %v\n", nodeId, oldPrio, newPrio, oldPos, newPos)
+						}
+						wg.Done()
+					}(node, ignoreNodes, i)
 				}
-
-				// finally, update the nodes in the priority queue (synchronously)
-				for i := 0; i < len(updateNodes); i++ {
-					update := <-updates
-					nodeIndex, ed, pn := update[0], update[1], update[2]
-					node := updateNodes[nodeIndex]
-
-					oldPrio := ch.orderItems[node].Priority()
-					oldPos := ch.orderItems[node].index
-
-					order.update(ch.orderItems[node], ed, pn)
-
-					newPrio := ch.orderItems[node].Priority()
-					newPos := ch.orderItems[node].index
-					if ch.debugLevel >= 2 {
-						fmt.Printf("Updating node %v. old priority: %v, new priority: %v, old position: %v, new position: %v\n", node, oldPrio, newPrio, oldPos, newPos)
-					}
-				}
+				// wait until all neighbors are updated
+				wg.Wait()
 			}
 
 			shortcutCounter += len(shortcuts)
