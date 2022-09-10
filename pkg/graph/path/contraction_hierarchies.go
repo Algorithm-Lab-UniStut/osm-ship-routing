@@ -114,7 +114,7 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 	pq := ch.computeInitialNodeOrder(givenNodeOrder, oo)
 
 	if ch.debugLevel >= 2 {
-		fmt.Printf("%v\n", pq)
+		fmt.Printf("Initial computed order:\n%v\n", pq)
 	}
 	if ch.milestones != nil && ch.milestones[0] == 0 {
 		runtime := time.Since(ch.initialTime)
@@ -404,7 +404,7 @@ func (ch *ContractionHierarchies) contractNodes(order *NodeOrder, oo OrderOption
 					if ch.isNodeContracted(destination) {
 						continue
 					}
-					sc, edges, pn := ch.computeNodeContraction(destination, append(ch.nodeOrdering[0:level], pqItem.nodeId))
+					sc, edges, pn := ch.computeNodeContraction(destination, append(ch.nodeOrdering[0:level], destination))
 					ed := len(sc) - edges
 					if !oo.ConsiderEdgeDifference() {
 						ed = 0
@@ -412,7 +412,17 @@ func (ch *ContractionHierarchies) contractNodes(order *NodeOrder, oo OrderOption
 					if !oo.ConsiderProcessedNeighbors() {
 						pn = 0
 					}
+
+					oldPrio := ch.orderItems[destination].Priority()
+					oldPos := ch.orderItems[destination].index
+
 					order.update(ch.orderItems[destination], ed, pn)
+
+					newPrio := ch.orderItems[destination].Priority()
+					newPos := ch.orderItems[destination].index
+					if ch.debugLevel >= 2 {
+						fmt.Printf("Updating node %v. old priority: %v, new priority: %v, old position: %v, new position: %v\n", destination, oldPrio, newPrio, oldPos, newPos)
+					}
 				}
 			}
 
@@ -492,21 +502,22 @@ func (ch *ContractionHierarchies) computeNodeContraction(nodeId graph.NodeId, ig
 	dijkstra.SetIgnoreNodes(ignoreNodes)
 	dijkstra.SetBidirectional(false)               // TODO test true
 	dijkstra.SetUseHeuristic(false)                // TODO test true
-	ch.dijkstra.SetMaxNumSettledNodes(math.MaxInt) // TODO maybe test 60 (or something else)
+	dijkstra.SetMaxNumSettledNodes(math.MaxInt)    // TODO maybe test 60 (or something else)
+	dijkstra.SetDebugLevel(ch.dijkstra.debugLevel) // copy debug level
 
 	var runtime time.Duration = 0
 	computations := 0
 
 	arcs := ch.dg.GetArcsFrom(nodeId)
 	incidentArcsAmount := len(arcs)
-	if ch.debugLevel >= 3 {
+	if ch.debugLevel >= 4 {
 		fmt.Printf("Incident arcs %v\n", incidentArcsAmount)
 	}
 	for i := 0; i < len(arcs); i++ {
 		arc := arcs[i]
 		source := arc.Destination()
 		if ch.isNodeContracted(source) {
-			if ch.debugLevel >= 3 {
+			if ch.debugLevel >= 4 {
 				fmt.Printf("source %v already processed\n", source)
 			}
 			contractedNeighbors++
@@ -520,14 +531,14 @@ func (ch *ContractionHierarchies) computeNodeContraction(nodeId graph.NodeId, ig
 				panic("This should not happen")
 			}
 			if ch.isNodeContracted(target) {
-				if ch.debugLevel >= 3 {
+				if ch.debugLevel >= 4 {
 					fmt.Printf("target %v already processed\n", target)
 				}
 				//contractedNeighbors++
 				continue
 			}
 
-			if ch.debugLevel >= 3 {
+			if ch.debugLevel >= 4 {
 				fmt.Printf("testing for shortcut %v -> %v\n", source, target)
 			}
 			maxCost := arc.Cost() + otherArc.Cost()
@@ -538,13 +549,13 @@ func (ch *ContractionHierarchies) computeNodeContraction(nodeId graph.NodeId, ig
 			runtime += elapsed
 			computations++
 
-			if ch.debugLevel >= 3 {
+			if ch.debugLevel >= 4 {
 				fmt.Printf("Length: %v, cost via node: %v, pq pops: %v\n", length, maxCost, ch.dijkstra.GetPqPops())
 			}
 			if length == -1 || length > maxCost {
 				// add shortcut, since the path via this node is the fastest
 				// without this node, the target is either not reachable or the path is longer
-				if ch.debugLevel >= 3 {
+				if ch.debugLevel >= 4 {
 					fmt.Printf("Shortcut %v -> %v via %v needed\n", source, target, nodeId)
 				}
 				shortcut := Shortcut{source: source, target: target, via: nodeId, cost: maxCost}
@@ -556,7 +567,7 @@ func (ch *ContractionHierarchies) computeNodeContraction(nodeId graph.NodeId, ig
 		}
 	}
 
-	if ch.debugLevel >= 2 && computations > 0 {
+	if ch.debugLevel >= 3 && computations > 0 {
 		fmt.Printf("Dijkstra Runtime: %v us * %v, node %v\n", float64(int(runtime.Nanoseconds())/computations)/1000, computations, nodeId)
 	}
 
@@ -565,7 +576,7 @@ func (ch *ContractionHierarchies) computeNodeContraction(nodeId graph.NodeId, ig
 
 	// number of shortcuts is doubled, since we have two arcs for each each (because symmetric graph)
 	// TODO maybe divide len(shortcuts) by 2 when using them
-	return shortcuts, incidentArcsAmount, contractedNeighbors
+	return shortcuts, 2 * incidentArcsAmount, contractedNeighbors
 }
 
 // Add the shortcuts to the graph (by adding new arcs)
