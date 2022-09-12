@@ -20,19 +20,24 @@ type UniversalDijkstra struct {
 	origin      graph.NodeId // the origin of the current search
 	destination graph.NodeId // the distination of the current search
 
-	visitedNodes            []bool                   // Array which indicates if a node (defined by index) was visited in the forward search
-	backwardVisitedNodes    []bool                   // Array which indicates if a node (defined by index) was visited in the backward search
-	searchSpace             []*DijkstraItem          // search space, a map really reduces performance. If node is also visited, this can be seen as "settled"
-	backwardSearchSpace     []*DijkstraItem          // search space for the backward search
-	bidirectionalConnection *BidirectionalConnection // contains the connection between the forward and backward search (if done bidirecitonal). If no connection is found, this is nil
+	visitedNodes             []bool                   // Array which indicates if a node (defined by index) was visited in the forward search
+	backwardVisitedNodes     []bool                   // Array which indicates if a node (defined by index) was visited in the backward search
+	searchSpace              []*DijkstraItem          // search space, a map really reduces performance. If node is also visited, this can be seen as "settled"
+	backwardSearchSpace      []*DijkstraItem          // search space for the backward search
+	bidirectionalConnection  *BidirectionalConnection // contains the connection between the forward and backward search (if done bidirecitonal). If no connection is found, this is nil
+	forwardStalledNodes      []bool                   //indicates if the node (index=id) is stalled
+	backwardStalledNodes     []bool                   //indicates if the node (index=id) is stalled
+	forwardStallingDistance  []int                    // stalling distance for node (index=id)
+	backwardStallingDistance []int                    // stalling distance for node (index=id)
 
 	useHeuristic       bool   // flag indicating if heuristic (remaining distance) should be used (AStar implementation)
 	bidirectional      bool   // flag indicating if search should be done from both sides
 	useHotStart        bool   // flag indicating if the previously cached results should get used
 	considerArcFlags   bool   // flag indicating if arc flags (basically deactivate some edges) should be considered
 	ignoreNodes        []bool // store for each node ID if it is ignored. A map would also be viable (for performance aspect) to achieve this
-	costUpperBound     int    // upper bound of cost from origin to destination
-	maxNumSettledNodes int    // maximum number of settled nodes before search is terminated
+	stallOnDemand      bool
+	costUpperBound     int // upper bound of cost from origin to destination
+	maxNumSettledNodes int // maximum number of settled nodes before search is terminated
 
 	pqPops          int // store the amount of Pops which were performed on the priority queue for the computed search
 	numSettledNodes int // number of settled nodes
@@ -75,8 +80,12 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 	if d.useHotStart && destination < 0 {
 		panic("Can't use Hot start when calculating path to everywhere.")
 	}
+	if d.stallOnDemand && !d.considerArcFlags {
+		panic("stall on demand works only on directed graph.")
+	}
+
 	if origin < 0 {
-		panic("Origin not legally specified.")
+		panic("Origin invalid.")
 	}
 
 	if d.useHotStart && d.origin == origin && d.visitedNodes[destination] {
@@ -101,6 +110,14 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 		}
 		d.settleNode(currentNode)
 		d.numSettledNodes++
+		stalledNodes, backwardStalledNodes := d.forwardStalledNodes, d.backwardStalledNodes
+		if currentNode.searchDirection == BACKWARD {
+			stalledNodes, backwardStalledNodes = backwardStalledNodes, stalledNodes
+		}
+		if d.stallOnDemand && stalledNodes[currentNode.NodeId] {
+			// this is a stalled node -> nothing to do
+			continue
+		}
 		d.relaxEdges(currentNode) // edges need to get relaxed before checking for termination to guarantee that hot start works. if peeking is used, this may get done a bit differently
 		if d.costUpperBound < currentNode.Priority() || d.maxNumSettledNodes < d.numSettledNodes {
 			// Each following node exeeds the max allowed cost or the number of allowed nodes is reached
@@ -302,6 +319,11 @@ func (d *UniversalDijkstra) initializeSearch(origin, destination graph.NodeId) {
 			heap.Push(d.pq, destinationItem)
 			d.settleNode(destinationItem)
 		}
+
+		d.forwardStalledNodes = make([]bool, d.g.NodeCount())
+		d.backwardStalledNodes = make([]bool, d.g.NodeCount())
+		d.forwardStallingDistance = make([]int, d.g.NodeCount())
+		d.backwardStallingDistance = make([]int, d.g.NodeCount())
 	} else {
 		if d.debugLevel >= 2 {
 			// TODO decide debug level
@@ -330,28 +352,40 @@ func (d *UniversalDijkstra) isFullySettled(nodeId graph.NodeId) bool {
 // Relax the Edges for the given node item and add the new nodes to the MinPath priority queue
 func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 	for _, arc := range d.g.GetArcsFrom(node.NodeId) {
-		if d.considerArcFlags && !arc.ArcFlag() {
-			// ignore this arc
+		successor := arc.Destination()
+		searchSpace, inverseSearchSpace := d.searchSpace, d.backwardSearchSpace
+		stalledNodes, backwardStalledNodes := d.forwardStalledNodes, d.backwardStalledNodes
+		stallingDistance, backwardStallingDistance := d.forwardStallingDistance, d.backwardStallingDistance
+		if node.searchDirection == BACKWARD {
+			searchSpace, inverseSearchSpace = inverseSearchSpace, searchSpace
+			stalledNodes, backwardStalledNodes = backwardStalledNodes, stalledNodes
+			stallingDistance, backwardStallingDistance = backwardStallingDistance, stallingDistance
+		}
+		if d.ignoreNodes[successor] {
+			// ignore this node
 			if d.debugLevel >= 3 {
-				fmt.Printf("Ignore Edge %v -> %v\n", node.NodeId, arc.Destination())
+				fmt.Printf("Ignore Edge %v -> %v, because target is in ignore list\n", node.NodeId, successor)
 			}
 			continue
 		}
-		if d.ignoreNodes[arc.Destination()] {
-			// ignore this node
+		if d.considerArcFlags && !arc.ArcFlag() {
+			// ignore this arc
 			if d.debugLevel >= 3 {
-				fmt.Printf("Ignore Edge %v -> %v, because target is in ignore list\n", node.NodeId, arc.Destination())
+				fmt.Printf("Ignore Edge %v -> %v\n", node.NodeId, successor)
+			}
+			// but first, check for stall-on-demand
+			if d.stallOnDemand && searchSpace[successor] != nil && node.Priority()+arc.Cost() < searchSpace[successor].Priority() {
+				// TODO distinguish between forward and backward search?
+				// -> add forwardStalled, backwardStalled slice
+				stalledNodes[successor] = true
+				stallingDistance[successor] = node.Priority() + arc.Cost()
+				// TODO stall recursively?
 			}
 			continue
 		}
 
 		if d.debugLevel >= 3 {
 			fmt.Printf("Relax Edge %v -> %v\n", node.NodeId, arc.Destination())
-		}
-		successor := arc.Destination()
-		searchSpace, inverseSearchSpace := d.searchSpace, d.backwardSearchSpace
-		if node.searchDirection == BACKWARD {
-			searchSpace, inverseSearchSpace = inverseSearchSpace, searchSpace
 		}
 		if d.bidirectional && inverseSearchSpace[successor] != nil {
 			// store potential connection node, needed for later
@@ -382,6 +416,12 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 			if updatedPriority := node.distance + arc.Cost() + searchSpace[successor].heuristic; updatedPriority < searchSpace[successor].Priority() {
 				d.pq.update(searchSpace[successor], node.distance+arc.Cost())
 				searchSpace[successor].predecessor = node.NodeId
+				if d.stallOnDemand && updatedPriority < stallingDistance[successor] {
+					stalledNodes[successor] = false
+					// need to push successor (again?) to queue?
+					// was it removed before?
+					heap.Push(d.pq, searchSpace[successor])
+				}
 			}
 		}
 	}
@@ -424,6 +464,10 @@ func (d *UniversalDijkstra) SetIgnoreNodes(nodes []graph.NodeId) {
 
 func (d *UniversalDijkstra) SetHotStart(useHotStart bool) {
 	d.useHotStart = useHotStart
+}
+
+func (d *UniversalDijkstra) SetStallOnDemand(stallOnDemand bool) {
+	d.stallOnDemand = stallOnDemand
 }
 
 // Returns the amount of priority queue/heap pops which werer performed during the search

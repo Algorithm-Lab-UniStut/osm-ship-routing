@@ -189,6 +189,7 @@ func (ch *ContractionHierarchies) ComputeShortestPath(origin, destination graph.
 	ch.dijkstra.SetUseHeuristic(false)
 	ch.dijkstra.SetIgnoreNodes(make([]graph.NodeId, 0))
 	ch.dijkstra.SetHotStart(false)
+	ch.dijkstra.SetStallOnDemand(true)
 	if ch.debugLevel >= 1 {
 		fmt.Printf("Compute path from %v to %v\n", origin, destination)
 	}
