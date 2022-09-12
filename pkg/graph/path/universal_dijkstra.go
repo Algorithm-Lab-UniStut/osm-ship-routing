@@ -320,10 +320,12 @@ func (d *UniversalDijkstra) initializeSearch(origin, destination graph.NodeId) {
 			d.settleNode(destinationItem)
 		}
 
-		d.forwardStalledNodes = make([]bool, d.g.NodeCount())
-		d.backwardStalledNodes = make([]bool, d.g.NodeCount())
-		d.forwardStallingDistance = make([]int, d.g.NodeCount())
-		d.backwardStallingDistance = make([]int, d.g.NodeCount())
+		if d.stallOnDemand {
+			d.forwardStalledNodes = make([]bool, d.g.NodeCount())
+			d.backwardStalledNodes = make([]bool, d.g.NodeCount())
+			d.forwardStallingDistance = make([]int, d.g.NodeCount())
+			d.backwardStallingDistance = make([]int, d.g.NodeCount())
+		}
 	} else {
 		if d.debugLevel >= 2 {
 			// TODO decide debug level
@@ -375,11 +377,26 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 			}
 			// but first, check for stall-on-demand
 			if d.stallOnDemand && searchSpace[successor] != nil && node.Priority()+arc.Cost() < searchSpace[successor].Priority() {
-				// TODO distinguish between forward and backward search?
-				// -> add forwardStalled, backwardStalled slice
+				if d.debugLevel >= 3 {
+					fmt.Printf("Stall Node %v\n", successor)
+				}
 				stalledNodes[successor] = true
 				stallingDistance[successor] = node.Priority() + arc.Cost()
-				// TODO stall recursively?
+
+				// stall recursively
+				// however, this takes very long time (even for only 1 level)
+				/*
+					dijkstra := NewUniversalDijkstra(d.g)
+					dijkstra.SetConsiderArcFlags(true)
+					dijkstra.SetMaxNumSettledNodes(1) // maybe better: specify depth
+					dijkstra.ComputeShortestPath(successor, -1)
+					for _, v := range dijkstra.GetSearchSpace() {
+						if v != nil && v.Priority() > 0 && searchSpace[v.NodeId] != nil && node.Priority()+arc.Cost()+v.Priority() < searchSpace[v.NodeId].Priority() {
+							stalledNodes[v.NodeId] = true
+							stallingDistance[v.NodeId] = node.Priority() + arc.Cost() + v.Priority()
+						}
+					}
+				*/
 			}
 			continue
 		}
@@ -411,12 +428,15 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 			}
 			nextNode := NewDijkstraItem(successor, cost, node.NodeId, heuristic, node.searchDirection)
 			searchSpace[successor] = nextNode
+			if d.stallOnDemand && nextNode.Priority() <= stallingDistance[successor] {
+				stalledNodes[successor] = false
+			}
 			heap.Push(d.pq, nextNode)
 		} else {
 			if updatedPriority := node.distance + arc.Cost() + searchSpace[successor].heuristic; updatedPriority < searchSpace[successor].Priority() {
 				d.pq.update(searchSpace[successor], node.distance+arc.Cost())
 				searchSpace[successor].predecessor = node.NodeId
-				if d.stallOnDemand && updatedPriority < stallingDistance[successor] {
+				if d.stallOnDemand && updatedPriority <= stallingDistance[successor] {
 					stalledNodes[successor] = false
 					// need to push successor (again?) to queue?
 					// was it removed before?
