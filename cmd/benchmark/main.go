@@ -7,6 +7,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"runtime/pprof"
 	"strings"
 	"time"
 
@@ -22,6 +23,7 @@ func main() {
 	amountTargets := flag.Int("n", 100, "How many new targets should get created")
 	storeTargets := flag.Bool("store", false, "Store targets (when newly generated)")
 	algorithm := flag.String("search", "default", "Select the search algorithm")
+	cpuProfile := flag.String("cpu", "", "write cpu profile to file")
 	flag.Parse()
 
 	start := time.Now()
@@ -84,6 +86,14 @@ func main() {
 		}
 	}
 
+	if *cpuProfile != "" {
+		f, err := os.Create(*cpuProfile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
 	benchmark(navigator, targets, referenceDijkstra)
 }
 
