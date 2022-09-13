@@ -55,11 +55,7 @@ func (aag *AdjacencyArrayGraph) GetArcsFrom(id NodeId) []*Arc {
 	if id < 0 || id >= aag.NodeCount() {
 		panic(fmt.Sprintf("NodeId %d is not contained in the graph.", id))
 	}
-	arcs := make([]*Arc, 0)
-	for i := aag.Offsets[id]; i < aag.Offsets[id+1]; i++ {
-		arcs = append(arcs, aag.arcs[i])
-	}
-	return arcs
+	return aag.arcs[aag.Offsets[id]:aag.Offsets[id+1]]
 }
 
 // Returns the number of Nodes in the graph
