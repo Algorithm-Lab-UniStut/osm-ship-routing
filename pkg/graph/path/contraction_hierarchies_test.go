@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/natevvv/osm-ship-routing/pkg/graph"
-	"github.com/natevvv/osm-ship-routing/pkg/slice"
 )
 
 const cuttableGraph = `13
@@ -78,9 +77,13 @@ func TestGivenNodeOrdering(t *testing.T) {
 	if len(ch.nodeOrdering) != len(nodeOrdering) {
 		t.Errorf("noder ordering length does not match")
 	}
-	for i := range ch.nodeOrdering {
-		if ch.nodeOrdering[i] != nodeOrdering[i] {
-			t.Errorf("ordering at position %v does not match", i)
+	for i, cascadedNodeOrdering := range ch.nodeOrdering {
+		if len(cascadedNodeOrdering) != 1 {
+			// in each hierarchy, only one level should be present (when node order is given)
+			t.Errorf("Node ordering is weird.\n")
+		}
+		if nodeOrdering[i] != cascadedNodeOrdering[0] {
+			t.Errorf("ordering at position %v does not match\n", i)
 		}
 	}
 }
@@ -90,11 +93,17 @@ func TestContractGraph(t *testing.T) {
 	dijkstra := NewUniversalDijkstra(alg)
 	dijkstra.SetDebugLevel(1)
 	ch := NewContractionHierarchies(alg, dijkstra)
-	ch.SetDebugLevel(2)
+	ch.SetDebugLevel(1)
 	nodeOrdering := []int{0, 1, 10, 12, 7, 4, 9, 3, 6, 5, 8, 11, 2}
 	ch.Precompute(nodeOrdering, MakeOrderOptions())
-	if slice.CompareInt(nodeOrdering, ch.nodeOrdering) != 0 {
-		t.Errorf("node ordering was changed")
+	for i, cascadedNodeOrdering := range ch.nodeOrdering {
+		if len(cascadedNodeOrdering) != 1 {
+			// in each hierarchy, only one level should be present (when node order is given)
+			t.Errorf("Node ordering is weird.\n")
+		}
+		if nodeOrdering[i] != cascadedNodeOrdering[0] {
+			t.Errorf("node ordering was changed.\n")
+		}
 	}
 	if len(ch.GetShortcuts())/2 != 2 {
 		t.Errorf("wrong number of nodes shortcuttet.\n")
@@ -107,11 +116,9 @@ func TestContractGraph(t *testing.T) {
 	if twoShortcuts != 2 {
 		t.Errorf("wrong number of 2 shortcuts\n")
 	}
-	//fmt.Println(ch.g.AsString())
 	if ch.g.ArcCount() != 46 {
 		t.Errorf("wrong number of Arcs added")
 	}
-	//ch.WriteContractionResult()
 }
 
 func TestPathFinding(t *testing.T) {
@@ -151,7 +158,8 @@ func TestPrecompute(t *testing.T) {
 	alg := graph.NewAdjacencyListFromFmiString(cuttableGraph)
 	dijkstra := NewUniversalDijkstra(alg)
 	ch := NewContractionHierarchies(alg, dijkstra)
-	ch.Precompute(nil, MakeOrderOptions().SetDynamic(true).SetEdgeDifference(true).SetProcessedNeighbors(true))
+	ch.SetDebugLevel(3)
+	ch.Precompute(nil, MakeOrderOptions().SetLazyUpdate(false).SetEdgeDifference(true).SetProcessedNeighbors(true).SetUpdateNeighbors(true).SetParallelProcessing(true))
 	//fmt.Printf("shortcuts: %v\n", len(ch.shortcuts)/2)
 	//fmt.Printf("shortcuts: %v\n", ch.shortcuts)
 }
@@ -165,7 +173,7 @@ func TestContractionHierarchies(t *testing.T) {
 	dijkstra.SetDebugLevel(1)
 	ch := NewContractionHierarchies(alg, dijkstra)
 	ch.SetDebugLevel(2)
-	ch.Precompute(nil, MakeOrderOptions().SetDynamic(true).SetEdgeDifference(true).SetProcessedNeighbors(true))
+	ch.Precompute(nil, MakeOrderOptions().SetLazyUpdate(false).SetEdgeDifference(true).SetProcessedNeighbors(true).SetUpdateNeighbors(true).SetParallelProcessing(true))
 	length := ch.ComputeShortestPath(source, target)
 	if length != l {
 		t.Errorf("Length does not match")
@@ -190,7 +198,7 @@ func TestRandomContraction(t *testing.T) {
 		dijkstra = NewUniversalDijkstra(alg)
 		ch := NewContractionHierarchies(alg, dijkstra)
 		//ch.SetDebugLevel(2)
-		ch.Precompute(nil, MakeOrderOptions().SetDynamic(false).SetRandom(true))
+		ch.Precompute(nil, MakeOrderOptions().SetLazyUpdate(false).SetRandom(true))
 		length := ch.ComputeShortestPath(source, target)
 		if length != l {
 			t.Errorf("Length does not match - Is: %v. Should: %v", length, l)
