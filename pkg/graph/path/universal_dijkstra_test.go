@@ -210,47 +210,13 @@ func BenchmarkContractionHierarchies(b *testing.B) {
 	nodeOrdering := ReadNodeOrderingFile(dirname + "/osm/big_node_ordering.txt")
 	dijkstra := NewUniversalDijkstra(aag)
 	ch := NewContractionHierarchiesInitialized(aag, dijkstra, shortcuts, nodeOrdering)
-	for n := 0; n < b.N; n++ {
-		pqPops := 0
-		invalidLengths := make([][2]int, 0)
-		invalidResults := make([]int, 0)
-		invalidHops := make([][3]int, 0)
-		for i, target := range targets {
-			origin := target[0]
-			destination := target[1]
-			referenceLength := target[2]
-			referenceHops := target[3]
-
-			length := ch.ComputeShortestPath(origin, destination)
-			pqPops += ch.GetPqPops()
-			path := ch.GetPath(origin, destination)
-
-			if length != referenceLength {
-				invalidLengths = append(invalidLengths, [2]int{i, length - referenceLength})
+	for _, target := range targets {
+		origin := target[0]
+		destination := target[1]
+		b.Run(fmt.Sprintf("Target: %v", target), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				ch.ComputeShortestPath(origin, destination)
 			}
-			if length > -1 && (path[0] != origin || path[len(path)-1] != destination) {
-				invalidResults = append(invalidResults, i)
-			}
-			if referenceHops != len(path) {
-				invalidHops = append(invalidHops, [3]int{i, len(path), referenceHops})
-			}
-		}
-		fmt.Printf("Average pq pops: %d\n", pqPops/len(targets))
-		fmt.Printf("%v/%v invalid path lengths.\n", len(invalidLengths), len(targets))
-
-		for i, testCase := range invalidLengths {
-			fmt.Printf("%v: Case %v (%v -> %v) has invalid length. Difference: %v\n", i, testCase[0], targets[testCase[0]][0], targets[testCase[0]][1], testCase[1])
-		}
-		fmt.Printf("%v/%v invalid Result (source/target).\n", len(invalidResults), len(targets))
-		for i, result := range invalidResults {
-			fmt.Printf("%v: Case %v (%v -> %v) has invalid result\n", i, result, targets[result][0], targets[result][1])
-		}
-		fmt.Printf("%v/%v invalid hops number.\n", len(invalidHops), len(targets))
-		for i, hops := range invalidHops {
-			testcase := hops[0]
-			actualHops := hops[1]
-			referenceHops := hops[2]
-			fmt.Printf("%v: Case %v (%v -> %v) has invalid #hops. Has: %v, reference: %v, difference: %v\n", i, testcase, targets[testcase][0], targets[testcase][1], actualHops, referenceHops, actualHops-referenceHops)
-		}
+		})
 	}
 }
