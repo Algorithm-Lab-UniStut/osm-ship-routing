@@ -206,6 +206,7 @@ func (ch *ContractionHierarchies) ComputeShortestPath(origin, destination graph.
 	if ch.dijkstra.bidirectional {
 		return ch.dijkstra.ComputeShortestPath(origin, destination)
 	}
+	// if path should not get calculated bidirectional, the following will get executed
 	// compute shortest path manually since two unidirectinoal dijkstras were used
 	ch.dijkstra.ComputeShortestPath(origin, -1)
 	ch.visitedNodes = ch.dijkstra.visitedNodes
@@ -375,28 +376,27 @@ func (ch *ContractionHierarchies) computeIndependentSet(order *NodeOrder, ignore
 		priority = math.MaxInt
 	}
 
-	candidateNodes := make([]graph.NodeId, 0)
+	independentSet := make([]*OrderItem, 0)
+	forbiddenNodes := make([]bool, ch.g.NodeCount())
+	increasedPriority := false
+	ignoredNode := false
+
 	for i := 0; i < order.Len(); i++ {
 		item := order.PeekAt(i).(*OrderItem)
-		if item.Priority() > priority {
-			break
+		if priority < item.Priority() {
+			increasedPriority = true
 		}
-		candidateNodes = append(candidateNodes, item.nodeId)
-	}
-	if len(candidateNodes) == 0 {
-		panic("Something went wrong. Not even a single node is in candidate nodes.")
-	}
-
-	independentSet := make([]*OrderItem, 0)
-	forbiddenNodes := make(map[graph.NodeId]struct{})
-	for _, node := range candidateNodes {
-		if _, exists := forbiddenNodes[node]; exists {
+		if forbiddenNodes[item.nodeId] == true {
+			ignoredNode = true
 			continue
 		}
-		independentSet = append(independentSet, ch.orderItems[node])
-		forbiddenNodes[node] = struct{}{}
-		for _, arc := range ch.g.GetArcsFrom(node) {
-			forbiddenNodes[arc.To] = struct{}{}
+		if increasedPriority && ignoredNode {
+			break
+		}
+		independentSet = append(independentSet, item)
+		forbiddenNodes[item.nodeId] = true
+		for _, arc := range ch.g.GetArcsFrom(item.nodeId) {
+			forbiddenNodes[arc.To] = true
 		}
 	}
 
