@@ -403,7 +403,7 @@ func (ch *ContractionHierarchies) computeIndependentSet(ignorePriority bool) []g
 	return independentSet
 }
 
-func (ch *ContractionHierarchies) updateOrderForNodes(nodes []graph.NodeId, oo OrderOptions, order *NodeOrder) {
+func (ch *ContractionHierarchies) updateOrderForNodes(nodes []graph.NodeId, oo OrderOptions) {
 	// collect all nodes which have to get updates
 	// TODO maybe remove this precheck
 	updateNodes := make([]graph.NodeId, 0, len(nodes))
@@ -477,7 +477,7 @@ func (ch *ContractionHierarchies) updateOrderForNodes(nodes []graph.NodeId, oo O
 		oldPrio := item.Priority()
 		oldPos := item.index
 
-		order.update(item, edgeDifference, contractedNeighbors)
+		ch.pqOrder.update(item, edgeDifference, contractedNeighbors)
 
 		newPrio := item.Priority()
 		newPos := item.index
@@ -657,18 +657,54 @@ func (ch *ContractionHierarchies) contractNodes(oo OrderOptions) {
 	for ch.pqOrder.Len() > 0 {
 		updateNodes := make([]graph.NodeId, 0)
 		if !oo.ParallelProcessing() {
-			item := ch.pqOrder.Peek().(*OrderItem)
-			contracted, affectedNeighbors, shortcuts := ch.contractSingleNode(ch.pqOrder, level, oo)
-			updateNodes = affectedNeighbors
-			newShortcuts = shortcuts
-			if contracted {
-				if ch.debugLevel >= 2 {
-					fmt.Printf("Level %6v - Contract Node %6v, heap: %6v, sc: %3v,  ed: %3v pn: %3v, prio: %3v, updates: %6v\n", level, item.nodeId, ch.pqOrder.Len(), shortcuts, item.edgeDifference, item.processedNeighbors, item.edgeDifference+item.processedNeighbors, intermediateUpdates)
+			// TODO maybe combine this somehow with parallelComputation (but only give a single node)
+			// But shortcuts should then get cached
+			pqItem := heap.Pop(ch.pqOrder).(*OrderItem)
+			if ch.debugLevel >= 3 {
+				fmt.Printf("Test contraction of Node %v\n", pqItem.nodeId)
+			}
+
+			// Recalculate shortcuts, incident edges and processed neighbors
+			// TODO may not be necessary when updateing the neighbors with every contraction
+			shortcuts, edges, processedNeighbors := ch.computeNodeContraction(pqItem.nodeId, append(ch.contractedNodes, pqItem.nodeId), ch.contractionWorkers[0])
+			edgeDifference := len(shortcuts) - edges
+			if oo.ConsiderEdgeDifference() {
+				pqItem.edgeDifference = edgeDifference
+			}
+			if oo.ConsiderProcessedNeighbors() {
+				pqItem.processedNeighbors = processedNeighbors
+			}
+
+			if !oo.IsLazyUpdate() || ch.pqOrder.Len() == 0 || pqItem.Priority() <= ch.pqOrder.Peek().(*OrderItem).Priority() {
+				// always stick to initially computed order or this is still the smallest edge difference
+				if ch.orderOfNode[pqItem.nodeId] >= 0 {
+					panic("Node was already ordered?")
 				}
-				intermediateUpdates = 0
-				level++
+				ch.orderOfNode[pqItem.nodeId] = level
+				ch.nodeOrdering[level] = []graph.NodeId{pqItem.nodeId}
+				ch.contractedNodes = append(ch.contractedNodes, pqItem.nodeId)
+				if ch.debugLevel >= 3 {
+					fmt.Printf("Contract node %v\n", pqItem.nodeId)
+				}
+				ch.addShortcuts(shortcuts) // avoid recomputation of shortcuts. Just add the previously calculated shortcuts
+
+				affectedNeighbors := make([]graph.NodeId, 0)
+
+				// update neighbors -> fill neighbor list
+				if oo.UpdateNeighbors() {
+					// collect all nodes which have to get updates
+					for _, arc := range ch.g.GetArcsFrom(pqItem.nodeId) {
+						destination := arc.To
+						if !ch.isNodeContracted(destination) {
+							affectedNeighbors = append(affectedNeighbors, destination)
+						}
+					}
+				}
 			} else {
-				intermediateUpdates++
+				if ch.debugLevel >= 3 {
+					fmt.Printf("Update order\n")
+				}
+				heap.Push(ch.pqOrder, pqItem)
 			}
 		}
 		if oo.ParallelProcessing() {
@@ -712,35 +748,25 @@ func (ch *ContractionHierarchies) contractNodes(oo OrderOptions) {
 		if oo.UpdateNeighbors() {
 			// create goroutines to parallely calculate the update
 			// TODO maybe limit the max amount of goroutines
-			ch.updateOrderForNodes(updateNodes, oo, ch.pqOrder)
+			ch.updateOrderForNodes(updateNodes, oo)
 		}
 		if oo.IsPeriodic() && level%100 == 0 {
-			ch.updateFullContractionOrder(ch.pqOrder, oo)
+			ch.updateFullContractionOrder(oo)
 			// not informative here?
 			intermediateUpdates++
 		}
 	}
 }
 
-func (ch *ContractionHierarchies) updateFullContractionOrder(order *NodeOrder, oo OrderOptions) {
-	for i := 0; i < order.Len(); i++ {
-		orderItem := order.PeekAt(i).(*OrderItem)
-		if ch.debugLevel >= 3 {
-			fmt.Printf("Test priority update for node %v\n", orderItem.nodeId)
-		}
-		sc, edges, pn := ch.computeNodeContraction(orderItem.nodeId, append(ch.contractedNodes, orderItem.nodeId), ch.contractionWorkers[0])
-		ed := len(sc) - edges
-		if oo.ConsiderEdgeDifference() {
-			orderItem.edgeDifference = ed
-		}
-		if oo.ConsiderProcessedNeighbors() {
-			orderItem.processedNeighbors = pn
-		}
-		// wrong here, has this directly can influence the ordering and results in the same item could be taken twice
-		//order.update(orderItem, ed, pn)
+func (ch *ContractionHierarchies) updateFullContractionOrder(oo OrderOptions) {
+	nodes := make([]graph.NodeId, ch.pqOrder.Len())
+	for i := 0; i < ch.pqOrder.Len(); i++ {
+		orderItem := ch.pqOrder.PeekAt(i).(*OrderItem)
+		nodes[i] = orderItem.nodeId
 	}
-	// reestablish node order
-	heap.Init(order)
+	ch.updateOrderForNodes(nodes, oo)
+	// TODO Verify if this would be more efficient
+	// heap.Init(pqOrder)
 }
 
 // Contract the node given by nodeId and add shortcuts if necessary.
