@@ -4,12 +4,13 @@ package path
 type OrderOptions byte
 
 const (
-	dynamic                    OrderOptions = 1 << iota // enable recomputation of the order before every contraction step
-	random                                              // use a random initial order
+	random                     OrderOptions = 1 << iota // use a random initial order
 	considerEdgeDifference                              // consider the edge difference when computing the order
 	considerProcessedNeighbors                          // consider the processed neighbors (spatial diversity) when computing the order
-	periodic                                            // periodically update the whole order
+	lazyUpdate                                          // enable recomputation of the order before every contraction step. TODO rename to lazyUpdate
 	updateNeighbors                                     // update the neighbors of a contracted node
+	parallel                                            // contract (best) nodes in parallel
+	periodic                                            // periodically update the whole order
 )
 
 // Create a new OrderOptions (which in initially empty)
@@ -28,16 +29,16 @@ func (oo OrderOptions) Reset(o OrderOptions) OrderOptions {
 }
 
 // Set the dynamic option and return a new OrderOptions
-func (oo OrderOptions) SetDynamic(flag bool) OrderOptions {
+func (oo OrderOptions) SetLazyUpdate(flag bool) OrderOptions {
 	if flag {
-		return oo.Set(dynamic)
+		return oo.Set(lazyUpdate)
 	} else {
-		return oo.Reset(dynamic)
+		return oo.Reset(lazyUpdate)
 	}
 }
 
-func (oo OrderOptions) IsDynamic() bool {
-	return oo&dynamic != 0
+func (oo OrderOptions) IsLazyUpdate() bool {
+	return oo&lazyUpdate != 0
 }
 
 func (oo OrderOptions) SetRandom(flag bool) OrderOptions {
@@ -100,13 +101,29 @@ func (oo OrderOptions) UpdateNeighbors() bool {
 	return oo&updateNeighbors != 0
 }
 
+func (oo OrderOptions) SetParallelProcessing(flag bool) OrderOptions {
+	if flag {
+		return oo.Set(parallel)
+	} else {
+		return oo.Reset(parallel)
+	}
+}
+
+func (oo OrderOptions) ParallelProcessing() bool {
+	return oo&parallel != 0
+}
+
 func (oo OrderOptions) IsValid() bool {
 	if !oo.IsRandom() && !(oo.ConsiderEdgeDifference() || oo.ConsiderProcessedNeighbors()) {
 		// if using no random order, either the edge difference or the processed neighbors is needed for initial order computation
 		return false
 	}
-	if oo.IsDynamic() && !(oo.ConsiderEdgeDifference() || oo.ConsiderProcessedNeighbors()) {
+	if oo.IsLazyUpdate() && !(oo.ConsiderEdgeDifference() || oo.ConsiderProcessedNeighbors()) {
 		// if using dynamic order, either the edge difference or the processed neighbors (or both) must get considered
+		return false
+	}
+	if oo.IsLazyUpdate() && oo.ParallelProcessing() {
+		// lazy update can't get used with parallel processing
 		return false
 	}
 	return true

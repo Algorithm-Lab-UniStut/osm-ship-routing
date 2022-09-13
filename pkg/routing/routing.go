@@ -20,11 +20,11 @@ type ShipRouter struct {
 	g               graph.Graph
 	contractedGraph graph.Graph
 	shortcuts       []path.Shortcut
-	nodeOrdering    []int
+	nodeOrdering    [][]int
 	navigator       path.Navigator
 }
 
-func NewShipRouter(g, contractedGraph graph.Graph, shortcuts []path.Shortcut, nodeOrdering []int) *ShipRouter {
+func NewShipRouter(g, contractedGraph graph.Graph, shortcuts []path.Shortcut, nodeOrdering [][]int) *ShipRouter {
 	return &ShipRouter{g: g, contractedGraph: contractedGraph, navigator: path.GetNavigator(g), shortcuts: shortcuts, nodeOrdering: nodeOrdering}
 }
 
