@@ -45,11 +45,22 @@ func main() {
 		navigator = bid
 	} else if *algorithm == "ch" {
 		start := time.Now()
-		aag = graph.NewAdjacencyArrayFromFmiFile("ocean_10k.fmi")
-		contracted_aag := graph.NewAdjacencyArrayFromFmiFile("contracted_graph.fmi")
-		referenceDijkstra = path.NewDijkstra(graph.NewAdjacencyArrayFromFmiFile("ocean_10k.fmi"))
-		shortcuts := path.ReadShortcutFile("shortcuts.txt")
-		nodeOrdering := path.ReadNodeOrderingFile("node_ordering.txt")
+		plainGraphFile := "ocean_10k.fmi"
+		contractedGraphFile := "contracted_graph.fmi"
+		shortcutFile := "shortcuts.txt"
+		nodeOrderingFile := "node_ordering.txt"
+		useCompleteGraph := true
+		if useCompleteGraph {
+			plainGraphFile = "graphs/ocean_equi_4.fmi"
+			contractedGraphFile = "big_contracted_graph.fmi"
+			shortcutFile = "big_shortcuts.txt"
+			nodeOrderingFile = "big_node_ordering.txt"
+		}
+		aag = graph.NewAdjacencyArrayFromFmiFile(plainGraphFile)
+		contracted_aag := graph.NewAdjacencyArrayFromFmiFile(contractedGraphFile)
+		referenceDijkstra = path.NewDijkstra(graph.NewAdjacencyArrayFromFmiFile(plainGraphFile))
+		shortcuts := path.ReadShortcutFile(shortcutFile)
+		nodeOrdering := path.ReadNodeOrderingFile(nodeOrderingFile)
 		elapsed := time.Since(start)
 		fmt.Printf("[TIME-Import for shortcut files (and graph)] = %s\n", elapsed)
 		dijkstra := path.NewUniversalDijkstra(contracted_aag)
@@ -68,6 +79,9 @@ func main() {
 		}
 	} else {
 		targets = readTargets(targetFile)
+		if *amountTargets < len(targets) {
+			targets = targets[0:*amountTargets]
+		}
 	}
 
 	benchmark(navigator, targets, referenceDijkstra)
