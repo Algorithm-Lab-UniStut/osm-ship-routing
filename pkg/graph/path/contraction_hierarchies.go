@@ -567,9 +567,11 @@ func (ch *ContractionHierarchies) contractNodes(oo OrderOptions) {
 
 	for ch.pqOrder.Len() > 0 {
 		updateNodes := make([]graph.NodeId, 0)
+		nodes := ch.computeIndependentSet(false) // TODO check for which order option this cat get true
 
-		if !oo.ParallelProcessing() {
-			nodes := ch.computeIndependentSet(false)
+		if oo.IsLazyUpdate() {
+			newShortcuts = 0
+
 			contractionResults := ch.computeNodeContractionParallel(nodes, true)
 			priorityThreshold := math.MaxInt
 			if ch.pqOrder.Len() > len(contractionResults) {
@@ -598,7 +600,7 @@ func (ch *ContractionHierarchies) contractNodes(oo OrderOptions) {
 					item.processedNeighbors = cr.contractedNeighbors
 				}
 
-				if !oo.IsLazyUpdate() || ch.pqOrder.Len() == 0 || item.Priority() <= priorityThreshold {
+				if ch.pqOrder.Len() == 0 || item.Priority() <= priorityThreshold {
 					// always stick to initially computed order or this is still the smallest edge difference
 					if ch.orderOfNode[item.nodeId] >= 0 {
 						panic("Node was already ordered?")
@@ -611,8 +613,11 @@ func (ch *ContractionHierarchies) contractNodes(oo OrderOptions) {
 					}
 					ch.addShortcuts(cr.shortcuts) // avoid recomputation of shortcuts. Just add the previously calculated shortcuts
 
+					newShortcuts += len(cr.shortcuts)
+
 					// update neighbors -> fill neighbor list
 					// TODO maybe needs rework here (contracted nodes grow in this loop)
+					// should not make a difference because of independent set
 					if oo.UpdateNeighbors() {
 						// collect all nodes which have to get updates
 						for _, arc := range ch.g.GetArcsFrom(item.nodeId) {
@@ -643,16 +648,16 @@ func (ch *ContractionHierarchies) contractNodes(oo OrderOptions) {
 				}
 			}
 
+			updateNodes = affectedNeighbors
+
 			// TODO maybe combine this somehow with parallelComputation (but only give a single node)
 			// But shortcuts should then get cached
 
 			// Recalculate shortcuts, incident edges and processed neighbors
 			// TODO may not be necessary when updateing the neighbors with every contraction
 
-		}
-		if oo.ParallelProcessing() {
-			nodes := ch.computeIndependentSet(false) // TODO check for which order option this cat get true
-			//updateNodes, newShortcuts = ch.computeNodeContractionParallel(nodes, level)
+		} else {
+			// no lazy update -> either all best nocdes of the independent set are calculated or fixed order
 			ch.nodeOrdering[level] = make([]graph.NodeId, len(nodes))
 			for i, nodeId := range nodes {
 				ch.orderOfNode[nodeId] = level
@@ -664,7 +669,7 @@ func (ch *ContractionHierarchies) contractNodes(oo OrderOptions) {
 			contractionResults := ch.computeNodeContractionParallel(nodes, false)
 
 			candidateShortcuts := make([]Shortcut, 0)
-			// TODO check if is better to use slice (fixed length) everywhere (-> boolean slices isntead of limited nodeId slice)
+			// TODO check if is better to use slice (fixed length) everywhere (-> boolean slices instead of "limited" nodeId slice)
 			neighborsMap := make(map[graph.NodeId]struct{})
 			for _, result := range contractionResults {
 				candidateShortcuts = append(candidateShortcuts, result.shortcuts...)
@@ -676,7 +681,7 @@ func (ch *ContractionHierarchies) contractNodes(oo OrderOptions) {
 				}
 			}
 
-			// remove duplicate shortcuts (shortcuts which are found from both middle nodes. However, they both nodes ignore each other so there is a different path. Only one path should remain)
+			// remove duplicate shortcuts (shortcuts which are found from both middle nodes. However, both nodes ignore each other so there is a different path. Only one path should remain)
 			// This does a little bit of redunant work, since the shortcuts of the same contracted node don't need to get compared
 			// to avoid this, store them in separate lists (maybe TODO)
 			// a second slice can get avoided, when removing inplace (maybe TODO)
@@ -741,16 +746,11 @@ func (ch *ContractionHierarchies) contractNodes(oo OrderOptions) {
 			ch.milestoneIndex++
 		}
 
-		// update neighbors
-		if oo.UpdateNeighbors() {
-			// create goroutines to parallely calculate the update
-			// TODO maybe limit the max amount of goroutines
-			ch.updateOrderForNodes(updateNodes, oo)
-		}
+		// update all nodes or neighbors (if required)
 		if oo.IsPeriodic() && level%100 == 0 {
 			ch.updateFullContractionOrder(oo)
-			// not informative here?
-			intermediateUpdates++
+		} else if oo.UpdateNeighbors() {
+			ch.updateOrderForNodes(updateNodes, oo)
 		}
 	}
 }
