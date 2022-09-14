@@ -623,58 +623,6 @@ func (ch *ContractionHierarchies) computeNodeContractionParallel(nodes []graph.N
 	return contractionResults
 }
 
-func (ch *ContractionHierarchies) contractSingleNode(order *NodeOrder, contractionLevel int, oo OrderOptions) (bool, []graph.NodeId, int) {
-	pqItem := heap.Pop(order).(*OrderItem)
-	if ch.debugLevel >= 3 {
-		fmt.Printf("Test contraction of Node %v\n", pqItem.nodeId)
-	}
-
-	// Recalculate shortcuts, incident edges and processed neighbors
-	// TODO may not be necessary when updateing the neighbors with every contraction
-	cr := ch.computeNodeContraction(pqItem.nodeId, append(ch.contractedNodes, pqItem.nodeId), ch.contractionWorkers[0])
-	edgeDifference := len(cr.shortcuts) - cr.incidentEdges
-	if oo.ConsiderEdgeDifference() {
-		pqItem.edgeDifference = edgeDifference
-	}
-	if oo.ConsiderProcessedNeighbors() {
-		pqItem.processedNeighbors = cr.contractedNeighbors
-	}
-
-	if !oo.IsLazyUpdate() || order.Len() == 0 || pqItem.Priority() <= order.Peek().(*OrderItem).Priority() {
-		// always stick to initially computed order or this is still the smallest edge difference
-		if ch.orderOfNode[pqItem.nodeId] >= 0 {
-			panic("Node was already ordered?")
-		}
-		ch.orderOfNode[pqItem.nodeId] = contractionLevel
-		ch.nodeOrdering[contractionLevel] = []graph.NodeId{pqItem.nodeId}
-		ch.contractedNodes = append(ch.contractedNodes, pqItem.nodeId)
-		if ch.debugLevel >= 3 {
-			fmt.Printf("Contract node %v\n", pqItem.nodeId)
-		}
-		ch.addShortcuts(cr.shortcuts) // avoid recomputation of shortcuts. Just add the previously calculated shortcuts
-
-		affectedNeighbors := make([]graph.NodeId, 0)
-
-		// update neighbors -> fill neighbor list
-		if oo.UpdateNeighbors() {
-			// collect all nodes which have to get updates
-			for _, arc := range ch.g.GetArcsFrom(pqItem.nodeId) {
-				destination := arc.To
-				if !ch.isNodeContracted(destination) {
-					affectedNeighbors = append(affectedNeighbors, destination)
-				}
-			}
-		}
-		return true, affectedNeighbors, len(cr.shortcuts)
-	} else {
-		if ch.debugLevel >= 3 {
-			fmt.Printf("Update order\n")
-		}
-		heap.Push(order, pqItem)
-		return false, nil, 0
-	}
-}
-
 // Contract the nodes based on the given order.
 // The OrderOptions oo define, if and how the nodeOrder can get updated dynamically.
 func (ch *ContractionHierarchies) contractNodes(oo OrderOptions) {
