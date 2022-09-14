@@ -601,7 +601,7 @@ func (ch *ContractionHierarchies) computeNodeContractionParallel(nodes []graph.N
 
 				// Recalculate shortcuts, incident edges and processed neighbors
 				// TODO may not be necessary when updating the neighbors with every contraction -> shortcuts need to get cached (maybe bad for RAM?)
-				cr := ch.computeNodeContraction(nodeId, ch.contractedNodes, worker)
+				cr := ch.computeNodeContraction(nodeId, ignoreNodes, worker)
 
 				results <- cr
 			}
