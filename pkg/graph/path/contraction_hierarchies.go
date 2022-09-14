@@ -460,7 +460,7 @@ func (ch *ContractionHierarchies) updateOrderForNodes(nodes []graph.NodeId, oo O
 	}
 
 	// add "current node" to the ignore list, because it is not contracted, yet (what is the basis for the ignore list)
-	contractionResult := ch.computeNodeContractionParallel(updateNodes, true)
+	contractionResult := ch.computeNodeContractionParallel(updateNodes, nil, true)
 	fmt.Printf("Computed contraction results\n")
 	for _, result := range contractionResult {
 		nodeId := result.nodeId
@@ -498,12 +498,7 @@ type ContractionResult struct {
 
 // Compute contraction result for given nodes.
 // Returns the result of the (virtual) contraction.
-func (ch *ContractionHierarchies) computeNodeContractionParallel(nodes []graph.NodeId, ignoreCurrentNode bool) []*ContractionResult {
-	ignoreNodesLen := len(ch.contractedNodes)
-	if ignoreCurrentNode {
-		ignoreNodesLen++
-	}
-
+func (ch *ContractionHierarchies) computeNodeContractionParallel(nodes []graph.NodeId, ignoreList []graph.NodeId, ignoreCurrentNode bool) []*ContractionResult {
 	numJobs := len(nodes)
 	numWorkers := len(ch.contractionWorkers)
 
@@ -519,10 +514,21 @@ func (ch *ContractionHierarchies) computeNodeContractionParallel(nodes []graph.N
 				}
 
 				var ignoreNodes []graph.NodeId
+
+				completeIgnoreNodesLen := len(ch.contractedNodes) + len(ignoreList)
 				if ignoreCurrentNode {
-					ignoreNodes = make([]graph.NodeId, len(ch.contractedNodes)+1)
+					completeIgnoreNodesLen++
+				}
+
+				if len(ignoreList) > 0 || ignoreCurrentNode {
+					ignoreNodes = make([]graph.NodeId, completeIgnoreNodesLen)
 					copy(ignoreNodes, ch.contractedNodes)
-					ignoreNodes[len(ignoreNodes)-1] = nodeId
+					if len(ignoreList) > 0 {
+						ignoreNodes = append(ignoreNodes, ignoreList...)
+					}
+					if ignoreCurrentNode {
+						ignoreNodes = append(ignoreNodes, nodeId)
+					}
 				} else {
 					ignoreNodes = ch.contractedNodes
 				}
@@ -572,7 +578,7 @@ func (ch *ContractionHierarchies) contractNodes(oo OrderOptions) {
 		if oo.IsLazyUpdate() {
 			newShortcuts = 0
 
-			contractionResults := ch.computeNodeContractionParallel(nodes, true)
+			contractionResults := ch.computeNodeContractionParallel(nodes, nodes, true) // Ignore nodes for current level (they are not contracted, yet)
 			priorityThreshold := math.MaxInt
 			if ch.pqOrder.Len() > len(contractionResults) {
 				priorityThreshold = ch.pqOrder.PeekAt(len(contractionResults)).(*OrderItem).Priority()
@@ -583,6 +589,7 @@ func (ch *ContractionHierarchies) contractNodes(oo OrderOptions) {
 			ch.nodeOrdering[level] = make([]graph.NodeId, 0, len(nodes))
 			affectedNeighbors := make([]graph.NodeId, 0)
 
+			candidateShortcuts := make([]Shortcut, 0)
 			for _, cr := range contractionResults {
 				item := ch.orderItems[cr.nodeId]
 
@@ -611,9 +618,10 @@ func (ch *ContractionHierarchies) contractNodes(oo OrderOptions) {
 					if ch.debugLevel >= 3 {
 						fmt.Printf("Contract node %v\n", item.nodeId)
 					}
-					ch.addShortcuts(cr.shortcuts) // avoid recomputation of shortcuts. Just add the previously calculated shortcuts
+					//ch.addShortcuts(cr.shortcuts) // avoid recomputation of shortcuts. Just add the previously calculated shortcuts
+					candidateShortcuts = append(candidateShortcuts, cr.shortcuts...)
 
-					newShortcuts += len(cr.shortcuts)
+					//newShortcuts += len(cr.shortcuts)
 
 					// update neighbors -> fill neighbor list
 					// TODO maybe needs rework here (contracted nodes grow in this loop)
@@ -641,6 +649,26 @@ func (ch *ContractionHierarchies) contractNodes(oo OrderOptions) {
 				intermediateUpdates = 0
 			}
 
+			finalShortcuts := make([]Shortcut, 0, len(candidateShortcuts))
+			for i := 0; i < len(candidateShortcuts); i++ {
+				shortcut := candidateShortcuts[i]
+				keep := true
+				for j := 0; j < len(candidateShortcuts); j++ {
+					otherShortcut := candidateShortcuts[j]
+					if shortcut.source == otherShortcut.source && shortcut.target == otherShortcut.target && /*shortcut.via != otherShortcut.via &&*/ shortcut.cost >= otherShortcut.cost {
+						if i > j {
+							// when equivalent, only use the first shortcut
+							keep = false
+						}
+					}
+				}
+				if keep {
+					finalShortcuts = append(finalShortcuts, shortcut)
+				}
+			}
+			ch.addShortcuts(finalShortcuts)
+			newShortcuts += len(finalShortcuts)
+
 			if len(deniedContractionItems) > 0 {
 				intermediateUpdates++
 				for _, item := range deniedContractionItems {
@@ -666,7 +694,7 @@ func (ch *ContractionHierarchies) contractNodes(oo OrderOptions) {
 				heap.Remove(ch.pqOrder, ch.orderItems[nodeId].index)
 			}
 
-			contractionResults := ch.computeNodeContractionParallel(nodes, false)
+			contractionResults := ch.computeNodeContractionParallel(nodes, nil, false)
 
 			candidateShortcuts := make([]Shortcut, 0)
 			// TODO check if is better to use slice (fixed length) everywhere (-> boolean slices instead of "limited" nodeId slice)
