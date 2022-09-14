@@ -318,54 +318,103 @@ func (ch *ContractionHierarchies) GetPqPops() int {
 func (ch *ContractionHierarchies) computeInitialNodeOrder(givenNodeOrder []int, oo OrderOptions) *NodeOrder {
 	var pq *NodeOrder
 	ch.orderItems = make([]*OrderItem, ch.g.NodeCount())
+
 	if givenNodeOrder != nil {
 		order := make(NodeOrder, ch.g.NodeCount())
+
 		for i := 0; i < ch.g.NodeCount(); i++ {
 			orderItem := NewOrderItem(givenNodeOrder[i])
 			orderItem.edgeDifference = i // TODO needed?
 			order[i] = orderItem
 			ch.orderItems[orderItem.nodeId] = orderItem
 		}
+
 		pq = &order
 		heap.Init(pq)
 	} else if oo.IsRandom() {
 		nodeOrdering := make([]int, ch.g.NodeCount())
+
 		for i := range nodeOrdering {
 			nodeOrdering[i] = i
 		}
+
 		rand.Seed(time.Now().UnixNano()) // completely random
 		rand.Shuffle(len(nodeOrdering), func(i, j int) { nodeOrdering[i], nodeOrdering[j] = nodeOrdering[j], nodeOrdering[i] })
 
 		order := make(NodeOrder, ch.g.NodeCount())
+
 		for i := 0; i < ch.g.NodeCount(); i++ {
 			orderItem := NewOrderItem(nodeOrdering[i])
 			order[i] = orderItem
 			ch.orderItems[orderItem.nodeId] = orderItem
 			//order[i].edgeDifference = i
 		}
+
 		pq = &order
 		heap.Init(pq)
 	} else {
-		pq = NewNodeOrder(nil)
-		for i := 0; i < ch.g.NodeCount(); i++ {
-			if ch.debugLevel >= 3 {
-				fmt.Printf("Calculate contraction priority for node %v\n", i)
-			}
-			// TODO maybe parallelize this
-			shortcuts, incidentArcs, processedNeighbors := ch.computeNodeContraction(i, []graph.NodeId{i}, ch.contractionWorkers[0])
-			orderItem := NewOrderItem(i)
-			if oo.ConsiderEdgeDifference() {
-				orderItem.edgeDifference = len(shortcuts) - incidentArcs
-			}
-			if oo.ConsiderProcessedNeighbors() {
-				orderItem.processedNeighbors = processedNeighbors
-			}
-			if ch.debugLevel >= 2 {
-				fmt.Printf("Add node %6v, edge difference: %3v, processed neighbors: %3v\n", i, len(shortcuts)-incidentArcs, processedNeighbors)
-			}
-			heap.Push(pq, orderItem)
-			ch.orderItems[orderItem.nodeId] = orderItem
+		order := make(NodeOrder, ch.g.NodeCount())
+
+		numJobs := ch.g.NodeCount()
+		numWorkers := len(ch.contractionWorkers)
+
+		jobs := make(chan int, numJobs)
+		results := make(chan [3]int, numJobs) // array with id, edge difference, contracted neighbors
+
+		// create workers
+		for i := 0; i < numWorkers; i++ {
+			go func(worker *UniversalDijkstra) {
+				for nodeId := range jobs {
+					if ch.debugLevel >= 3 {
+						fmt.Printf("Calculate contraction priority for node %v\n", nodeId)
+					}
+
+					shortcuts, incidentArcs, processedNeighbors := ch.computeNodeContraction(nodeId, []graph.NodeId{nodeId}, worker)
+					edgeDifference, contractedNeighbors := 0, 0
+
+					if oo.ConsiderEdgeDifference() {
+						edgeDifference = len(shortcuts) - incidentArcs
+					}
+
+					if oo.ConsiderProcessedNeighbors() {
+						contractedNeighbors = processedNeighbors
+					}
+
+					results <- [3]int{nodeId, edgeDifference, contractedNeighbors}
+				}
+			}(ch.contractionWorkers[i])
 		}
+
+		// fill jobs
+		go func() {
+			for i := 0; i < numJobs; i++ {
+				// i is nodeId
+				jobs <- i
+			}
+			close(jobs)
+		}()
+
+		// read results
+		for i := 0; i < numJobs; i++ {
+			result := <-results
+
+			nodeId := result[0]
+			edgeDifference := result[1]
+			contractedNeighbors := result[2]
+
+			item := NewOrderItem(nodeId)
+			item.edgeDifference = edgeDifference
+			item.processedNeighbors = contractedNeighbors
+
+			if ch.debugLevel >= 2 {
+				fmt.Printf("Add node %6v, edge difference: %3v, processed neighbors: %3v\n", nodeId, edgeDifference, contractedNeighbors)
+			}
+
+			order[i] = item
+			ch.orderItems[nodeId] = item
+		}
+		pq = &order
+		heap.Init(pq)
 	}
 	return pq
 }
