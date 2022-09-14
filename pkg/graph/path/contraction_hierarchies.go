@@ -552,7 +552,9 @@ func (ch *ContractionHierarchies) contractNodes(oo OrderOptions) {
 		if oo.IsLazyUpdate() {
 			newShortcuts = 0
 
-			contractionResults := ch.computeNodeContractionParallel(nodes, nil, true) // Ignore nodes for current level (they are not contracted, yet)
+			ignoreList := make([]graph.NodeId, len(nodes))
+			copy(ignoreList, nodes)
+			contractionResults := ch.computeNodeContractionParallel(nodes, ignoreList, true) // Ignore nodes for current level (they are not contracted, yet)
 			// TODO this gets instable when ignoreList is equal to nodes, but this should be the correct calculation?
 			priorityThreshold := math.MaxInt
 			if ch.pqOrder.Len() > len(contractionResults) {
@@ -888,9 +890,11 @@ func (ch *ContractionHierarchies) addShortcut(source, target, via graph.NodeId, 
 	if ch.orderOfNode[source] != -1 || ch.orderOfNode[target] != -1 {
 		panic("Edge Node already contracted")
 	}
-	ch.dg.AddArc(source, target, cost)
-	sc := Shortcut{source: source, target: target, via: via}
-	ch.shortcuts = append(ch.shortcuts, sc)
+	added := ch.dg.AddArc(source, target, cost)
+	if added {
+		sc := Shortcut{source: source, target: target, via: via}
+		ch.shortcuts = append(ch.shortcuts, sc)
+	}
 	// maybe this map is not so a good idea
 	/*
 		if ch.shortcutMap[source] == nil {
