@@ -22,8 +22,8 @@ type Graph interface {
 type DynamicGraph interface {
 	Graph
 	AddNode(n Node)
-	AddEdge(edge Edge)
-	AddArc(from, to NodeId, distance int)
+	AddEdge(edge Edge) bool
+	AddArc(from, to NodeId, distance int) bool
 }
 
 type Node struct {

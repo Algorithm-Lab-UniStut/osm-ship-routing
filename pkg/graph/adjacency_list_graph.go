@@ -85,7 +85,7 @@ func (alg *AdjacencyListGraph) AddNode(n Node) {
 }
 
 // Add an Edge to the graph
-func (alg *AdjacencyListGraph) AddEdge(e Edge) {
+func (alg *AdjacencyListGraph) AddEdge(e Edge) bool {
 	// Check if both source and target node exit
 	if e.From >= alg.NodeCount() || e.To >= alg.NodeCount() {
 		panic(fmt.Sprintf("Edge out of range %v", e))
@@ -93,15 +93,16 @@ func (alg *AdjacencyListGraph) AddEdge(e Edge) {
 	// Check for duplicates
 	for _, arc := range alg.Edges[e.From] {
 		if e.To == arc.To {
-			return // ignore duplicate edges
+			return false // ignore duplicate edges
 		}
 	}
 	alg.Edges[e.From] = append(alg.Edges[e.From], e.toArc())
 	alg.edgeCount++
+	return true
 }
 
 // Add an arc to the graph, going from source to target with the given distance
-func (alg *AdjacencyListGraph) AddArc(from, to NodeId, distance int) {
+func (alg *AdjacencyListGraph) AddArc(from, to NodeId, distance int) bool {
 	if from >= alg.NodeCount() || to >= alg.NodeCount() {
 		panic(fmt.Sprintf("Arc out of range %v -> %v", from, to))
 	}
@@ -113,15 +114,17 @@ func (alg *AdjacencyListGraph) AddArc(from, to NodeId, distance int) {
 			if distance < arc.Distance {
 				// update distance
 				arc.Distance = distance
+				return true
 			} else {
-				panic("Why would you add an edge with bigger distance?")
+				return false
+				//panic("Why would you add an edge with bigger distance?")
 			}
-			return
 		}
 
 	}
 	alg.Edges[from] = append(alg.Edges[from], NewArc(to, distance, true))
 	alg.edgeCount++
+	return true
 }
 
 // Estimate the distance between the given nodes
