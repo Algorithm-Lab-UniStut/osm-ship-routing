@@ -366,15 +366,15 @@ func (ch *ContractionHierarchies) computeInitialNodeOrder(givenNodeOrder []int, 
 						fmt.Printf("Calculate contraction priority for node %v\n", nodeId)
 					}
 
-					shortcuts, incidentArcs, processedNeighbors := ch.computeNodeContraction(nodeId, []graph.NodeId{nodeId}, worker)
+					cr := ch.computeNodeContraction(nodeId, []graph.NodeId{nodeId}, worker)
 					edgeDifference, contractedNeighbors := 0, 0
 
 					if oo.ConsiderEdgeDifference() {
-						edgeDifference = len(shortcuts) - incidentArcs
+						edgeDifference = len(cr.shortcuts) - cr.incidentEdges
 					}
 
 					if oo.ConsiderProcessedNeighbors() {
-						contractedNeighbors = processedNeighbors
+						contractedNeighbors = cr.contractedNeighbors
 					}
 
 					results <- [3]int{nodeId, edgeDifference, contractedNeighbors}
@@ -512,18 +512,19 @@ func (ch *ContractionHierarchies) updateOrderForNodes(nodes []graph.NodeId, oo O
 				ignoreNodes := job.ignoreNodes
 				nodeId := job.nodeId
 
-				sc, edges, pn := ch.computeNodeContraction(nodeId, ignoreNodes, worker)
-				ed := len(sc) - edges
+				cr := ch.computeNodeContraction(nodeId, ignoreNodes, worker)
+				ed := len(cr.shortcuts) - cr.incidentEdges
+				contractedNeighbors := cr.contractedNeighbors
 
 				if !oo.ConsiderEdgeDifference() {
 					ed = 0
 				}
 
 				if !oo.ConsiderProcessedNeighbors() {
-					pn = 0
+					contractedNeighbors = 0
 				}
 
-				results <- [3]int{nodeId, ed, pn}
+				results <- [3]int{nodeId, ed, contractedNeighbors}
 			}
 		}(ch.contractionWorkers[i])
 	}
@@ -569,7 +570,7 @@ type ContractionResult struct {
 
 // Compute contraction result for given nodes.
 // Returns the result of the (virtual) contraction.
-func (ch *ContractionHierarchies) computeNodeContractionParallel(nodes []graph.NodeId, ignoreCurrentNode bool) []ContractionResult {
+func (ch *ContractionHierarchies) computeNodeContractionParallel(nodes []graph.NodeId, ignoreCurrentNode bool) []*ContractionResult {
 	ignoreNodesLen := len(ch.contractedNodes)
 	if ignoreCurrentNode {
 		ignoreNodesLen++
@@ -579,7 +580,7 @@ func (ch *ContractionHierarchies) computeNodeContractionParallel(nodes []graph.N
 	numWorkers := len(ch.contractionWorkers)
 
 	jobs := make(chan graph.NodeId, numJobs)
-	results := make(chan ContractionResult, numJobs)
+	results := make(chan *ContractionResult, numJobs)
 
 	// create workers
 	for i := 0; i < numWorkers; i++ {
@@ -600,10 +601,9 @@ func (ch *ContractionHierarchies) computeNodeContractionParallel(nodes []graph.N
 
 				// Recalculate shortcuts, incident edges and processed neighbors
 				// TODO may not be necessary when updating the neighbors with every contraction -> shortcuts need to get cached (maybe bad for RAM?)
-				shortcuts, edges, processedNeighbors := ch.computeNodeContraction(nodeId, ch.contractedNodes, worker)
+				cr := ch.computeNodeContraction(nodeId, ch.contractedNodes, worker)
 
-				result := ContractionResult{shortcuts: shortcuts, nodeId: nodeId, incidentEdges: edges, contractedNeighbors: processedNeighbors}
-				results <- result
+				results <- cr
 			}
 		}(ch.contractionWorkers[i])
 	}
@@ -615,7 +615,7 @@ func (ch *ContractionHierarchies) computeNodeContractionParallel(nodes []graph.N
 	}
 	close(jobs)
 
-	contractionResults := make([]ContractionResult, numJobs)
+	contractionResults := make([]*ContractionResult, numJobs)
 	for i := 0; i < numJobs; i++ {
 		contractionResults[i] = <-results
 	}
@@ -631,13 +631,13 @@ func (ch *ContractionHierarchies) contractSingleNode(order *NodeOrder, contracti
 
 	// Recalculate shortcuts, incident edges and processed neighbors
 	// TODO may not be necessary when updateing the neighbors with every contraction
-	shortcuts, edges, processedNeighbors := ch.computeNodeContraction(pqItem.nodeId, append(ch.contractedNodes, pqItem.nodeId), ch.contractionWorkers[0])
-	edgeDifference := len(shortcuts) - edges
+	cr := ch.computeNodeContraction(pqItem.nodeId, append(ch.contractedNodes, pqItem.nodeId), ch.contractionWorkers[0])
+	edgeDifference := len(cr.shortcuts) - cr.incidentEdges
 	if oo.ConsiderEdgeDifference() {
 		pqItem.edgeDifference = edgeDifference
 	}
 	if oo.ConsiderProcessedNeighbors() {
-		pqItem.processedNeighbors = processedNeighbors
+		pqItem.processedNeighbors = cr.contractedNeighbors
 	}
 
 	if !oo.IsLazyUpdate() || order.Len() == 0 || pqItem.Priority() <= order.Peek().(*OrderItem).Priority() {
@@ -651,7 +651,7 @@ func (ch *ContractionHierarchies) contractSingleNode(order *NodeOrder, contracti
 		if ch.debugLevel >= 3 {
 			fmt.Printf("Contract node %v\n", pqItem.nodeId)
 		}
-		ch.addShortcuts(shortcuts) // avoid recomputation of shortcuts. Just add the previously calculated shortcuts
+		ch.addShortcuts(cr.shortcuts) // avoid recomputation of shortcuts. Just add the previously calculated shortcuts
 
 		affectedNeighbors := make([]graph.NodeId, 0)
 
@@ -665,7 +665,7 @@ func (ch *ContractionHierarchies) contractSingleNode(order *NodeOrder, contracti
 				}
 			}
 		}
-		return true, affectedNeighbors, len(shortcuts)
+		return true, affectedNeighbors, len(cr.shortcuts)
 	} else {
 		if ch.debugLevel >= 3 {
 			fmt.Printf("Update order\n")
@@ -699,13 +699,13 @@ func (ch *ContractionHierarchies) contractNodes(oo OrderOptions) {
 
 			// Recalculate shortcuts, incident edges and processed neighbors
 			// TODO may not be necessary when updateing the neighbors with every contraction
-			shortcuts, edges, processedNeighbors := ch.computeNodeContraction(pqItem.nodeId, append(ch.contractedNodes, pqItem.nodeId), ch.contractionWorkers[0])
-			edgeDifference := len(shortcuts) - edges
+			cr := ch.computeNodeContraction(pqItem.nodeId, append(ch.contractedNodes, pqItem.nodeId), ch.contractionWorkers[0])
+			edgeDifference := len(cr.shortcuts) - cr.incidentEdges
 			if oo.ConsiderEdgeDifference() {
 				pqItem.edgeDifference = edgeDifference
 			}
 			if oo.ConsiderProcessedNeighbors() {
-				pqItem.processedNeighbors = processedNeighbors
+				pqItem.processedNeighbors = cr.contractedNeighbors
 			}
 
 			if !oo.IsLazyUpdate() || ch.pqOrder.Len() == 0 || pqItem.Priority() <= ch.pqOrder.Peek().(*OrderItem).Priority() {
@@ -719,7 +719,7 @@ func (ch *ContractionHierarchies) contractNodes(oo OrderOptions) {
 				if ch.debugLevel >= 3 {
 					fmt.Printf("Contract node %v\n", pqItem.nodeId)
 				}
-				ch.addShortcuts(shortcuts) // avoid recomputation of shortcuts. Just add the previously calculated shortcuts
+				ch.addShortcuts(cr.shortcuts) // avoid recomputation of shortcuts. Just add the previously calculated shortcuts
 
 				affectedNeighbors := make([]graph.NodeId, 0)
 
@@ -862,7 +862,7 @@ func (ch *ContractionHierarchies) updateFullContractionOrder(oo OrderOptions) {
 //	- number of added/needed shortcuts
 //	- number of (active) incident arcs to that node (arcs from nodes which are not contracted, yet)
 //	- number of already contracted neighbors
-func (ch *ContractionHierarchies) computeNodeContraction(nodeId graph.NodeId, ignoreNodes []graph.NodeId, contractionWorker *UniversalDijkstra) ([]Shortcut, int, int) {
+func (ch *ContractionHierarchies) computeNodeContraction(nodeId graph.NodeId, ignoreNodes []graph.NodeId, contractionWorker *UniversalDijkstra) *ContractionResult {
 	shortcuts := make([]Shortcut, 0)
 	contractedNeighbors := 0
 
@@ -944,7 +944,8 @@ func (ch *ContractionHierarchies) computeNodeContraction(nodeId graph.NodeId, ig
 
 	// number of shortcuts is doubled, since we have two arcs for each each (because symmetric graph)
 	// TODO maybe divide len(shortcuts) by 2 when using them
-	return shortcuts, 2 * incidentArcsAmount, contractedNeighbors
+	contractionResult := &ContractionResult{nodeId: nodeId, shortcuts: shortcuts, incidentEdges: 2 * incidentArcsAmount, contractedNeighbors: contractedNeighbors}
+	return contractionResult
 }
 
 // Add the shortcuts to the graph (by adding new arcs)
