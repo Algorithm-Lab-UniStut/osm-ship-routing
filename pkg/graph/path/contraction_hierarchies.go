@@ -31,8 +31,9 @@ type ContractionHierarchies struct {
 	contractionWorkers []*UniversalDijkstra
 
 	// decide for one, currently both are needed (but probalby could get rid of the slice)
-	shortcuts   []Shortcut                                     // array which contains all shortcuts
-	shortcutMap map[graph.NodeId]map[graph.NodeId]graph.NodeId // map of the shortcuts (from/source -> to/target -> via)
+	shortcuts       []Shortcut                                     // array which contains all shortcuts
+	shortcutMap     map[graph.NodeId]map[graph.NodeId]graph.NodeId // map of the shortcuts (from/source -> to/target -> via)
+	cachedShortcuts [][]Shortcut                                   // chached shortcuts for nodes
 
 	addedShortcuts       map[int]int // debug information - stores the number of how many nodes introduced the specified amount of shortcuts. Key is the number of shortcuts, value is how many introduced them
 	debugLevel           int         // the debug level - used for printing some informaiton
@@ -352,50 +353,24 @@ func (ch *ContractionHierarchies) computeInitialNodeOrder(givenNodeOrder []int, 
 	} else {
 		order := make(NodeOrder, ch.g.NodeCount())
 
-		numJobs := ch.g.NodeCount()
-		numWorkers := len(ch.contractionWorkers)
-
-		jobs := make(chan int, numJobs)
-		results := make(chan [3]int, numJobs) // array with id, edge difference, contracted neighbors
-
-		// create workers
-		for i := 0; i < numWorkers; i++ {
-			go func(worker *UniversalDijkstra) {
-				for nodeId := range jobs {
-					if ch.debugLevel >= 3 {
-						fmt.Printf("Calculate contraction priority for node %v\n", nodeId)
-					}
-
-					cr := ch.computeNodeContraction(nodeId, []graph.NodeId{nodeId}, worker)
-					edgeDifference, contractedNeighbors := 0, 0
-
-					if oo.ConsiderEdgeDifference() {
-						edgeDifference = len(cr.shortcuts) - cr.incidentEdges
-					}
-
-					if oo.ConsiderProcessedNeighbors() {
-						contractedNeighbors = cr.contractedNeighbors
-					}
-
-					results <- [3]int{nodeId, edgeDifference, contractedNeighbors}
-				}
-			}(ch.contractionWorkers[i])
+		nodes := make([]graph.NodeId, ch.g.NodeCount())
+		for i := range nodes {
+			nodes[i] = i
 		}
+		contractionResults := ch.computeNodeContractionParallel(nodes, nil, true)
 
-		// fill jobs
-		for i := 0; i < numJobs; i++ {
-			// i is nodeId
-			jobs <- i
-		}
-		close(jobs)
+		for i, result := range contractionResults {
+			nodeId := result.nodeId
+			edgeDifference := len(result.shortcuts) - result.incidentEdges
+			contractedNeighbors := result.contractedNeighbors
 
-		// read results
-		for i := 0; i < numJobs; i++ {
-			result := <-results
+			if !oo.ConsiderEdgeDifference() {
+				edgeDifference = 0
+			}
 
-			nodeId := result[0]
-			edgeDifference := result[1]
-			contractedNeighbors := result[2]
+			if !oo.ConsiderProcessedNeighbors() {
+				contractedNeighbors = 0
+			}
 
 			item := NewOrderItem(nodeId)
 			item.edgeDifference = edgeDifference
@@ -578,7 +553,8 @@ func (ch *ContractionHierarchies) contractNodes(oo OrderOptions) {
 		if oo.IsLazyUpdate() {
 			newShortcuts = 0
 
-			contractionResults := ch.computeNodeContractionParallel(nodes, nodes, true) // Ignore nodes for current level (they are not contracted, yet)
+			contractionResults := ch.computeNodeContractionParallel(nodes, nil, true) // Ignore nodes for current level (they are not contracted, yet)
+			// TODO this gets instable when ignoreList is equal to nodes, but this should be the correct calculation?
 			priorityThreshold := math.MaxInt
 			if ch.pqOrder.Len() > len(contractionResults) {
 				priorityThreshold = ch.pqOrder.PeekAt(len(contractionResults)).(*OrderItem).Priority()
@@ -620,8 +596,6 @@ func (ch *ContractionHierarchies) contractNodes(oo OrderOptions) {
 					}
 					//ch.addShortcuts(cr.shortcuts) // avoid recomputation of shortcuts. Just add the previously calculated shortcuts
 					candidateShortcuts = append(candidateShortcuts, cr.shortcuts...)
-
-					//newShortcuts += len(cr.shortcuts)
 
 					// update neighbors -> fill neighbor list
 					// TODO maybe needs rework here (contracted nodes grow in this loop)
