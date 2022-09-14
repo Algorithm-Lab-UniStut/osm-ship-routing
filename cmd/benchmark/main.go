@@ -51,7 +51,7 @@ func main() {
 		contractedGraphFile := "contracted_graph.fmi"
 		shortcutFile := "shortcuts.txt"
 		nodeOrderingFile := "node_ordering.txt"
-		useCompleteGraph := true
+		useCompleteGraph := false
 		if useCompleteGraph {
 			plainGraphFile = "graphs/ocean_equi_4.fmi"
 			contractedGraphFile = "big_contracted_graph.fmi"
