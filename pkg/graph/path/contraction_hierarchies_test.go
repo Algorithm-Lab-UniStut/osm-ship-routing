@@ -159,7 +159,7 @@ func TestPrecompute(t *testing.T) {
 	dijkstra := NewUniversalDijkstra(alg)
 	ch := NewContractionHierarchies(alg, dijkstra)
 	ch.SetDebugLevel(3)
-	ch.Precompute(nil, MakeOrderOptions().SetLazyUpdate(false).SetEdgeDifference(true).SetProcessedNeighbors(true).SetUpdateNeighbors(true).SetParallelProcessing(true))
+	ch.Precompute(nil, MakeOrderOptions().SetLazyUpdate(false).SetEdgeDifference(true).SetProcessedNeighbors(true).SetUpdateNeighbors(true))
 	//fmt.Printf("shortcuts: %v\n", len(ch.shortcuts)/2)
 	//fmt.Printf("shortcuts: %v\n", ch.shortcuts)
 }
@@ -173,7 +173,7 @@ func TestContractionHierarchies(t *testing.T) {
 	dijkstra.SetDebugLevel(1)
 	ch := NewContractionHierarchies(alg, dijkstra)
 	ch.SetDebugLevel(2)
-	ch.Precompute(nil, MakeOrderOptions().SetLazyUpdate(false).SetEdgeDifference(true).SetProcessedNeighbors(true).SetUpdateNeighbors(true).SetParallelProcessing(true))
+	ch.Precompute(nil, MakeOrderOptions().SetLazyUpdate(false).SetEdgeDifference(true).SetProcessedNeighbors(true).SetUpdateNeighbors(true))
 	length := ch.ComputeShortestPath(source, target)
 	if length != l {
 		t.Errorf("Length does not match")
