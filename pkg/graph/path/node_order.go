@@ -80,7 +80,7 @@ func (h *NodeOrder) String() string {
 	var sb strings.Builder
 	for i := 0; i < h.Len(); i++ {
 		item := h.PeekAt(i).(*OrderItem)
-		sb.WriteString(fmt.Sprintf("%v %v\n", item.nodeId, item.Priority()))
+		sb.WriteString(fmt.Sprintf("%v: %v, %v\n", item.index, item.nodeId, item.Priority()))
 	}
 	return sb.String()
 }
