@@ -551,14 +551,11 @@ func (ch *ContractionHierarchies) parallelContractNodes(nodes []graph.NodeId, co
 		affectedNeighbors []graph.NodeId
 	}
 
-	jobs := make(chan graph.NodeId)
-	results := make(chan Result)
-
 	numJobs := len(nodes)
 	numWorkers := len(ch.contractionWorkers)
 
-	var wg sync.WaitGroup
-	wg.Add(numJobs)
+	jobs := make(chan graph.NodeId, numJobs)
+	results := make(chan Result, numJobs)
 
 	// create workers
 	for i := 0; i < numWorkers; i++ {
@@ -570,15 +567,16 @@ func (ch *ContractionHierarchies) parallelContractNodes(nodes []graph.NodeId, co
 				// Recalculate shortcuts, incident edges and processed neighbors
 				// TODO may not be necessary when updating the neighbors with every contraction -> shortcuts need to get cached (maybe bad for RAM?)
 				shortcuts, _, _ := ch.computeNodeContraction(nodeId, ch.contractedNodes, worker)
+
 				neighbors := make([]graph.NodeId, 0)
 				for _, arc := range ch.g.GetArcsFrom(nodeId) {
 					if !ch.isNodeContracted(arc.To) {
 						neighbors = append(neighbors, arc.To)
 					}
 				}
+
 				result := Result{shortcuts: shortcuts, affectedNeighbors: neighbors}
 				results <- result
-				wg.Done()
 			}
 		}(ch.contractionWorkers[i])
 	}
@@ -592,15 +590,10 @@ func (ch *ContractionHierarchies) parallelContractNodes(nodes []graph.NodeId, co
 		close(jobs)
 	}()
 
-	// wait until all results are written
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
-
 	candidateShortcuts := make([]Shortcut, 0)
 	neighborsMap := make(map[graph.NodeId]struct{})
-	for result := range results {
+	for i := 0; i < numJobs; i++ {
+		result := <-results
 		candidateShortcuts = append(candidateShortcuts, result.shortcuts...)
 		// remove duplicates
 		for neighbor := range result.affectedNeighbors {
