@@ -459,93 +459,22 @@ func (ch *ContractionHierarchies) updateOrderForNodes(nodes []graph.NodeId, oo O
 		}
 	}
 
-	/*
-		// TODO this should be simpler and easier to read (just use available function), but somehow this makes it really slow
-		// TODO initially, the current nodeId was added to ignoreNodes
-		// does this make any difference?
-		// should not, because the initial node is settled anyway, only the successors are checked
-		contractionResult := ch.computeNodeContractionParallel(updateNodes, true)
-		fmt.Printf("Computed contraction results\n")
-		for _, result := range contractionResult {
-			nodeId := result.nodeId
-			edgeDifference := len(result.shortcuts) - result.incidentEdges
-			contractedNeighbors := result.contractedNeighbors
+	// add "current node" to the ignore list, because it is not contracted, yet (what is the basis for the ignore list)
+	contractionResult := ch.computeNodeContractionParallel(updateNodes, true)
+	fmt.Printf("Computed contraction results\n")
+	for _, result := range contractionResult {
+		nodeId := result.nodeId
+		edgeDifference := len(result.shortcuts) - result.incidentEdges
+		contractedNeighbors := result.contractedNeighbors
 
-			if !oo.ConsiderEdgeDifference() {
-				edgeDifference = 0
-			}
-
-			if !oo.ConsiderProcessedNeighbors() {
-				contractedNeighbors = 0
-			}
-
-			item := ch.orderItems[nodeId]
-			oldPrio := item.Priority()
-			oldPos := item.index
-
-			ch.pqOrder.update(item, edgeDifference, contractedNeighbors)
-
-			newPrio := item.Priority()
-			newPos := item.index
-			if ch.debugLevel >= 2 {
-				fmt.Printf("Updating node %v. old priority: %v, new priority: %v, old position: %v, new position: %v\n", nodeId, oldPrio, newPrio, oldPos, newPos)
-			}
+		if !oo.ConsiderEdgeDifference() {
+			edgeDifference = 0
 		}
-	*/
 
-	// create goroutines to parallely calculate the update
-	numJobs := len(updateNodes)
-	numWorkers := len(ch.contractionWorkers)
+		if !oo.ConsiderProcessedNeighbors() {
+			contractedNeighbors = 0
+		}
 
-	type Update struct {
-		nodeId      graph.NodeId
-		ignoreNodes []graph.NodeId
-	}
-
-	jobs := make(chan Update, numJobs)
-	results := make(chan [3]int, numJobs) // contains the node ID, the new edge difference and the amount of contracted neighbors
-
-	// create workers
-	for i := 0; i < numWorkers; i++ {
-		go func(worker *UniversalDijkstra) {
-			for job := range jobs {
-				ignoreNodes := job.ignoreNodes
-				nodeId := job.nodeId
-
-				cr := ch.computeNodeContraction(nodeId, ignoreNodes, worker)
-				ed := len(cr.shortcuts) - cr.incidentEdges
-				contractedNeighbors := cr.contractedNeighbors
-
-				if !oo.ConsiderEdgeDifference() {
-					ed = 0
-				}
-
-				if !oo.ConsiderProcessedNeighbors() {
-					contractedNeighbors = 0
-				}
-
-				results <- [3]int{nodeId, ed, contractedNeighbors}
-			}
-		}(ch.contractionWorkers[i])
-	}
-
-	// fill jobs
-	for i := 0; i < numJobs; i++ {
-		nodeId := updateNodes[i]
-		ignoreNodes := make([]graph.NodeId, len(ch.contractedNodes)+1)
-		copy(ignoreNodes, ch.contractedNodes)
-		ignoreNodes[len(ignoreNodes)-1] = nodeId
-		update := Update{nodeId: nodeId, ignoreNodes: ignoreNodes}
-		jobs <- update
-	}
-	close(jobs)
-
-	// read results
-	for i := 0; i < numJobs; i++ {
-		result := <-results
-		nodeId := result[0]
-		edgeDifference := result[1]
-		contractedNeighbors := result[2]
 		item := ch.orderItems[nodeId]
 		oldPrio := item.Priority()
 		oldPos := item.index
@@ -558,7 +487,6 @@ func (ch *ContractionHierarchies) updateOrderForNodes(nodes []graph.NodeId, oo O
 			fmt.Printf("Updating node %v. old priority: %v, new priority: %v, old position: %v, new position: %v\n", nodeId, oldPrio, newPrio, oldPos, newPos)
 		}
 	}
-
 }
 
 type ContractionResult struct {
