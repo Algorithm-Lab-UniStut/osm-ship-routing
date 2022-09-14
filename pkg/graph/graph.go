@@ -17,6 +17,7 @@ type Graph interface {
 	EstimateDistance(source, target NodeId) int
 	SetArcFlags(nodeId NodeId, flag bool)
 	EnableAllArcs()
+	SortArcs()
 }
 
 type DynamicGraph interface {

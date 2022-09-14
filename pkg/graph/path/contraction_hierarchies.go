@@ -35,6 +35,7 @@ type ContractionHierarchies struct {
 	shortcutMap map[graph.NodeId]map[graph.NodeId]graph.NodeId // map of the shortcuts (from/source -> to/target -> via)
 
 	addedShortcuts       map[int]int // debug information - stores the number of how many nodes introduced the specified amount of shortcuts. Key is the number of shortcuts, value is how many introduced them
+	sortArcs             bool        // flag indicating if the arcs are sorted (first enabled arcs, then disabled arcs)
 	debugLevel           int         // the debug level - used for printing some informaiton
 	graphFilename        string      // the filename were the file gets stored
 	shortcutsFilename    string      // the filename were the shourtcuts gets stored
@@ -927,6 +928,9 @@ func (ch *ContractionHierarchies) matchArcsWithNodeOrder() {
 			arc.SetArcFlag(ch.orderOfNode[source] < ch.orderOfNode[target])
 		}
 	}
+	if ch.sortArcs {
+		ch.g.SortArcs()
+	}
 }
 
 // checks whether the node given by nodeId is already contracted.
@@ -994,6 +998,10 @@ func (ch *ContractionHierarchies) SetContractionWorkers(numberOfWorkers int) {
 	for i := 0; i < numberOfWorkers; i++ {
 		ch.contractionWorkers[i] = NewUniversalDijkstra(ch.g)
 	}
+}
+
+func (ch *ContractionHierarchies) SetSortArcs(flag bool) {
+	ch.sortArcs = flag
 }
 
 // Set the debug level.

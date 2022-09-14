@@ -58,6 +58,24 @@ func (aag *AdjacencyArrayGraph) GetArcsFrom(id NodeId) []*Arc {
 	return aag.arcs[aag.Offsets[id]:aag.Offsets[id+1]]
 }
 
+func (aag *AdjacencyArrayGraph) SortArcs() {
+	for i := 0; i < aag.NodeCount(); i++ {
+		start := aag.Offsets[i]
+		end := aag.Offsets[i+1]
+		for j := start; j < end; j++ {
+			if !aag.arcs[j].ArcFlag() {
+				for k := j + 1; k < end; k++ {
+					if aag.arcs[k].ArcFlag() {
+						// swap arcs
+						aag.arcs[j], aag.arcs[k] = aag.arcs[k], aag.arcs[j]
+						break
+					}
+				}
+			}
+		}
+	}
+}
+
 // Returns the number of Nodes in the graph
 func (aag *AdjacencyArrayGraph) NodeCount() int {
 	return len(aag.Nodes)
