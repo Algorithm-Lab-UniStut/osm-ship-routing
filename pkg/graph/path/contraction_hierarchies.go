@@ -330,7 +330,6 @@ func (ch *ContractionHierarchies) computeInitialNodeOrder(givenNodeOrder []int, 
 		}
 
 		pq = &order
-		heap.Init(pq)
 	} else if oo.IsRandom() {
 		nodeOrdering := make([]int, ch.g.NodeCount())
 
@@ -351,7 +350,6 @@ func (ch *ContractionHierarchies) computeInitialNodeOrder(givenNodeOrder []int, 
 		}
 
 		pq = &order
-		heap.Init(pq)
 	} else {
 		order := make(NodeOrder, ch.g.NodeCount())
 
@@ -414,8 +412,9 @@ func (ch *ContractionHierarchies) computeInitialNodeOrder(givenNodeOrder []int, 
 			ch.orderItems[nodeId] = item
 		}
 		pq = &order
-		heap.Init(pq)
 	}
+
+	heap.Init(pq)
 	return pq
 }
 
