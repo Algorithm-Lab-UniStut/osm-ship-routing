@@ -31,9 +31,8 @@ type ContractionHierarchies struct {
 	contractionWorkers []*UniversalDijkstra
 
 	// decide for one, currently both are needed (but probalby could get rid of the slice)
-	shortcuts       []Shortcut                                     // array which contains all shortcuts
-	shortcutMap     map[graph.NodeId]map[graph.NodeId]graph.NodeId // map of the shortcuts (from/source -> to/target -> via)
-	cachedShortcuts [][]Shortcut                                   // chached shortcuts for nodes
+	shortcuts   []Shortcut                                     // array which contains all shortcuts
+	shortcutMap map[graph.NodeId]map[graph.NodeId]graph.NodeId // map of the shortcuts (from/source -> to/target -> via)
 
 	addedShortcuts       map[int]int // debug information - stores the number of how many nodes introduced the specified amount of shortcuts. Key is the number of shortcuts, value is how many introduced them
 	debugLevel           int         // the debug level - used for printing some informaiton
