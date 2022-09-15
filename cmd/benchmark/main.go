@@ -47,8 +47,6 @@ func main() {
 
 	start := time.Now()
 	aag := graph.NewAdjacencyArrayFromFmiFile(plainGraphFile)
-	elapsed := time.Since(start)
-	fmt.Printf("[TIME-Import] = %s\n", elapsed)
 	referenceDijkstra := p.NewDijkstra(aag)
 
 	var navigator p.Navigator
@@ -77,6 +75,9 @@ func main() {
 	} else {
 		log.Fatal("Navigator not supported")
 	}
+
+	elapsed := time.Since(start)
+	fmt.Printf("[TIME-Import] = %s\n", elapsed)
 
 	targetFile := path.Join(graphDirectory, "targets.txt")
 	var targets [][4]int
