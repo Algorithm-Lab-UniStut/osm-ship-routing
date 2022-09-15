@@ -41,6 +41,8 @@ type UniversalDijkstra struct {
 	maxNumSettledNodes int // maximum number of settled nodes before search is terminated
 
 	pqPops          int // store the amount of Pops which were performed on the priority queue for the computed search
+	pqUpdates       int // store each update or push to the priority queue
+	edgeRelaxations int // store the attempt for relaxed edges
 	numSettledNodes int // number of settled nodes
 	debugLevel      int // debug level for logging purpose
 }
@@ -302,6 +304,8 @@ func (d *UniversalDijkstra) initializeSearch(origin, destination graph.NodeId) {
 		d.origin = origin
 		d.destination = destination
 		d.pqPops = 0
+		d.pqUpdates = 0
+		d.edgeRelaxations = 0
 		d.numSettledNodes = 0
 		d.bidirectionalConnection = BidirectionalConnection{nodeId: -1}
 
@@ -355,6 +359,7 @@ func (d *UniversalDijkstra) isFullySettled(nodeId graph.NodeId) bool {
 // Relax the Edges for the given node item and add the new nodes to the MinPath priority queue
 func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 	for _, arc := range d.g.GetArcsFrom(node.NodeId) {
+		d.edgeRelaxations++
 		successor := arc.Destination()
 
 		searchSpace, inverseSearchSpace := d.searchSpace, d.backwardSearchSpace
@@ -460,15 +465,19 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 				stalledNodes[successor] = false
 			}
 			heap.Push(d.pq, nextNode)
+			d.pqUpdates++
 		} else {
 			if updatedPriority := node.distance + arc.Cost() + searchSpace[successor].heuristic; updatedPriority < searchSpace[successor].Priority() {
+				// TODO does this update work when stalled? or should this throw an error/push wrong node (because index=-1)
 				d.pq.update(searchSpace[successor], node.distance+arc.Cost())
+				d.pqUpdates++
 				searchSpace[successor].predecessor = node.NodeId
 				if d.stallOnDemand && updatedPriority <= stallingDistance[successor] {
 					stalledNodes[successor] = false
 					// need to push successor (again?) to queue?
 					// was it removed before?
 					heap.Push(d.pq, searchSpace[successor])
+					d.pqUpdates++
 				}
 			}
 		}
