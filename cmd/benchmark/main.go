@@ -23,7 +23,7 @@ func main() {
 	storeTargets := flag.Bool("store", false, "Store targets (when newly generated)")
 	algorithm := flag.String("search", "default", "Select the search algorithm")
 	cpuProfile := flag.String("cpu", "", "write cpu profile to file")
-	targetGraph := flag.String("graph", "ocean_equi_4_default", "Select the graph to work with")
+	targetGraph := flag.String("graph", "big_lazy", "Select the graph to work with")
 	flag.Parse()
 
 	_, filename, _, ok := runtime.Caller(0)
