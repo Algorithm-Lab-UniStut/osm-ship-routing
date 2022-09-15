@@ -26,8 +26,20 @@ func main() {
 	cpuProfile := flag.String("cpu", "", "write cpu profile to file")
 	flag.Parse()
 
+	plainGraphFile := "ocean_10k.fmi"
+	contractedGraphFile := "contracted_graph.fmi"
+	shortcutFile := "shortcuts.txt"
+	nodeOrderingFile := "node_ordering.txt"
+	useCompleteGraph := false
+	if useCompleteGraph {
+		plainGraphFile = graphFile
+		contractedGraphFile = "big_contracted_graph.fmi"
+		shortcutFile = "big_shortcuts.txt"
+		nodeOrderingFile = "big_node_ordering.txt"
+	}
+
 	start := time.Now()
-	aag := graph.NewAdjacencyArrayFromFmiFile(graphFile)
+	aag := graph.NewAdjacencyArrayFromFmiFile(plainGraphFile)
 	elapsed := time.Since(start)
 	fmt.Printf("[TIME-Import] = %s\n", elapsed)
 	referenceDijkstra := path.NewDijkstra(aag)
@@ -47,17 +59,6 @@ func main() {
 		navigator = bid
 	} else if *algorithm == "ch" {
 		start := time.Now()
-		plainGraphFile := "ocean_10k.fmi"
-		contractedGraphFile := "contracted_graph.fmi"
-		shortcutFile := "shortcuts.txt"
-		nodeOrderingFile := "node_ordering.txt"
-		useCompleteGraph := false
-		if useCompleteGraph {
-			plainGraphFile = "graphs/ocean_equi_4.fmi"
-			contractedGraphFile = "big_contracted_graph.fmi"
-			shortcutFile = "big_shortcuts.txt"
-			nodeOrderingFile = "big_node_ordering.txt"
-		}
 		aag = graph.NewAdjacencyArrayFromFmiFile(plainGraphFile)
 		contracted_aag := graph.NewAdjacencyArrayFromFmiFile(contractedGraphFile)
 		referenceDijkstra = path.NewDijkstra(graph.NewAdjacencyArrayFromFmiFile(plainGraphFile))
