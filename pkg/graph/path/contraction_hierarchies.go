@@ -34,11 +34,13 @@ type ContractionHierarchies struct {
 	shortcuts   []Shortcut                                     // array which contains all shortcuts
 	shortcutMap map[graph.NodeId]map[graph.NodeId]graph.NodeId // map of the shortcuts (from/source -> to/target -> via)
 
-	addedShortcuts       map[int]int // debug information - stores the number of how many nodes introduced the specified amount of shortcuts. Key is the number of shortcuts, value is how many introduced them
-	debugLevel           int         // the debug level - used for printing some informaiton
-	graphFilename        string      // the filename were the file gets stored
-	shortcutsFilename    string      // the filename were the shourtcuts gets stored
-	nodeOrderingFilename string      // the filname were the node ordering gets stored
+	addedShortcuts        map[int]int // debug information - stores the number of how many nodes introduced the specified amount of shortcuts. Key is the number of shortcuts, value is how many introduced them
+	sortArcs              bool        // flag indicating if the arcs are sorted (first enabled arcs, then disabled arcs)
+	contractionLevelLimit float64     // percentage, how many nodes should get contracted
+	debugLevel            int         // the debug level - used for printing some informaiton
+	graphFilename         string      // the filename were the file gets stored
+	shortcutsFilename     string      // the filename were the shourtcuts gets stored
+	nodeOrderingFilename  string      // the filname were the node ordering gets stored
 
 	// For some debuging
 	initialTime       time.Time
@@ -66,25 +68,33 @@ type Shortcut struct {
 	cost   int          // cost of the shortcut
 }
 
+type ContractionResult struct {
+	nodeId              graph.NodeId
+	shortcuts           []Shortcut
+	incidentEdges       int
+	contractedNeighbors int
+}
+
 // Create a new Contraciton Hierarchy.
 // Before a query can get executed, the Precomputation has to be done
 func NewContractionHierarchies(g graph.Graph, dijkstra *UniversalDijkstra) *ContractionHierarchies {
 	// just add one worker
 	cw := []*UniversalDijkstra{NewUniversalDijkstra(g)}
-	return &ContractionHierarchies{g: g, dijkstra: dijkstra, contractionWorkers: cw, graphFilename: "contracted_graph.fmi", shortcutsFilename: "shortcuts.txt", nodeOrderingFilename: "node_ordering.txt", milestoneFilename: "milestones.txt"}
+	return &ContractionHierarchies{g: g, dijkstra: dijkstra, contractionWorkers: cw, contractionLevelLimit: 100, graphFilename: "contracted_graph.fmi", shortcutsFilename: "shortcuts.txt", nodeOrderingFilename: "node_ordering.txt", milestoneFilename: "milestones.txt"}
 }
 
 // Create a new Contraction Hierarchy which is already initialized with the shortcuts and node ordering.
 // This can directly start a new query
-func NewContractionHierarchiesInitialized(g graph.Graph, dijkstra *UniversalDijkstra, shortcuts []Shortcut, nodeOrdering [][]int) *ContractionHierarchies {
+func NewContractionHierarchiesInitialized(g graph.Graph, dijkstra *UniversalDijkstra, shortcuts []Shortcut, nodeOrdering [][]int, sortArgs bool) *ContractionHierarchies {
 	ch := NewContractionHierarchies(g, dijkstra)
+	ch.SetSortArcs(sortArgs)
 	ch.SetShortcuts(shortcuts)
 	ch.SetNodeOrdering(nodeOrdering)
 	ch.matchArcsWithNodeOrder()
 	return ch
 }
 
-// Do the precomputation of the Contractin Hierarchies.
+// Do the precomputation of the Contraction Hierarchies.
 // This adds new Edges in the graph by adding shortcuts. The result will be a modified graph, a collection of shortcuts and the calculated node ordering.
 // If givenNodeOrder is not nil, the OrderOption oo are ignored.
 // givenNodeOrder predefines the order of the nodes.
@@ -463,13 +473,6 @@ func (ch *ContractionHierarchies) updateOrderForNodes(nodes []graph.NodeId, oo O
 	}
 }
 
-type ContractionResult struct {
-	nodeId              graph.NodeId
-	shortcuts           []Shortcut
-	incidentEdges       int
-	contractedNeighbors int
-}
-
 // Compute contraction result for given nodes.
 // Returns the result of the (virtual) contraction.
 func (ch *ContractionHierarchies) computeNodeContractionParallel(nodes []graph.NodeId, ignoreList []graph.NodeId, ignoreCurrentNode bool) []*ContractionResult {
@@ -545,7 +548,7 @@ func (ch *ContractionHierarchies) contractNodes(oo OrderOptions) {
 	shortcutCounter := 0
 	newShortcuts := 0
 
-	for ch.pqOrder.Len() > 0 {
+	for ch.pqOrder.Len() > 0 && (float64(len(ch.contractedNodes))/float64(ch.g.NodeCount()))*100 <= ch.contractionLevelLimit {
 		updateNodes := make([]graph.NodeId, 0)
 		nodes := ch.computeIndependentSet(false) // TODO check for which order option this cat get true
 
@@ -756,6 +759,16 @@ func (ch *ContractionHierarchies) contractNodes(oo OrderOptions) {
 			ch.updateOrderForNodes(updateNodes, oo)
 		}
 	}
+	ch.liftUncontractedNodes()
+}
+
+// Set all uncontracted nodes to highest level
+func (ch *ContractionHierarchies) liftUncontractedNodes() {
+	for i := range ch.orderOfNode {
+		if ch.orderOfNode[i] == -1 {
+			ch.orderOfNode[i] = math.MaxInt
+		}
+	}
 }
 
 func (ch *ContractionHierarchies) updateFullContractionOrder(oo OrderOptions) {
@@ -924,8 +937,12 @@ func (ch *ContractionHierarchies) matchArcsWithNodeOrder() {
 	for source := range ch.g.GetNodes() {
 		for _, arc := range ch.g.GetArcsFrom(source) {
 			target := arc.Destination()
-			arc.SetArcFlag(ch.orderOfNode[source] < ch.orderOfNode[target])
+			arc.SetArcFlag(ch.orderOfNode[source] < ch.orderOfNode[target] || ch.orderOfNode[target] == math.MaxInt)
 		}
+	}
+	if ch.sortArcs {
+		ch.g.SortArcs()
+		ch.dijkstra.SortedArcs(true)
 	}
 }
 
@@ -976,17 +993,22 @@ func (ch *ContractionHierarchies) GetShortcuts() []Shortcut {
 // This is used when one has already a contracted graph and one need to define in which order the nodes were contracted.
 //the index of the list reflects to the node id, the value to the level/position, when the node was contracted.
 func (ch *ContractionHierarchies) SetNodeOrdering(nodeOrdering [][]int) {
-	ch.nodeOrdering = nodeOrdering
-	length := 0
-	for i := range nodeOrdering {
-		length += len(nodeOrdering[i])
+	ch.orderOfNode = make([]int, ch.g.NodeCount())
+
+	// initialize order of node
+	for i := range ch.orderOfNode {
+		// TODO think about setting it directly to match.MaxInt
+		// This would save a second iteration (liftUncontractedNodes)
+		ch.orderOfNode[i] = -1
 	}
-	ch.orderOfNode = make([]int, length)
+
 	for i, nodeIds := range nodeOrdering {
 		for _, nodeId := range nodeIds {
 			ch.orderOfNode[nodeId] = i
 		}
 	}
+
+	ch.liftUncontractedNodes()
 }
 
 func (ch *ContractionHierarchies) SetContractionWorkers(numberOfWorkers int) {
@@ -994,6 +1016,14 @@ func (ch *ContractionHierarchies) SetContractionWorkers(numberOfWorkers int) {
 	for i := 0; i < numberOfWorkers; i++ {
 		ch.contractionWorkers[i] = NewUniversalDijkstra(ch.g)
 	}
+}
+
+func (ch *ContractionHierarchies) SetSortArcs(flag bool) {
+	ch.sortArcs = flag
+}
+
+func (ch *ContractionHierarchies) SetContractionLevelLimit(limit float64) {
+	ch.contractionLevelLimit = limit
 }
 
 // Set the debug level.

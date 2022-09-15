@@ -7,16 +7,15 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"path"
+	"runtime"
 	"runtime/pprof"
 	"strings"
 	"time"
 
 	"github.com/natevvv/osm-ship-routing/pkg/graph"
-	"github.com/natevvv/osm-ship-routing/pkg/graph/path"
+	p "github.com/natevvv/osm-ship-routing/pkg/graph/path"
 )
-
-const graphFile = "graphs/ocean_equi_4.fmi"
-const targetFile = "cmd/benchmark/targets.txt"
 
 func main() {
 	useRandomTargets := flag.Bool("random", false, "Create (new) random targets")
@@ -24,55 +23,65 @@ func main() {
 	storeTargets := flag.Bool("store", false, "Store targets (when newly generated)")
 	algorithm := flag.String("search", "default", "Select the search algorithm")
 	cpuProfile := flag.String("cpu", "", "write cpu profile to file")
+	targetGraph := flag.String("graph", "ocean_equi_4_default", "Select the graph to work with")
 	flag.Parse()
 
-	start := time.Now()
-	aag := graph.NewAdjacencyArrayFromFmiFile(graphFile)
-	elapsed := time.Since(start)
-	fmt.Printf("[TIME-Import] = %s\n", elapsed)
-	referenceDijkstra := path.NewDijkstra(aag)
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		log.Fatal("Error")
+	}
 
-	var navigator path.Navigator
+	directory := path.Dir(filename)
+	graphDirectory := path.Join(directory, "..", "..", "graphs", *targetGraph)
+
+	if _, err := os.Stat(graphDirectory); os.IsNotExist(err) {
+		log.Fatal("Graph directory does not exist")
+	} else {
+		fmt.Printf("Using graph directory: %v\n", graphDirectory)
+	}
+
+	plainGraphFile := path.Join(graphDirectory, "plain_graph.fmi")
+	contractedGraphFile := path.Join(graphDirectory, "contracted_graph.fmi")
+	shortcutFile := path.Join(graphDirectory, "shortcuts.txt")
+	nodeOrderingFile := path.Join(graphDirectory, "node_ordering.txt")
+
+	start := time.Now()
+	aag := graph.NewAdjacencyArrayFromFmiFile(plainGraphFile)
+	referenceDijkstra := p.NewDijkstra(aag)
+
+	var navigator p.Navigator
 	if *algorithm == "default" {
-		navigator = path.GetNavigator(aag)
+		navigator = p.GetNavigator(aag)
 	} else if *algorithm == "dijkstra" {
-		navigator = path.NewUniversalDijkstra(aag)
+		navigator = p.NewUniversalDijkstra(aag)
+	} else if *algorithm == "reference_dijkstra" {
+		navigator = p.NewDijkstra(aag)
 	} else if *algorithm == "astar" {
-		astar := path.NewUniversalDijkstra(aag)
+		astar := p.NewUniversalDijkstra(aag)
 		astar.SetUseHeuristic(true)
 		navigator = astar
 	} else if *algorithm == "bidijkstra" {
-		bid := path.NewUniversalDijkstra(aag)
+		bid := p.NewUniversalDijkstra(aag)
 		bid.SetBidirectional(true)
 		navigator = bid
 	} else if *algorithm == "ch" {
 		start := time.Now()
-		plainGraphFile := "ocean_10k.fmi"
-		contractedGraphFile := "contracted_graph.fmi"
-		shortcutFile := "shortcuts.txt"
-		nodeOrderingFile := "node_ordering.txt"
-		useCompleteGraph := true
-		if useCompleteGraph {
-			plainGraphFile = "graphs/ocean_equi_4.fmi"
-			contractedGraphFile = "big_contracted_graph.fmi"
-			shortcutFile = "big_shortcuts.txt"
-			nodeOrderingFile = "big_node_ordering.txt"
-		}
-		aag = graph.NewAdjacencyArrayFromFmiFile(plainGraphFile)
 		contracted_aag := graph.NewAdjacencyArrayFromFmiFile(contractedGraphFile)
-		referenceDijkstra = path.NewDijkstra(graph.NewAdjacencyArrayFromFmiFile(plainGraphFile))
-		shortcuts := path.ReadShortcutFile(shortcutFile)
-		nodeOrdering := path.ReadNodeOrderingFile(nodeOrderingFile)
+		shortcuts := p.ReadShortcutFile(shortcutFile)
+		nodeOrdering := p.ReadNodeOrderingFile(nodeOrderingFile)
 		elapsed := time.Since(start)
 		fmt.Printf("[TIME-Import for shortcut files (and graph)] = %s\n", elapsed)
-		dijkstra := path.NewUniversalDijkstra(contracted_aag)
-		ch := path.NewContractionHierarchiesInitialized(contracted_aag, dijkstra, shortcuts, nodeOrdering)
+		dijkstra := p.NewUniversalDijkstra(contracted_aag)
+		ch := p.NewContractionHierarchiesInitialized(contracted_aag, dijkstra, shortcuts, nodeOrdering, false)
 		navigator = ch
-		//navigator = referenceDijkstra
 	} else {
-		panic("Navigator not supported")
+		log.Fatal("Navigator not supported")
 	}
 
+	elapsed := time.Since(start)
+	fmt.Printf("[TIME-Import] = %s\n", elapsed)
+
+	targetFile := path.Join(graphDirectory, "targets.txt")
 	var targets [][4]int
 	if *useRandomTargets {
 		targets = createTargets(*amountTargets, aag, targetFile)
@@ -132,7 +141,7 @@ func createTargets(n int, aag *graph.AdjacencyArrayGraph, filename string) [][4]
 	seed := rand.NewSource(time.Now().UnixNano())
 	rng := rand.New(seed)
 	// reference algorithm to compute path
-	dijkstra := path.NewDijkstra(aag)
+	dijkstra := p.NewDijkstra(aag)
 	for i := 0; i < n; i++ {
 		origin := rng.Intn(aag.NodeCount())
 		destination := rng.Intn(aag.NodeCount())
@@ -162,8 +171,9 @@ func writeTargets(targets [][4]int, targetFile string) {
 }
 
 // Run benchmarks on the provided graphs and targets
-func benchmark(navigator path.Navigator, targets [][4]int, referenceDijkstra *path.Dijkstra) {
+func benchmark(navigator p.Navigator, targets [][4]int, referenceDijkstra *p.Dijkstra) {
 	var runtime time.Duration = 0
+	var runtimeWithPath time.Duration = 0
 	pqPops := 0
 	invalidLengths := make([][2]int, 0)
 	invalidResults := make([]int, 0)
@@ -179,7 +189,8 @@ func benchmark(navigator path.Navigator, targets [][4]int, referenceDijkstra *pa
 		elapsed := time.Since(start)
 		pqPops += navigator.GetPqPops()
 		path := navigator.GetPath(origin, destination)
-		fmt.Printf("[%3v TIME-Navigate, PQ Pops] = %s, %d\n", i, elapsed, navigator.GetPqPops())
+		elapsedPath := time.Since(start)
+		fmt.Printf("[%3v TIME-Navigate, TIME-Path, PQ Pops] = %s, %s, %d\n", i, elapsed, elapsedPath, navigator.GetPqPops())
 
 		if length != referenceLength {
 			invalidLengths = append(invalidLengths, [2]int{i, length - referenceLength})
@@ -196,9 +207,10 @@ func benchmark(navigator path.Navigator, targets [][4]int, referenceDijkstra *pa
 		}
 
 		runtime += elapsed
+		runtimeWithPath += elapsedPath
 	}
 
-	fmt.Printf("Average runtime: %.3fms\n", float64(int(runtime.Nanoseconds())/len(targets))/1000000)
+	fmt.Printf("Average runtime: %.3fms, %.3fms\n", float64(int(runtime.Nanoseconds())/len(targets))/1000000, float64(int(runtimeWithPath.Nanoseconds())/len(targets))/1000000)
 	fmt.Printf("Average pq pops: %d\n", pqPops/len(targets))
 	fmt.Printf("%v/%v invalid path lengths.\n", len(invalidLengths), len(targets))
 	for i, testCase := range invalidLengths {
