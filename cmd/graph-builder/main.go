@@ -75,7 +75,7 @@ func loadPolyJsonPolygons(file string) []geometry.Polygon {
 func createContractedGraph() {
 	fmt.Printf("Read graph file\n")
 	alg := graph.NewAdjacencyListFromFmiFile("ocean_10k.fmi")
-	//alg = graph.NewAdjacencyListFromFmiFile("ocean_equi_4.fmi")
+	alg = graph.NewAdjacencyListFromFmiFile("ocean_equi_4.fmi")
 	dijkstra := path.NewUniversalDijkstra(alg)
 	fmt.Printf("Initialize Contraction Hierarchies\n")
 	ch := path.NewContractionHierarchies(alg, dijkstra)
