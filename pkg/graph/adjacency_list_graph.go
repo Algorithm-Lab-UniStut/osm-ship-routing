@@ -37,6 +37,22 @@ func (alg *AdjacencyListGraph) GetArcsFrom(id NodeId) []*Arc {
 	return alg.Edges[id]
 }
 
+func (alg *AdjacencyListGraph) SortArcs() {
+	for i := 0; i < alg.NodeCount(); i++ {
+		for j := 0; j < len(alg.Edges[i]); j++ {
+			if !alg.Edges[i][j].ArcFlag() {
+				for k := j + 1; k < len(alg.Edges[i]); k++ {
+					if alg.Edges[i][k].ArcFlag() {
+						// swap arcs
+						alg.Edges[i][j], alg.Edges[i][k] = alg.Edges[i][k], alg.Edges[i][j]
+						break
+					}
+				}
+			}
+		}
+	}
+}
+
 // Return the number of total nodes
 func (alg *AdjacencyListGraph) NodeCount() int {
 	return len(alg.Nodes)

@@ -36,6 +36,7 @@ type UniversalDijkstra struct {
 	considerArcFlags   bool   // flag indicating if arc flags (basically deactivate some edges) should be considered
 	ignoreNodes        []bool // store for each node ID if it is ignored. A map would also be viable (for performance aspect) to achieve this
 	stallOnDemand      bool
+	sortedArcs         bool
 	costUpperBound     int // upper bound of cost from origin to destination
 	maxNumSettledNodes int // maximum number of settled nodes before search is terminated
 
@@ -379,6 +380,12 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 			if d.debugLevel >= 3 {
 				fmt.Printf("Ignore Edge %v -> %v\n", node.NodeId, successor)
 			}
+			if d.sortedArcs {
+				// since edges are sorted, the folowing edges will also be disabled
+				// this disables the check for stalling nodes (in inverse direction)
+				break
+			}
+
 			// but first, check for stall-on-demand
 			if d.stallOnDemand && searchSpace[successor] != nil && node.Priority()+arc.Cost() < searchSpace[successor].Priority() {
 				if d.debugLevel >= 3 {
@@ -407,6 +414,12 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 							}
 				*/
 			}
+			continue
+		}
+
+		if d.stallOnDemand && searchSpace[successor] != nil && searchSpace[successor].Priority()+arc.Cost() < node.Priority() {
+			stalledNodes[node.NodeId] = true
+			stallingDistance[node.NodeId] = searchSpace[successor].Priority() + arc.Cost()
 			continue
 		}
 
@@ -503,6 +516,10 @@ func (d *UniversalDijkstra) SetHotStart(useHotStart bool) {
 
 func (d *UniversalDijkstra) SetStallOnDemand(stallOnDemand bool) {
 	d.stallOnDemand = stallOnDemand
+}
+
+func (d *UniversalDijkstra) SortedArcs(sorted bool) {
+	d.sortedArcs = sorted
 }
 
 // Returns the amount of priority queue/heap pops which werer performed during the search
