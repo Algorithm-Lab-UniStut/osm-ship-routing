@@ -10,6 +10,7 @@ import (
 type Dijkstra struct {
 	g             graph.Graph
 	dijkstraItems []*queue.PriorityQueueItem
+	pqPops        int
 }
 
 func NewDijkstra(g graph.Graph) *Dijkstra {
@@ -25,9 +26,11 @@ func (d *Dijkstra) ComputeShortestPath(origin, destination int) int {
 	heap.Init(&pq)
 	heap.Push(&pq, d.dijkstraItems[origin])
 
+	d.pqPops = 0
 	for len(pq) > 0 {
 		currentPqItem := heap.Pop(&pq).(*queue.PriorityQueueItem)
 		currentNodeId := currentPqItem.ItemId
+		d.pqPops++
 
 		for _, arc := range d.g.GetArcsFrom(currentNodeId) {
 			successor := arc.Destination()
@@ -69,4 +72,8 @@ func (d *Dijkstra) GetPath(origin, destination graph.NodeId) []graph.NodeId {
 
 func (d *Dijkstra) GetSearchSpace() []*DijkstraItem {
 	panic("not implemented")
+}
+
+func (d *Dijkstra) GetPqPops() int {
+	return d.pqPops
 }
