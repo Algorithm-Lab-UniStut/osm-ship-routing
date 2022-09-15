@@ -85,8 +85,9 @@ func NewContractionHierarchies(g graph.Graph, dijkstra *UniversalDijkstra) *Cont
 
 // Create a new Contraction Hierarchy which is already initialized with the shortcuts and node ordering.
 // This can directly start a new query
-func NewContractionHierarchiesInitialized(g graph.Graph, dijkstra *UniversalDijkstra, shortcuts []Shortcut, nodeOrdering [][]int) *ContractionHierarchies {
+func NewContractionHierarchiesInitialized(g graph.Graph, dijkstra *UniversalDijkstra, shortcuts []Shortcut, nodeOrdering [][]int, sortArgs bool) *ContractionHierarchies {
 	ch := NewContractionHierarchies(g, dijkstra)
+	ch.SetSortArcs(sortArgs)
 	ch.SetShortcuts(shortcuts)
 	ch.SetNodeOrdering(nodeOrdering)
 	ch.matchArcsWithNodeOrder()
@@ -941,6 +942,7 @@ func (ch *ContractionHierarchies) matchArcsWithNodeOrder() {
 	}
 	if ch.sortArcs {
 		ch.g.SortArcs()
+		ch.dijkstra.SortedArcs(true)
 	}
 }
 

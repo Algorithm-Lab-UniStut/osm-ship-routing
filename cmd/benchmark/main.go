@@ -54,6 +54,8 @@ func main() {
 		navigator = p.GetNavigator(aag)
 	} else if *algorithm == "dijkstra" {
 		navigator = p.NewUniversalDijkstra(aag)
+	} else if *algorithm == "reference_dijkstra" {
+		navigator = p.NewDijkstra(aag)
 	} else if *algorithm == "astar" {
 		astar := p.NewUniversalDijkstra(aag)
 		astar.SetUseHeuristic(true)
@@ -70,7 +72,7 @@ func main() {
 		elapsed := time.Since(start)
 		fmt.Printf("[TIME-Import for shortcut files (and graph)] = %s\n", elapsed)
 		dijkstra := p.NewUniversalDijkstra(contracted_aag)
-		ch := p.NewContractionHierarchiesInitialized(contracted_aag, dijkstra, shortcuts, nodeOrdering)
+		ch := p.NewContractionHierarchiesInitialized(contracted_aag, dijkstra, shortcuts, nodeOrdering, false)
 		navigator = ch
 	} else {
 		log.Fatal("Navigator not supported")
@@ -171,6 +173,7 @@ func writeTargets(targets [][4]int, targetFile string) {
 // Run benchmarks on the provided graphs and targets
 func benchmark(navigator p.Navigator, targets [][4]int, referenceDijkstra *p.Dijkstra) {
 	var runtime time.Duration = 0
+	var runtimeWithPath time.Duration = 0
 	pqPops := 0
 	invalidLengths := make([][2]int, 0)
 	invalidResults := make([]int, 0)
@@ -186,7 +189,8 @@ func benchmark(navigator p.Navigator, targets [][4]int, referenceDijkstra *p.Dij
 		elapsed := time.Since(start)
 		pqPops += navigator.GetPqPops()
 		path := navigator.GetPath(origin, destination)
-		fmt.Printf("[%3v TIME-Navigate, PQ Pops] = %s, %d\n", i, elapsed, navigator.GetPqPops())
+		elapsedPath := time.Since(start)
+		fmt.Printf("[%3v TIME-Navigate, TIME-Path, PQ Pops] = %s, %s, %d\n", i, elapsed, elapsedPath, navigator.GetPqPops())
 
 		if length != referenceLength {
 			invalidLengths = append(invalidLengths, [2]int{i, length - referenceLength})
@@ -203,9 +207,10 @@ func benchmark(navigator p.Navigator, targets [][4]int, referenceDijkstra *p.Dij
 		}
 
 		runtime += elapsed
+		runtimeWithPath += elapsedPath
 	}
 
-	fmt.Printf("Average runtime: %.3fms\n", float64(int(runtime.Nanoseconds())/len(targets))/1000000)
+	fmt.Printf("Average runtime: %.3fms, %.3fms\n", float64(int(runtime.Nanoseconds())/len(targets))/1000000, float64(int(runtimeWithPath.Nanoseconds())/len(targets))/1000000)
 	fmt.Printf("Average pq pops: %d\n", pqPops/len(targets))
 	fmt.Printf("%v/%v invalid path lengths.\n", len(invalidLengths), len(targets))
 	for i, testCase := range invalidLengths {
