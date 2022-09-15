@@ -91,6 +91,7 @@ func NewContractionHierarchiesInitialized(g graph.Graph, dijkstra *UniversalDijk
 	ch.SetShortcuts(shortcuts)
 	ch.SetNodeOrdering(nodeOrdering)
 	ch.matchArcsWithNodeOrder()
+	ch.shortestPathSetup()
 	return ch
 }
 
@@ -171,6 +172,8 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 	ch.SetShortcuts(ch.shortcuts)
 	// match arcs with node order
 	ch.matchArcsWithNodeOrder()
+	// setup for path computation
+	ch.shortestPathSetup()
 
 	for i, m := range ch.milestones {
 		runtime := ch.runtime[i]
@@ -190,18 +193,20 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 	}
 }
 
-// Compute the shortest path for the given query (from origin to destination node).
-// It returns the length of the path.
-// If no path was found, -1 is returned
-func (ch *ContractionHierarchies) ComputeShortestPath(origin, destination graph.NodeId) int {
+func (ch *ContractionHierarchies) shortestPathSetup() {
 	ch.dijkstra.SetMaxNumSettledNodes(math.MaxInt)
 	ch.dijkstra.SetCostUpperBound(math.MaxInt)
 	ch.dijkstra.SetConsiderArcFlags(true)
 	ch.dijkstra.SetBidirectional(true)
 	ch.dijkstra.SetUseHeuristic(false)
-	ch.dijkstra.SetIgnoreNodes(make([]graph.NodeId, 0))
+	ch.dijkstra.SetIgnoreNodes(nil)
 	ch.dijkstra.SetHotStart(false)
-	ch.dijkstra.SetStallOnDemand(true)
+}
+
+// Compute the shortest path for the given query (from origin to destination node).
+// It returns the length of the path.
+// If no path was found, -1 is returned
+func (ch *ContractionHierarchies) ComputeShortestPath(origin, destination graph.NodeId) int {
 	if ch.debugLevel >= 1 {
 		fmt.Printf("Compute path from %v to %v\n", origin, destination)
 	}

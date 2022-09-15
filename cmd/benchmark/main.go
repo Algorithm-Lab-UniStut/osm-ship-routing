@@ -72,6 +72,7 @@ func main() {
 		elapsed := time.Since(start)
 		fmt.Printf("[TIME-Import for shortcut files (and graph)] = %s\n", elapsed)
 		dijkstra := p.NewUniversalDijkstra(contracted_aag)
+		dijkstra.SetStallOnDemand(true)
 		ch := p.NewContractionHierarchiesInitialized(contracted_aag, dijkstra, shortcuts, nodeOrdering, false)
 		navigator = ch
 	} else {
