@@ -6,4 +6,6 @@ type Navigator interface {
 	ComputeShortestPath(origin, destination int) int
 	GetSearchSpace() []*DijkstraItem
 	GetPqPops() int
+	GetPqUpdates() int
+	GetEdgeRelaxations() int
 }

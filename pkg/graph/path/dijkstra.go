@@ -77,3 +77,11 @@ func (d *Dijkstra) GetSearchSpace() []*DijkstraItem {
 func (d *Dijkstra) GetPqPops() int {
 	return d.pqPops
 }
+
+func (d *Dijkstra) GetPqUpdates() int {
+	panic("not implemented")
+}
+
+func (d *Dijkstra) GetEdgeRelaxations() int {
+	panic("not implemented")
+}

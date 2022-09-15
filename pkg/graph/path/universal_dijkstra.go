@@ -532,7 +532,9 @@ func (d *UniversalDijkstra) SortedArcs(sorted bool) {
 }
 
 // Returns the amount of priority queue/heap pops which werer performed during the search
-func (d *UniversalDijkstra) GetPqPops() int { return d.pqPops }
+func (d *UniversalDijkstra) GetPqPops() int          { return d.pqPops }
+func (d *UniversalDijkstra) GetEdgeRelaxations() int { return d.edgeRelaxations }
+func (d *UniversalDijkstra) GetPqUpdates() int       { return d.pqUpdates }
 
 // Set the debug level to show different debug messages.
 // If it is 0, no debug messages are printed
