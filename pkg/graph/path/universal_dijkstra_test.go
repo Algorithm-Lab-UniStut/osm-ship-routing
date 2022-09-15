@@ -209,7 +209,7 @@ func BenchmarkContractionHierarchies(b *testing.B) {
 	shortcuts := ReadShortcutFile(dirname + "/osm/big_shortcuts.txt")
 	nodeOrdering := ReadNodeOrderingFile(dirname + "/osm/big_node_ordering.txt")
 	dijkstra := NewUniversalDijkstra(aag)
-	ch := NewContractionHierarchiesInitialized(aag, dijkstra, shortcuts, nodeOrdering)
+	ch := NewContractionHierarchiesInitialized(aag, dijkstra, shortcuts, nodeOrdering, false)
 	for _, target := range targets {
 		origin := target[0]
 		destination := target[1]

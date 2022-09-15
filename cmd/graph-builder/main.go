@@ -83,7 +83,6 @@ func createContractedGraph() {
 	ch.SetPrecomputationMilestones([]float64{0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 99.99})
 	fmt.Printf("Initialized Contraction Hierarchies, start precomputation\n")
 	ch.SetContractionWorkers(6)
-	ch.SetSortArcs(false)
 	ch.SetContractionLevelLimit(100)
 	ch.Precompute(nil, path.MakeOrderOptions().SetLazyUpdate(true).SetEdgeDifference(true).SetProcessedNeighbors(true).SetPeriodic(false).SetUpdateNeighbors(false))
 	ch.WriteContractionResult()

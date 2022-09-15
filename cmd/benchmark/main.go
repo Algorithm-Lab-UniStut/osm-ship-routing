@@ -70,7 +70,7 @@ func main() {
 		elapsed := time.Since(start)
 		fmt.Printf("[TIME-Import for shortcut files (and graph)] = %s\n", elapsed)
 		dijkstra := p.NewUniversalDijkstra(contracted_aag)
-		ch := p.NewContractionHierarchiesInitialized(contracted_aag, dijkstra, shortcuts, nodeOrdering)
+		ch := p.NewContractionHierarchiesInitialized(contracted_aag, dijkstra, shortcuts, nodeOrdering, false)
 		navigator = ch
 	} else {
 		log.Fatal("Navigator not supported")
