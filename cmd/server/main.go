@@ -22,6 +22,7 @@ import (
 
 func main() {
 	targetGraph := flag.String("graph", "big_lazy", "Select the graph to work with")
+	navigator := flag.String("navigator", "contraction-hierarchies", "Select the navigator for the ship router")
 	flag.Parse()
 
 	_, filename, _, ok := runtime.Caller(0)
@@ -44,7 +45,7 @@ func main() {
 	nodeOrderingFile := path.Join(graphDirectory, "node_ordering.txt")
 
 	log.Printf("Loading graph '%s' into memory", plainGraphFile)
-	DefaultApiService := server.NewDefaultApiService(plainGraphFile, contractedGraphFile, shortcutFile, nodeOrderingFile)
+	DefaultApiService := server.NewDefaultApiService(plainGraphFile, contractedGraphFile, shortcutFile, nodeOrderingFile, navigator)
 	DefaultApiController := server.NewDefaultApiController(DefaultApiService)
 
 	router := server.NewRouter(DefaultApiController)
