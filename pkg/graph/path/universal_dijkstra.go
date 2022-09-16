@@ -35,11 +35,13 @@ type UniversalDijkstra struct {
 	useHotStart        bool   // flag indicating if the previously cached results should get used
 	considerArcFlags   bool   // flag indicating if arc flags (basically deactivate some edges) should be considered
 	ignoreNodes        []bool // store for each node ID if it is ignored. A map would also be viable (for performance aspect) to achieve this
-	stallOnDemand      int    // level for stall-on-demand. (0: no stalling, 1: regular stalling, 2: "preemptive" stalling)
+	stallOnDemand      int    // level for stall-on-demand. (0: no stalling, 1: regular stalling, 2: "preemptive" stalling, 3: stall recursively (regular), 4: stall recursive ("preemtpive"))
 	sortedArcs         bool
 	costUpperBound     int // upper bound of cost from origin to destination
 	maxNumSettledNodes int // maximum number of settled nodes before search is terminated
 	debugLevel         int // debug level for logging purpose
+
+	stallWorker *UniversalDijkstra
 
 	pqPops             int // store the amount of Pops which were performed on the priority queue for the computed search
 	pqUpdates          int // store each update or push to the priority queue
@@ -117,8 +119,6 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 
 		if d.stallOnDemand >= 2 && stalledNodes[currentNode.NodeId] {
 			// this is a stalled node -> nothing to do
-			// can only happen when using "preemptive stalling"
-			fmt.Println("Does this happen?")
 			continue
 		}
 
@@ -394,38 +394,18 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 				break
 			}
 
-			// but first, check for stall-on-demand ("preemptive")
-			if d.stallOnDemand >= 2 && searchSpace[successor] != nil && node.Priority()+arc.Cost() < searchSpace[successor].Priority() {
+			// but first, check for stall-on-demand ("preemptive", inverse arc direction)
+			if (d.stallOnDemand == 2 || d.stallOnDemand == 4) && searchSpace[successor] != nil && node.Priority()+arc.Cost() < searchSpace[successor].Priority() {
 				if d.debugLevel >= 3 {
 					fmt.Printf("Stall Node %v\n", successor)
 				}
 				d.stallNode(searchSpace[successor], node.distance+arc.Cost())
-
-				// stall recursively
-				// however, this takes very long time (even for only 1 level)
-				// even just creating the Dijkstra object takes very long time
-				/*
-					dijkstra := NewUniversalDijkstra(d.g)
-					dijkstra.SetConsiderArcFlags(true)
-					dijkstra.SetMaxNumSettledNodes(1) // maybe better: specify depth
-						dijkstra.ComputeShortestPath(successor, -1)
-							for _, v := range dijkstra.GetSearchSpace() {
-								// this check could be wrong
-								// every node which is reachable in BFS should be stalled
-								// except that ones which have shorter distance in dijkstra
-								// -> if they are not in search space, they still can get stalled?
-								if v != nil && v.Priority() > 0 && searchSpace[v.NodeId] != nil && node.Priority()+arc.Cost()+v.Priority() < searchSpace[v.NodeId].Priority() {
-									stalledNodes[v.NodeId] = true
-									stallingDistance[v.NodeId] = node.Priority() + arc.Cost() + v.Priority()
-								}
-							}
-				*/
 			}
 			continue
 		}
 
 		// check for "regular" stall-on-demand
-		if d.stallOnDemand >= 1 && searchSpace[successor] != nil && searchSpace[successor].Priority()+arc.Cost() < node.Priority() {
+		if (d.stallOnDemand == 1 || d.stallOnDemand == 3) && searchSpace[successor] != nil && searchSpace[successor].Priority()+arc.Cost() < node.Priority() {
 			d.stallNode(node, searchSpace[successor].distance+arc.Cost())
 			continue
 		}
@@ -466,7 +446,6 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 			heap.Push(d.pq, nextNode)
 			d.pqUpdates++
 		} else if updatedPriority := node.distance + arc.Cost() + searchSpace[successor].heuristic; updatedPriority < searchSpace[successor].Priority() {
-			// TODO does this update work when stalled? or should this throw an error/push wrong node (because index=-1)
 			if d.stallOnDemand >= 1 && stalledNodes[successor] && node.distance+arc.Cost() <= stallingDistance[successor] {
 				d.unstallNode(searchSpace[successor], node.distance+arc.Cost())
 			} else {
@@ -480,18 +459,42 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 }
 
 func (d *UniversalDijkstra) stallNode(node *DijkstraItem, stallingDistance int) {
+	searchSpace, inverseSearchSpace := d.searchSpace, d.backwardSearchSpace
 	stalledNodes, backwardStalledNodes := d.forwardStalledNodes, d.backwardStalledNodes
 	stallingDistances, backwardStallingDistances := d.forwardStallingDistance, d.backwardStallingDistance
 	if node.searchDirection == BACKWARD {
+		searchSpace, inverseSearchSpace = inverseSearchSpace, searchSpace
 		stalledNodes, backwardStalledNodes = backwardStalledNodes, stalledNodes
 		stallingDistances, backwardStallingDistances = backwardStallingDistances, stallingDistances
 	}
 
 	stalledNodes[node.NodeId] = true
 	stallingDistances[node.NodeId] = stallingDistance
+
 	if node.index >= 0 {
 		heap.Remove(d.pq, node.index)
-		//fmt.Println("Remove stalled node from heap")
+	}
+
+	// stall recursively
+	// however, this takes very long time (even for only 1 level)
+	if d.stallOnDemand >= 3 {
+		d.stallWorker.SetConsiderArcFlags(true)
+		d.stallWorker.SetMaxNumSettledNodes(10)
+		d.stallWorker.ComputeShortestPath(node.NodeId, -1)
+		for _, v := range d.stallWorker.GetSearchSpace() {
+			// this check could be wrong
+			// every node which is reachable in BFS should be stalled
+			// except that ones which have shorter distance in dijkstra
+			// -> if they are not in search space, they still can get stalled?
+			if v != nil && v.Priority() > 0 && searchSpace[v.NodeId] != nil && stallingDistance+v.distance < searchSpace[v.NodeId].distance {
+				stalledNodes[v.NodeId] = true
+				stallingDistances[v.NodeId] = stallingDistance + v.distance
+
+				if v.index >= 0 {
+					heap.Remove(d.pq, v.index)
+				}
+			}
+		}
 	}
 }
 
@@ -551,6 +554,11 @@ func (d *UniversalDijkstra) SetHotStart(useHotStart bool) {
 
 func (d *UniversalDijkstra) SetStallOnDemand(level int) {
 	d.stallOnDemand = level
+	if level > 2 {
+		d.stallWorker = NewUniversalDijkstra(d.g)
+	} else {
+		d.stallWorker = nil
+	}
 }
 
 func (d *UniversalDijkstra) SortedArcs(sorted bool) {
