@@ -158,7 +158,6 @@ func (alg *AdjacencyListGraph) SetArcFlags(id NodeId, flag bool) {
 	// set the arc flags for the outgoing edges
 	for _, arc := range alg.GetArcsFrom(id) {
 		arc.SetArcFlag(flag)
-		//fmt.Printf("set arc %v -> %v: %t\n", nodeId, arc.Destination(), flag)
 	}
 	// TODO maybe an improvement (Usefull when removing the pointer from the arcs)
 	/*

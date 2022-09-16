@@ -67,7 +67,6 @@ const cuttableGraph = `13
 
 func TestGraphReading(t *testing.T) {
 	alg := NewAdjacencyListFromFmiString(cuttableGraph)
-	//fmt.Println(alg.AsString())
 	if alg.AsString() != cuttableGraph {
 		t.Errorf("Graph wrongly parsed\n")
 	}

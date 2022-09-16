@@ -56,8 +56,6 @@ func TestPlainDijkstra(t *testing.T) {
 	d := NewUniversalDijkstra(aag)
 	length := d.ComputeShortestPath(0, 9)
 	path := d.GetPath(0, 9)
-	fmt.Printf("length: %v\n", length)
-	fmt.Printf("Path: %v\n", path)
 	pathReference := []int{0, 1, 4, 7, 8, 9}
 	lengthReference := 5
 	if length != lengthReference {
@@ -83,7 +81,6 @@ func TestAStarDijkstra(t *testing.T) {
 	path := d.GetPath(0, 9)
 	astarLength := astar.ComputeShortestPath(0, 9)
 	astarPath := astar.GetPath(0, 9)
-	fmt.Printf("astar path %v\n", astarPath)
 	if length != astarLength {
 		t.Errorf("Length does not match. Is %v, should be %v", astarLength, length)
 	}
@@ -109,7 +106,6 @@ func TestBidirectionalDijkstra(t *testing.T) {
 	path := d.GetPath(0, 9)
 	bidijkstraLength := bidijkstra.ComputeShortestPath(0, 9)
 	bidijkstraPath := bidijkstra.GetPath(0, 9)
-	fmt.Printf("bidirectional path %v\n", bidijkstraPath)
 	if length != bidijkstraLength {
 		t.Errorf("Length does not match. Is %v, should be %v", bidijkstraLength, length)
 	}

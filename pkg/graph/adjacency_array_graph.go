@@ -132,9 +132,8 @@ func (aag *AdjacencyArrayGraph) SetArcFlags(id NodeId, flag bool) {
 	// set the arc flags for the outgoing edges
 	for _, arc := range aag.GetArcsFrom(id) {
 		arc.SetArcFlag(flag)
-		//fmt.Printf("set arc %v -> %v: %t\n", nodeId, arc.Destination(), flag)
 	}
-	// maybe this can get improved to directly set the arcs flags without calling GetArcsFrom()
+	// TODO maybe this can get improved to directly set the arcs flags without calling GetArcsFrom()
 }
 
 // Set the arc flag for the given arc

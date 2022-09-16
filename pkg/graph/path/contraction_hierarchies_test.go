@@ -160,8 +160,6 @@ func TestPrecompute(t *testing.T) {
 	ch := NewContractionHierarchies(alg, dijkstra)
 	ch.SetDebugLevel(3)
 	ch.Precompute(nil, MakeOrderOptions().SetLazyUpdate(false).SetEdgeDifference(true).SetProcessedNeighbors(true).SetUpdateNeighbors(true))
-	//fmt.Printf("shortcuts: %v\n", len(ch.shortcuts)/2)
-	//fmt.Printf("shortcuts: %v\n", ch.shortcuts)
 }
 
 func TestContractionHierarchies(t *testing.T) {
@@ -204,17 +202,8 @@ func TestRandomContraction(t *testing.T) {
 			t.Errorf("Length does not match - Is: %v. Should: %v", length, l)
 		}
 		path := ch.GetPath(source, target)
-		/*
-			searchSpace := ch.GetSearchSpace()
-			fmt.Println("Search space:")
-			for _, s := range searchSpace {
-				fmt.Printf("%v,", s.NodeId)
-			}
-			fmt.Println()
-		*/
 		if len(p) != len(path) || p[0] != path[0] || p[len(p)-1] != path[len(path)-1] {
 			t.Errorf("computed SP do not match. Shortcuts: %v", ch.shortcuts)
 		}
-		//fmt.Println(path)
 	}
 }

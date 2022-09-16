@@ -8,9 +8,12 @@ import (
 )
 
 type Dijkstra struct {
-	g             graph.Graph
-	dijkstraItems []*queue.PriorityQueueItem
-	pqPops        int
+	g                  graph.Graph
+	dijkstraItems      []*queue.PriorityQueueItem
+	pqPops             int
+	pqUpdates          int
+	relaxationAttempts int
+	relaxedEdges       int
 }
 
 func NewDijkstra(g graph.Graph) *Dijkstra {
@@ -27,12 +30,17 @@ func (d *Dijkstra) ComputeShortestPath(origin, destination int) int {
 	heap.Push(&pq, d.dijkstraItems[origin])
 
 	d.pqPops = 0
+	d.pqUpdates = 0
+	d.relaxationAttempts = 0
+	d.relaxedEdges = 0
+
 	for len(pq) > 0 {
 		currentPqItem := heap.Pop(&pq).(*queue.PriorityQueueItem)
 		currentNodeId := currentPqItem.ItemId
 		d.pqPops++
 
 		for _, arc := range d.g.GetArcsFrom(currentNodeId) {
+			d.relaxationAttempts++
 			successor := arc.Destination()
 
 			if d.dijkstraItems[successor] == nil {
@@ -40,12 +48,15 @@ func (d *Dijkstra) ComputeShortestPath(origin, destination int) int {
 				pqItem := queue.NewPriorityQueueItem(successor, newPriority, currentNodeId) //{ItemId: successor, Priority: newPriority, Predecessor: currentNodeId, Index: -1}
 				d.dijkstraItems[successor] = pqItem
 				heap.Push(&pq, pqItem)
+				d.pqUpdates++
 			} else {
 				if updatedDistance := d.dijkstraItems[currentNodeId].Priority + arc.Cost(); updatedDistance < d.dijkstraItems[successor].Priority {
 					pq.Update(d.dijkstraItems[successor], updatedDistance)
+					d.pqUpdates++
 					d.dijkstraItems[successor].Predecessor = currentNodeId
 				}
 			}
+			d.relaxedEdges++
 		}
 
 		if currentNodeId == destination {
@@ -70,10 +81,9 @@ func (d *Dijkstra) GetPath(origin, destination graph.NodeId) []graph.NodeId {
 	return path
 }
 
-func (d *Dijkstra) GetSearchSpace() []*DijkstraItem {
-	panic("not implemented")
-}
-
-func (d *Dijkstra) GetPqPops() int {
-	return d.pqPops
-}
+func (d *Dijkstra) GetSearchSpace() []*DijkstraItem { panic("not implemented") }
+func (d *Dijkstra) GetPqPops() int                  { return d.pqPops }
+func (d *Dijkstra) GetPqUpdates() int               { return d.pqUpdates }
+func (d *Dijkstra) GetEdgeRelaxations() int         { return d.relaxedEdges }
+func (d *Dijkstra) GetRelaxationAttempts() int      { return d.relaxationAttempts }
+func (d *Dijkstra) GetGraph() graph.Graph           { return d.g }
