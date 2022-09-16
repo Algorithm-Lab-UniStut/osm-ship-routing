@@ -42,7 +42,7 @@ func main() {
 
 	start := time.Now()
 
-	navigator, referenceDijkstra, aag := getNavigator(*algorithm, graphDirectory)
+	navigator, referenceDijkstra := getNavigator(*algorithm, graphDirectory)
 	if navigator == nil {
 		log.Fatal("Navigator not supported")
 	}
@@ -53,7 +53,7 @@ func main() {
 	targetFile := path.Join(graphDirectory, "targets.txt")
 	var targets [][4]int
 	if *useRandomTargets {
-		targets = createTargets(*amountTargets, aag, targetFile)
+		targets = createTargets(*amountTargets, referenceDijkstra, targetFile)
 		if *storeTargets {
 			writeTargets(targets, targetFile)
 		}
@@ -75,7 +75,7 @@ func main() {
 	benchmark(navigator, targets, referenceDijkstra)
 }
 
-func getNavigator(algorithm, graphDirectory string) (p.Navigator, *p.Dijkstra, *graph.AdjacencyArrayGraph) {
+func getNavigator(algorithm, graphDirectory string) (p.Navigator, *p.Dijkstra) {
 	plainGraphFile := path.Join(graphDirectory, "plain_graph.fmi")
 	contractedGraphFile := path.Join(graphDirectory, "contracted_graph.fmi")
 	shortcutFile := path.Join(graphDirectory, "shortcuts.txt")
@@ -85,19 +85,19 @@ func getNavigator(algorithm, graphDirectory string) (p.Navigator, *p.Dijkstra, *
 	referenceDijkstra := p.NewDijkstra(aag)
 
 	if algorithm == "default" {
-		return p.GetNavigator(aag), referenceDijkstra, aag
+		return p.GetNavigator(aag), referenceDijkstra
 	} else if algorithm == "dijkstra" {
-		return p.NewUniversalDijkstra(aag), referenceDijkstra, aag
+		return p.NewUniversalDijkstra(aag), referenceDijkstra
 	} else if algorithm == "reference_dijkstra" {
-		return p.NewDijkstra(aag), referenceDijkstra, aag
+		return p.NewDijkstra(aag), referenceDijkstra
 	} else if algorithm == "astar" {
 		astar := p.NewUniversalDijkstra(aag)
 		astar.SetUseHeuristic(true)
-		return astar, referenceDijkstra, aag
+		return astar, referenceDijkstra
 	} else if algorithm == "bidijkstra" {
 		bid := p.NewUniversalDijkstra(aag)
 		bid.SetBidirectional(true)
-		return bid, referenceDijkstra, aag
+		return bid, referenceDijkstra
 	} else if algorithm == "ch" {
 		contracted_aag := graph.NewAdjacencyArrayFromFmiFile(contractedGraphFile)
 		shortcuts := p.ReadShortcutFile(shortcutFile)
@@ -107,10 +107,10 @@ func getNavigator(algorithm, graphDirectory string) (p.Navigator, *p.Dijkstra, *
 		dijkstra.SetStallOnDemand(true)
 
 		ch := p.NewContractionHierarchiesInitialized(contracted_aag, dijkstra, shortcuts, nodeOrdering, false)
-		return ch, referenceDijkstra, aag
+		return ch, referenceDijkstra
 	}
 
-	return nil, referenceDijkstra, aag
+	return nil, referenceDijkstra
 }
 
 func readTargets(filename string) [][4]int {
@@ -142,18 +142,17 @@ func readTargets(filename string) [][4]int {
 	return targets
 }
 
-func createTargets(n int, aag *graph.AdjacencyArrayGraph, filename string) [][4]int {
+func createTargets(n int, referenceNavigator *p.Dijkstra, filename string) [][4]int {
 	// targets: origin, destination, length, #hops (nodes from source to target)
 	targets := make([][4]int, n)
 	seed := rand.NewSource(time.Now().UnixNano())
 	rng := rand.New(seed)
 	// reference algorithm to compute path
-	dijkstra := p.NewDijkstra(aag)
 	for i := 0; i < n; i++ {
-		origin := rng.Intn(aag.NodeCount())
-		destination := rng.Intn(aag.NodeCount())
-		length := dijkstra.ComputeShortestPath(origin, destination)
-		hops := len(dijkstra.GetPath(origin, destination))
+		origin := rng.Intn(referenceNavigator.GetGraph().NodeCount())
+		destination := rng.Intn(referenceNavigator.GetGraph().NodeCount())
+		length := referenceNavigator.ComputeShortestPath(origin, destination)
+		hops := len(referenceNavigator.GetPath(origin, destination))
 		targets[i] = [4]int{origin, destination, length, hops}
 	}
 	return targets

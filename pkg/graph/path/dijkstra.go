@@ -98,3 +98,4 @@ func (d *Dijkstra) GetEdgeRelaxations() int {
 }
 
 func (d *Dijkstra) GetRelaxationAttempts() int { return d.relaxationAttempts }
+func (d *Dijkstra) GetGraph() graph.Graph      { return d.g }

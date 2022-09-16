@@ -357,6 +357,10 @@ func (ch *ContractionHierarchies) GetRelaxationAttempts() int {
 	return ch.relaxationAttempts
 }
 
+func (ch *ContractionHierarchies) GetGraph() graph.Graph {
+	return ch.g
+}
+
 // Compute an initial node order. If givenNodeOrder is not nil, the OrderOption oo are ignored.
 // givenNodeOrder predefines the order of the nodes.
 // oo defines how the node ordering will be calculated.

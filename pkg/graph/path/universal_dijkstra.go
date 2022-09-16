@@ -537,6 +537,7 @@ func (d *UniversalDijkstra) GetPqPops() int             { return d.pqPops }
 func (d *UniversalDijkstra) GetEdgeRelaxations() int    { return d.relaxedEdges }
 func (d *UniversalDijkstra) GetRelaxationAttempts() int { return d.relaxationAttempts }
 func (d *UniversalDijkstra) GetPqUpdates() int          { return d.pqUpdates }
+func (d *UniversalDijkstra) GetGraph() graph.Graph      { return d.g }
 
 // Set the debug level to show different debug messages.
 // If it is 0, no debug messages are printed
