@@ -135,7 +135,7 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 	}
 	ch.pqOrder = ch.computeInitialNodeOrder(givenNodeOrder, oo)
 
-	if ch.debugLevel >= 2 {
+	if ch.debugLevel >= 3 {
 		log.Printf("Initial computed order:\n%v\n", ch.pqOrder)
 	}
 	if ch.milestones != nil && ch.milestones[0] == 0 {
