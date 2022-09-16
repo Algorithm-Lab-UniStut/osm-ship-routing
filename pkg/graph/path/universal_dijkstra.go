@@ -50,11 +50,12 @@ type UniversalDijkstra struct {
 	numSettledNodes    int // number of settled nodes
 }
 
+// Descibes the connection of a bidirectional search
 type BidirectionalConnection struct {
-	nodeId      graph.NodeId
-	predecessor graph.NodeId
-	successor   graph.NodeId
-	distance    int
+	nodeId      graph.NodeId // the node id of the connecting node
+	predecessor graph.NodeId // the node id of the predecessor
+	successor   graph.NodeId // the node id of the successor
+	distance    int          // the whole distance (in both directions)
 }
 
 // Create a new Dijkstra instance with the given graph g
@@ -458,6 +459,7 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 	}
 }
 
+// Stall the given node with the stallingDistance
 func (d *UniversalDijkstra) stallNode(node *DijkstraItem, stallingDistance int) {
 	searchSpace, inverseSearchSpace := d.searchSpace, d.backwardSearchSpace
 	stalledNodes, backwardStalledNodes := d.forwardStalledNodes, d.backwardStalledNodes
@@ -494,6 +496,7 @@ func (d *UniversalDijkstra) stallNode(node *DijkstraItem, stallingDistance int) 
 	}
 }
 
+// Unstall the given node and update the given distance
 func (d *UniversalDijkstra) unstallNode(node *DijkstraItem, distance int) {
 	stalledNodes, backwardStalledNodes := d.forwardStalledNodes, d.backwardStalledNodes
 	if node.searchDirection == BACKWARD {
@@ -535,6 +538,7 @@ func (d *UniversalDijkstra) SetMaxNumSettledNodes(maxNumSettledNodes int) {
 	d.maxNumSettledNodes = maxNumSettledNodes
 }
 
+// Set the nodes which are ignored in the search
 func (d *UniversalDijkstra) SetIgnoreNodes(nodes []graph.NodeId) {
 	d.ignoreNodes = make([]bool, d.g.NodeCount())
 	for _, node := range nodes {
@@ -544,10 +548,12 @@ func (d *UniversalDijkstra) SetIgnoreNodes(nodes []graph.NodeId) {
 	d.origin = -1
 }
 
+// Use a hot start
 func (d *UniversalDijkstra) SetHotStart(useHotStart bool) {
 	d.useHotStart = useHotStart
 }
 
+// Use stall on demand
 func (d *UniversalDijkstra) SetStallOnDemand(level int) {
 	d.stallOnDemand = level
 	if level > 2 {
@@ -557,16 +563,25 @@ func (d *UniversalDijkstra) SetStallOnDemand(level int) {
 	}
 }
 
+// use sorted arcs (for early termination)
 func (d *UniversalDijkstra) SortedArcs(sorted bool) {
 	d.sortedArcs = sorted
 }
 
 // Returns the amount of priority queue/heap pops which werer performed during the search
-func (d *UniversalDijkstra) GetPqPops() int             { return d.pqPops }
-func (d *UniversalDijkstra) GetEdgeRelaxations() int    { return d.relaxedEdges }
+func (d *UniversalDijkstra) GetPqPops() int { return d.pqPops }
+
+// Get the number of relaxed edges
+func (d *UniversalDijkstra) GetEdgeRelaxations() int { return d.relaxedEdges }
+
+// Get the number of attempted edge relaxations (some may early terminated)
 func (d *UniversalDijkstra) GetRelaxationAttempts() int { return d.relaxationAttempts }
-func (d *UniversalDijkstra) GetPqUpdates() int          { return d.pqUpdates }
-func (d *UniversalDijkstra) GetGraph() graph.Graph      { return d.g }
+
+// Get the number of pq updates
+func (d *UniversalDijkstra) GetPqUpdates() int { return d.pqUpdates }
+
+// Get the used graph
+func (d *UniversalDijkstra) GetGraph() graph.Graph { return d.g }
 
 // Set the debug level to show different debug messages.
 // If it is 0, no debug messages are printed

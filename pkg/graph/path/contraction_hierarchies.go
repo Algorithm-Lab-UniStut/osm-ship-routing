@@ -71,11 +71,12 @@ type Shortcut struct {
 	cost   int          // cost of the shortcut
 }
 
+// Contrains the result of a (computed, virtual) node contraction
 type ContractionResult struct {
-	nodeId              graph.NodeId
-	shortcuts           []Shortcut
-	incidentEdges       int
-	contractedNeighbors int
+	nodeId              graph.NodeId // the node which gets contracted
+	shortcuts           []Shortcut   // the necessary shortcuts
+	incidentEdges       int          // number of (active) incident edges
+	contractedNeighbors int          // number of contracted neighbors
 }
 
 // Create a new Contraciton Hierarchy.
@@ -196,6 +197,7 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 	}
 }
 
+// Setup ch to compute the shortest path
 func (ch *ContractionHierarchies) shortestPathSetup() {
 	ch.dijkstra.SetMaxNumSettledNodes(math.MaxInt)
 	ch.dijkstra.SetCostUpperBound(math.MaxInt)
@@ -325,6 +327,7 @@ func (ch *ContractionHierarchies) GetSearchSpace() []*DijkstraItem {
 	return searchSpace
 }
 
+// Get the number of pq pops (from the priority queue)
 func (ch *ContractionHierarchies) GetPqPops() int {
 	if ch.dijkstra.bidirectional {
 		return ch.dijkstra.GetPqPops()
@@ -333,6 +336,7 @@ func (ch *ContractionHierarchies) GetPqPops() int {
 	return ch.pqPops
 }
 
+// Get the number of the pq updates
 func (ch *ContractionHierarchies) GetPqUpdates() int {
 	if ch.dijkstra.bidirectional {
 		return ch.dijkstra.GetPqUpdates()
@@ -341,6 +345,7 @@ func (ch *ContractionHierarchies) GetPqUpdates() int {
 	return ch.pqUpdates
 }
 
+// Get the number of relaxed edges
 func (ch *ContractionHierarchies) GetEdgeRelaxations() int {
 	if ch.dijkstra.bidirectional {
 		return ch.dijkstra.GetEdgeRelaxations()
@@ -349,6 +354,7 @@ func (ch *ContractionHierarchies) GetEdgeRelaxations() int {
 	return ch.relaxedEdges
 }
 
+// Get the number for how many edges the relaxation was tested (but maybe early terminated)
 func (ch *ContractionHierarchies) GetRelaxationAttempts() int {
 	if ch.dijkstra.bidirectional {
 		return ch.dijkstra.GetRelaxationAttempts()
@@ -357,6 +363,7 @@ func (ch *ContractionHierarchies) GetRelaxationAttempts() int {
 	return ch.relaxationAttempts
 }
 
+// get the used graph
 func (ch *ContractionHierarchies) GetGraph() graph.Graph {
 	return ch.g
 }
@@ -443,6 +450,7 @@ func (ch *ContractionHierarchies) computeInitialNodeOrder(givenNodeOrder []int, 
 	return pq
 }
 
+// compute an independent set from the node order (pqOrder).
 func (ch *ContractionHierarchies) computeIndependentSet(ignorePriority bool) []graph.NodeId {
 	priority := ch.pqOrder.Peek().(*OrderItem).Priority()
 	if ignorePriority {
@@ -476,6 +484,7 @@ func (ch *ContractionHierarchies) computeIndependentSet(ignorePriority bool) []g
 	return independentSet
 }
 
+// update the node order for the given nodes by computing a virtual contraction for each given node
 func (ch *ContractionHierarchies) updateOrderForNodes(nodes []graph.NodeId, oo OrderOptions) {
 	// collect all nodes which have to get updates
 	// TODO maybe remove this precheck
@@ -821,6 +830,7 @@ func (ch *ContractionHierarchies) liftUncontractedNodes() {
 	}
 }
 
+// update the whole node order (pqOrder) by performing a virtual contraction for each remaining node
 func (ch *ContractionHierarchies) updateFullContractionOrder(oo OrderOptions) {
 	nodes := make([]graph.NodeId, ch.pqOrder.Len())
 	for i := 0; i < ch.pqOrder.Len(); i++ {
@@ -983,6 +993,7 @@ func (ch *ContractionHierarchies) disableArcsForNode(nodeId graph.NodeId) {
 	}
 }
 
+// Enable arcs which point to a node with higher level. Disable all other ones
 func (ch *ContractionHierarchies) matchArcsWithNodeOrder() {
 	for source := range ch.g.GetNodes() {
 		for _, arc := range ch.g.GetArcsFrom(source) {
@@ -1061,6 +1072,7 @@ func (ch *ContractionHierarchies) SetNodeOrdering(nodeOrdering [][]int) {
 	ch.liftUncontractedNodes()
 }
 
+// Set the number of contraction workers, who can work in parallel
 func (ch *ContractionHierarchies) SetContractionWorkers(numberOfWorkers int) {
 	ch.contractionWorkers = make([]*UniversalDijkstra, numberOfWorkers)
 	for i := 0; i < numberOfWorkers; i++ {
@@ -1068,19 +1080,23 @@ func (ch *ContractionHierarchies) SetContractionWorkers(numberOfWorkers int) {
 	}
 }
 
+// Set if the arcs should be sorted?
+// TODO
 func (ch *ContractionHierarchies) SetSortArcs(flag bool) {
 	ch.sortArcs = flag
 }
 
+// Set the limit for the contractions
 func (ch *ContractionHierarchies) SetContractionLevelLimit(limit float64) {
 	ch.contractionLevelLimit = limit
 }
 
-// Set the debug level.
+// Set the debug level
 func (ch *ContractionHierarchies) SetDebugLevel(level int) {
 	ch.debugLevel = level
 }
 
+// Set the precomputation milestones (which are worth a log message)
 func (ch *ContractionHierarchies) SetPrecomputationMilestones(milestones []float64) {
 	ch.milestones = milestones
 	ch.milestoneIndex = 0
