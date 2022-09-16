@@ -25,6 +25,14 @@ Tag `1.0.0` refers to the first submission and tag `latest` referst to the most 
 The `osm-ship-routing` service is written in [Go](https://go.dev/).
 Installing and running requires an installation of the Go Programming Language `v1.18` or later.
 
+It is also assumed that there is a `graphs` folder at the root directory of this repository. In this folder, there are several graph descriptions (each in a sub-folder).
+
+You can download these graphs here: https://drive.google.com/drive/folders/1ISubYd9KAYZ1SSYUvSAoVLiBKKoSrde9?usp=sharing
+
+Extract the graphs and move it to the `graphs` directory.
+
+If you want to contract a graph, you need an plain fmi-graph directly in the `graphs` directory. (more infos later)
+
 ### Setup
 
 1. Clone the repository
