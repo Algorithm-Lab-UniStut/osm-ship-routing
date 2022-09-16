@@ -81,21 +81,9 @@ func (d *Dijkstra) GetPath(origin, destination graph.NodeId) []graph.NodeId {
 	return path
 }
 
-func (d *Dijkstra) GetSearchSpace() []*DijkstraItem {
-	panic("not implemented")
-}
-
-func (d *Dijkstra) GetPqPops() int {
-	return d.pqPops
-}
-
-func (d *Dijkstra) GetPqUpdates() int {
-	return d.pqUpdates
-}
-
-func (d *Dijkstra) GetEdgeRelaxations() int {
-	return d.relaxedEdges
-}
-
-func (d *Dijkstra) GetRelaxationAttempts() int { return d.relaxationAttempts }
-func (d *Dijkstra) GetGraph() graph.Graph      { return d.g }
+func (d *Dijkstra) GetSearchSpace() []*DijkstraItem { panic("not implemented") }
+func (d *Dijkstra) GetPqPops() int                  { return d.pqPops }
+func (d *Dijkstra) GetPqUpdates() int               { return d.pqUpdates }
+func (d *Dijkstra) GetEdgeRelaxations() int         { return d.relaxedEdges }
+func (d *Dijkstra) GetRelaxationAttempts() int      { return d.relaxationAttempts }
+func (d *Dijkstra) GetGraph() graph.Graph           { return d.g }
