@@ -21,14 +21,14 @@ type UniversalDijkstra struct {
 	destination graph.NodeId // the distination of the current search
 
 	visitedNodes             []bool                  // Array which indicates if a node (defined by index) was visited in the forward search
-	backwardVisitedNodes     []bool                  // Array which indicates if a node (defined by index) was visited in the backward search
 	searchSpace              []*DijkstraItem         // search space, a map really reduces performance. If node is also visited, this can be seen as "settled"
-	backwardSearchSpace      []*DijkstraItem         // search space for the backward search
-	bidirectionalConnection  BidirectionalConnection // contains the connection between the forward and backward search (if done bidirecitonal). If no connection is found, this is nil
 	forwardStalledNodes      []bool                  //indicates if the node (index=id) is stalled
-	backwardStalledNodes     []bool                  //indicates if the node (index=id) is stalled
 	forwardStallingDistance  []int                   // stalling distance for node (index=id)
+	backwardVisitedNodes     []bool                  // Array which indicates if a node (defined by index) was visited in the backward search
+	backwardSearchSpace      []*DijkstraItem         // search space for the backward search
+	backwardStalledNodes     []bool                  //indicates if the node (index=id) is stalled
 	backwardStallingDistance []int                   // stalling distance for node (index=id)
+	bidirectionalConnection  BidirectionalConnection // contains the connection between the forward and backward search (if done bidirecitonal). If no connection is found, nodeId is -1
 
 	useHeuristic       bool   // flag indicating if heuristic (remaining distance) should be used (AStar implementation)
 	bidirectional      bool   // flag indicating if search should be done from both sides
@@ -60,13 +60,6 @@ func NewUniversalDijkstra(g graph.Graph) *UniversalDijkstra {
 	return &UniversalDijkstra{g: g, costUpperBound: math.MaxInt, maxNumSettledNodes: math.MaxInt, ignoreNodes: make([]bool, g.NodeCount()), origin: -1, destination: -1}
 }
 
-// Creates a new item which describes a connection between a forward and a backward search
-// The nodeId is the id of the node which connects both searches, the predecessor represents the node of the forward search and the successor the node of the backward search.
-// The distance is the length needed from both searches to reach this node
-func NewBidirectionalConnection(nodeId, predecessor, successor graph.NodeId, distance int) *BidirectionalConnection {
-	return &BidirectionalConnection{nodeId: nodeId, predecessor: predecessor, successor: successor, distance: distance}
-}
-
 // Compute the shortest path from the origin to the destination.
 // It returns the length of the found path
 // If no path was found, it returns -1
@@ -82,6 +75,7 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 		panic("Can't use bidirectional search with no specified destination.")
 	}
 	if d.useHotStart && destination < 0 {
+		// TODO is this necessary
 		panic("Can't use Hot start when calculating path to everywhere.")
 	}
 	if d.stallOnDemand && !d.considerArcFlags {
@@ -98,9 +92,10 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 		if d.debugLevel >= 1 {
 			fmt.Printf("Using hot start - loading %v -> %v, distance is %v\n", origin, destination, d.searchSpace[destination].distance)
 		}
-		//d.destination = destination
-		//d.bidirectionalConnection = nil
 		d.pqPops = 0
+		d.pqUpdates = 0
+		d.relaxedEdges = 0
+		d.relaxationAttempts = 0
 		return d.searchSpace[destination].distance
 	}
 
@@ -112,17 +107,22 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 		if d.debugLevel >= 2 {
 			fmt.Printf("Settling node %v, direction: %v, distance %v\n", currentNode.NodeId, currentNode.searchDirection, currentNode.distance)
 		}
+
 		d.settleNode(currentNode)
-		d.numSettledNodes++
+		d.numSettledNodes++ // TODO move into function
+
 		stalledNodes, backwardStalledNodes := d.forwardStalledNodes, d.backwardStalledNodes
 		if currentNode.searchDirection == BACKWARD {
 			stalledNodes, backwardStalledNodes = backwardStalledNodes, stalledNodes
 		}
+
 		if d.stallOnDemand && stalledNodes[currentNode.NodeId] {
 			// this is a stalled node -> nothing to do
 			continue
 		}
+
 		d.relaxEdges(currentNode) // edges need to get relaxed before checking for termination to guarantee that hot start works. if peeking is used, this may get done a bit differently
+
 		if d.costUpperBound < currentNode.Priority() || d.maxNumSettledNodes < d.numSettledNodes {
 			// Each following node exeeds the max allowed cost or the number of allowed nodes is reached
 			// Stop search
@@ -131,20 +131,16 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 			}
 			return -1
 		}
+
 		if !d.considerArcFlags && d.bidirectionalConnection.nodeId != -1 && d.isFullySettled(currentNode.NodeId) {
-			// node with lowest priority is the current connection node
-			// -> every edge increases cost/priority
-			// -> this has to be the shortest path --> wrong, if one edge is (really) long
-			// Correction: current node (with lowest possible distance) is already greater than connection distance
-			// -> connection has to be the lowest one
-			// -> Wrong, this condition just made a "normal" Dijkstra out of the Bidirectional Dijkstra
-			// Correction: check if the node was already settled in both directions, this is a connection
+			// check if the node was already settled in both directions, this is a connection
 			// the connection item contains the information, which one is the real connection (this has not to be the current one)
 			if d.debugLevel >= 1 {
 				fmt.Printf("Finished search\n")
 			}
 			return d.bidirectionalConnection.distance
 		}
+
 		if d.considerArcFlags && d.bidirectionalConnection.nodeId != -1 && currentNode.Priority() > d.bidirectionalConnection.distance {
 			// exit condition for contraction hierarchies
 			// if path is directed, it is not enough to test if node is settled from both sides, since the direction can block to reach the node from one side
@@ -156,25 +152,28 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 			return d.bidirectionalConnection.distance
 		}
 
-		if destination != -1 {
-			if currentNode.searchDirection == FORWARD && currentNode.NodeId == destination {
-				if d.debugLevel >= 1 {
-					fmt.Printf("Found path %v -> %v with distance %v\n", origin, destination, d.searchSpace[destination].distance)
-				}
-				return d.searchSpace[destination].distance
-			} else if d.bidirectional && currentNode.searchDirection == BACKWARD && currentNode.NodeId == origin {
-				// not necessary? - should be catched in bidirectionalConnection
-				// appearently this can happen (at least for contraction hierarchies when calculated bidirectional)
-				// -> first path/connection is found which has higher distance than possible (directed) path from destination to source
-				if d.bidirectionalConnection.nodeId == -1 {
-					// TODO Verify if this can happen
-					panic("connection should not be nil")
-				}
-				if d.debugLevel >= 1 {
-					fmt.Printf("Finished search\n")
-				}
-				return d.bidirectionalConnection.distance
+		if destination < 0 {
+			// calculate path to everywhere, no need to check if destination is reached
+			continue
+		}
+
+		if currentNode.searchDirection == FORWARD && currentNode.NodeId == destination {
+			if d.debugLevel >= 1 {
+				fmt.Printf("Found path %v -> %v with distance %v\n", origin, destination, d.searchSpace[destination].distance)
 			}
+			return d.searchSpace[destination].distance
+		} else if d.bidirectional && currentNode.searchDirection == BACKWARD && currentNode.NodeId == origin {
+			// not necessary? - should be catched in bidirectionalConnection
+			// appearently this can happen (at least for contraction hierarchies when calculated bidirectional)
+			// -> first path/connection is found which has higher distance than possible (directed) path from destination to source
+			if d.bidirectionalConnection.nodeId == -1 {
+				// TODO Verify if this can happen
+				panic("connection should not be nil")
+			}
+			if d.debugLevel >= 1 {
+				fmt.Printf("Finished search\n")
+			}
+			return d.bidirectionalConnection.distance
 		}
 
 	}
