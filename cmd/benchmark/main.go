@@ -108,9 +108,9 @@ func getNavigator(algorithm, graphDirectory string) (p.Navigator, *p.Dijkstra, *
 
 		ch := p.NewContractionHierarchiesInitialized(contracted_aag, dijkstra, shortcuts, nodeOrdering, false)
 		return ch, referenceDijkstra, aag
-	} else {
-		return nil, referenceDijkstra, aag
 	}
+
+	return nil, referenceDijkstra, aag
 }
 
 func readTargets(filename string) [][4]int {
