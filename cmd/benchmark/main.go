@@ -99,14 +99,14 @@ func getNavigator(algorithm, graphDirectory string) (p.Navigator, *p.Dijkstra) {
 		bid.SetBidirectional(true)
 		return bid, referenceDijkstra
 	} else if algorithm == "ch" {
-		contracted_aag := graph.NewAdjacencyArrayFromFmiFile(contractedGraphFile)
+		contractedAag := graph.NewAdjacencyArrayFromFmiFile(contractedGraphFile)
 		shortcuts := p.ReadShortcutFile(shortcutFile)
 		nodeOrdering := p.ReadNodeOrderingFile(nodeOrderingFile)
 
-		dijkstra := p.NewUniversalDijkstra(contracted_aag)
-		dijkstra.SetStallOnDemand(true)
+		dijkstra := p.NewUniversalDijkstra(contractedAag)
+		dijkstra.SetStallOnDemand(2)
 
-		ch := p.NewContractionHierarchiesInitialized(contracted_aag, dijkstra, shortcuts, nodeOrdering, false)
+		ch := p.NewContractionHierarchiesInitialized(contractedAag, dijkstra, shortcuts, nodeOrdering, false)
 		return ch, referenceDijkstra
 	}
 
