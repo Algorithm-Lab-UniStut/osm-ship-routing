@@ -65,12 +65,9 @@ func main() {
 		bid.SetBidirectional(true)
 		navigator = bid
 	} else if *algorithm == "ch" {
-		start := time.Now()
 		contracted_aag := graph.NewAdjacencyArrayFromFmiFile(contractedGraphFile)
 		shortcuts := p.ReadShortcutFile(shortcutFile)
 		nodeOrdering := p.ReadNodeOrderingFile(nodeOrderingFile)
-		elapsed := time.Since(start)
-		fmt.Printf("[TIME-Import for shortcut files (and graph)] = %s\n", elapsed)
 		dijkstra := p.NewUniversalDijkstra(contracted_aag)
 		dijkstra.SetStallOnDemand(true)
 		ch := p.NewContractionHierarchiesInitialized(contracted_aag, dijkstra, shortcuts, nodeOrdering, false)
@@ -174,8 +171,10 @@ func writeTargets(targets [][4]int, targetFile string) {
 // Run benchmarks on the provided graphs and targets
 func benchmark(navigator p.Navigator, targets [][4]int, referenceDijkstra *p.Dijkstra) {
 	var runtime time.Duration = 0
-	var runtimeWithPath time.Duration = 0
+	var runtimeWithPathExtraction time.Duration = 0
 	pqPops := 0
+	pqUpdates := 0
+	edgeRelaxations := 0
 	invalidLengths := make([][2]int, 0)
 	invalidResults := make([]int, 0)
 	invalidHops := make([][3]int, 0)
@@ -189,9 +188,11 @@ func benchmark(navigator p.Navigator, targets [][4]int, referenceDijkstra *p.Dij
 		length := navigator.ComputeShortestPath(origin, destination)
 		elapsed := time.Since(start)
 		pqPops += navigator.GetPqPops()
+		pqUpdates += navigator.GetPqUpdates()
+		edgeRelaxations += navigator.GetEdgeRelaxations()
 		path := navigator.GetPath(origin, destination)
 		elapsedPath := time.Since(start)
-		fmt.Printf("[%3v TIME-Navigate, TIME-Path, PQ Pops] = %s, %s, %d\n", i, elapsed, elapsedPath, navigator.GetPqPops())
+		fmt.Printf("[%3v TIME-Navigate, TIME-Path, PQ Pops, PQ Updates, Edge Relaxations] = %12s, %12s, %7d, %7d, %7d\n", i, elapsed, elapsedPath, navigator.GetPqPops(), navigator.GetPqUpdates(), navigator.GetEdgeRelaxations())
 
 		if length != referenceLength {
 			invalidLengths = append(invalidLengths, [2]int{i, length - referenceLength})
@@ -208,11 +209,13 @@ func benchmark(navigator p.Navigator, targets [][4]int, referenceDijkstra *p.Dij
 		}
 
 		runtime += elapsed
-		runtimeWithPath += elapsedPath
+		runtimeWithPathExtraction += elapsedPath
 	}
 
-	fmt.Printf("Average runtime: %.3fms, %.3fms\n", float64(int(runtime.Nanoseconds())/len(targets))/1000000, float64(int(runtimeWithPath.Nanoseconds())/len(targets))/1000000)
+	fmt.Printf("Average runtime: %.3fms, %.3fms\n", float64(int(runtime.Nanoseconds())/len(targets))/1000000, float64(int(runtimeWithPathExtraction.Nanoseconds())/len(targets))/1000000)
 	fmt.Printf("Average pq pops: %d\n", pqPops/len(targets))
+	fmt.Printf("Average pq updates: %d\n", pqUpdates/len(targets))
+	fmt.Printf("Average edge relaxations: %d\n", edgeRelaxations/len(targets))
 	fmt.Printf("%v/%v invalid path lengths.\n", len(invalidLengths), len(targets))
 	for i, testCase := range invalidLengths {
 		fmt.Printf("%v: Case %v (%v -> %v) has invalid length. Difference: %v\n", i, testCase[0], targets[testCase[0]][0], targets[testCase[0]][1], testCase[1])
