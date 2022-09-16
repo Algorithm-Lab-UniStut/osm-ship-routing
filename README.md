@@ -166,7 +166,7 @@ No special settings for A\*.
 
 **These results were achieved with following settings:**
 
-Graph: Lazy update, parallel processing (with independent set)
+Graph: Lazy update, parallel processing (with independent set) (graph "big_lazy_parallel")
 
 Stall on demand: "preemptive"
 
