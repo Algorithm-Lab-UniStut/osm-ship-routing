@@ -128,4 +128,40 @@ A sample query could look like this:
 curl -X POST -d '{"navigator": "dijkstra"}' http://localhost:8081/navigator
 ```
 
-This sets the search algorithm to `dijkstra`. If the request is sucessful, a string with the updated algorithm is returned (in this case `dijkstra`).
+This sets the search algorithm to `dijkstra`. If the request is sucessful, a string with the updated algorithm is returned (in this case "dijkstra").
+
+## Results
+
+| Algorithm               | Runtime   | Performance | Runtime (with path extraction) | Performance | PQ Pops | Performance |
+| ----------------------- | --------- | ----------- | ------------------------------ | ----------- | ------- | ----------- |
+| Reference Dijsktra      | 109.037ms | 100%        | 109.385ms                      | 100%        | 351427  | 100%        |
+| Dijkstra                | 123.508ms | 113,55%     | 123.603ms                      | 113%        | 351427  | 100%        |
+| Bidirectional Dijkstra  | 103.076ms | 94,53%      | 103.167ms                      | 94,31%      | 250515  | 71,29%      |
+| A\*                     | 55.665ms  | 51,05%      | 55.729ms                       | 50,95%      | 101073  | 28,76%      |
+| Contraction Hierarchies | 49.948ms  | 45,80%      | 51.483ms                       | 47,07%      | 3638    | 1,04%       |
+
+### Plain Dijsktra
+
+No special settings for plain Dijkstra.
+
+Note: This algoirthm is slower than the reference. Most likely, this happens due to several if conditions how this algorithm can get parameterized.
+
+### Bidirectional Dijsktra
+
+No special settigns for bidirectional Dijstra.
+
+### AStar
+
+No special settings for A\*.
+
+### Contraction Hierarchies
+
+**These results were achieved with following settings:**
+
+Graph: Lazy update, parallel processing (with independent set)
+
+Stall on demand: "preemptive"
+
+Search: Bidirectional Dijkstra, stop when best connection is known
+
+_There may be different result with other settings or graphs, which may get reported later. E.g. using reursive stall-on-demand increases drastically the seach runtime._
