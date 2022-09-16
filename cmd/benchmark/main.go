@@ -164,7 +164,6 @@ func writeTargets(targets [][4]int, targetFile string) {
 		sb.WriteString(fmt.Sprintf("%v %v %v %v\n", target[0], target[1], target[2], target[3]))
 	}
 
-	//fmt.Printf("Targets:\n%s", sb.String())
 	file, cErr := os.Create(targetFile)
 
 	if cErr != nil {
@@ -218,10 +217,7 @@ func benchmark(navigator p.Navigator, targets [][4]int, referenceDijkstra *p.Dij
 		}
 		if referenceHops != len(path) {
 			invalidHops = append(invalidHops, [3]int{i, len(path), referenceHops})
-			fmt.Printf("%v: Hops: %v\n", i, path)
 			referenceDijkstra.ComputeShortestPath(origin, destination)
-			rp := referenceDijkstra.GetPath(origin, destination)
-			fmt.Printf("Reference: %v\n", rp)
 		}
 
 		runtime += elapsed
