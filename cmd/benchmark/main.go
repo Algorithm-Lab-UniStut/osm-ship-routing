@@ -40,39 +40,10 @@ func main() {
 		fmt.Printf("Using graph directory: %v\n", graphDirectory)
 	}
 
-	plainGraphFile := path.Join(graphDirectory, "plain_graph.fmi")
-	contractedGraphFile := path.Join(graphDirectory, "contracted_graph.fmi")
-	shortcutFile := path.Join(graphDirectory, "shortcuts.txt")
-	nodeOrderingFile := path.Join(graphDirectory, "node_ordering.txt")
-
 	start := time.Now()
-	aag := graph.NewAdjacencyArrayFromFmiFile(plainGraphFile)
-	referenceDijkstra := p.NewDijkstra(aag)
 
-	var navigator p.Navigator
-	if *algorithm == "default" {
-		navigator = p.GetNavigator(aag)
-	} else if *algorithm == "dijkstra" {
-		navigator = p.NewUniversalDijkstra(aag)
-	} else if *algorithm == "reference_dijkstra" {
-		navigator = p.NewDijkstra(aag)
-	} else if *algorithm == "astar" {
-		astar := p.NewUniversalDijkstra(aag)
-		astar.SetUseHeuristic(true)
-		navigator = astar
-	} else if *algorithm == "bidijkstra" {
-		bid := p.NewUniversalDijkstra(aag)
-		bid.SetBidirectional(true)
-		navigator = bid
-	} else if *algorithm == "ch" {
-		contracted_aag := graph.NewAdjacencyArrayFromFmiFile(contractedGraphFile)
-		shortcuts := p.ReadShortcutFile(shortcutFile)
-		nodeOrdering := p.ReadNodeOrderingFile(nodeOrderingFile)
-		dijkstra := p.NewUniversalDijkstra(contracted_aag)
-		dijkstra.SetStallOnDemand(true)
-		ch := p.NewContractionHierarchiesInitialized(contracted_aag, dijkstra, shortcuts, nodeOrdering, false)
-		navigator = ch
-	} else {
+	navigator, referenceDijkstra, aag := getNavigator(*algorithm, graphDirectory)
+	if navigator == nil {
 		log.Fatal("Navigator not supported")
 	}
 
@@ -102,6 +73,44 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 	benchmark(navigator, targets, referenceDijkstra)
+}
+
+func getNavigator(algorithm, graphDirectory string) (p.Navigator, *p.Dijkstra, *graph.AdjacencyArrayGraph) {
+	plainGraphFile := path.Join(graphDirectory, "plain_graph.fmi")
+	contractedGraphFile := path.Join(graphDirectory, "contracted_graph.fmi")
+	shortcutFile := path.Join(graphDirectory, "shortcuts.txt")
+	nodeOrderingFile := path.Join(graphDirectory, "node_ordering.txt")
+
+	aag := graph.NewAdjacencyArrayFromFmiFile(plainGraphFile)
+	referenceDijkstra := p.NewDijkstra(aag)
+
+	if algorithm == "default" {
+		return p.GetNavigator(aag), referenceDijkstra, aag
+	} else if algorithm == "dijkstra" {
+		return p.NewUniversalDijkstra(aag), referenceDijkstra, aag
+	} else if algorithm == "reference_dijkstra" {
+		return p.NewDijkstra(aag), referenceDijkstra, aag
+	} else if algorithm == "astar" {
+		astar := p.NewUniversalDijkstra(aag)
+		astar.SetUseHeuristic(true)
+		return astar, referenceDijkstra, aag
+	} else if algorithm == "bidijkstra" {
+		bid := p.NewUniversalDijkstra(aag)
+		bid.SetBidirectional(true)
+		return bid, referenceDijkstra, aag
+	} else if algorithm == "ch" {
+		contracted_aag := graph.NewAdjacencyArrayFromFmiFile(contractedGraphFile)
+		shortcuts := p.ReadShortcutFile(shortcutFile)
+		nodeOrdering := p.ReadNodeOrderingFile(nodeOrderingFile)
+
+		dijkstra := p.NewUniversalDijkstra(contracted_aag)
+		dijkstra.SetStallOnDemand(true)
+
+		ch := p.NewContractionHierarchiesInitialized(contracted_aag, dijkstra, shortcuts, nodeOrdering, false)
+		return ch, referenceDijkstra, aag
+	} else {
+		return nil, referenceDijkstra, aag
+	}
 }
 
 func readTargets(filename string) [][4]int {
@@ -172,12 +181,16 @@ func writeTargets(targets [][4]int, targetFile string) {
 func benchmark(navigator p.Navigator, targets [][4]int, referenceDijkstra *p.Dijkstra) {
 	var runtime time.Duration = 0
 	var runtimeWithPathExtraction time.Duration = 0
+
 	pqPops := 0
 	pqUpdates := 0
 	edgeRelaxations := 0
+	relaxationAttempts := 0
+
 	invalidLengths := make([][2]int, 0)
 	invalidResults := make([]int, 0)
 	invalidHops := make([][3]int, 0)
+
 	for i, target := range targets {
 		origin := target[0]
 		destination := target[1]
@@ -187,12 +200,16 @@ func benchmark(navigator p.Navigator, targets [][4]int, referenceDijkstra *p.Dij
 		start := time.Now()
 		length := navigator.ComputeShortestPath(origin, destination)
 		elapsed := time.Since(start)
+
 		pqPops += navigator.GetPqPops()
 		pqUpdates += navigator.GetPqUpdates()
 		edgeRelaxations += navigator.GetEdgeRelaxations()
+		relaxationAttempts += navigator.GetRelaxationAttempts()
+
 		path := navigator.GetPath(origin, destination)
 		elapsedPath := time.Since(start)
-		fmt.Printf("[%3v TIME-Navigate, TIME-Path, PQ Pops, PQ Updates, Edge Relaxations] = %12s, %12s, %7d, %7d, %7d\n", i, elapsed, elapsedPath, navigator.GetPqPops(), navigator.GetPqUpdates(), navigator.GetEdgeRelaxations())
+
+		fmt.Printf("[%3v TIME-Navigate, TIME-Path, PQ Pops, PQ Updates, relaxed Edges, relax attepmts] = %12s, %12s, %7d, %7d, %7d, %7d\n", i, elapsed, elapsedPath, navigator.GetPqPops(), navigator.GetPqUpdates(), navigator.GetEdgeRelaxations(), navigator.GetRelaxationAttempts())
 
 		if length != referenceLength {
 			invalidLengths = append(invalidLengths, [2]int{i, length - referenceLength})
@@ -215,6 +232,7 @@ func benchmark(navigator p.Navigator, targets [][4]int, referenceDijkstra *p.Dij
 	fmt.Printf("Average runtime: %.3fms, %.3fms\n", float64(int(runtime.Nanoseconds())/len(targets))/1000000, float64(int(runtimeWithPathExtraction.Nanoseconds())/len(targets))/1000000)
 	fmt.Printf("Average pq pops: %d\n", pqPops/len(targets))
 	fmt.Printf("Average pq updates: %d\n", pqUpdates/len(targets))
+	fmt.Printf("Average relaxations attempts: %d\n", relaxationAttempts/len(targets))
 	fmt.Printf("Average edge relaxations: %d\n", edgeRelaxations/len(targets))
 	fmt.Printf("%v/%v invalid path lengths.\n", len(invalidLengths), len(targets))
 	for i, testCase := range invalidLengths {

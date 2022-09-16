@@ -8,11 +8,12 @@ import (
 )
 
 type Dijkstra struct {
-	g               graph.Graph
-	dijkstraItems   []*queue.PriorityQueueItem
-	pqPops          int
-	pqUpdates       int
-	edgeRelaxations int
+	g                  graph.Graph
+	dijkstraItems      []*queue.PriorityQueueItem
+	pqPops             int
+	pqUpdates          int
+	relaxationAttempts int
+	relaxedEdges       int
 }
 
 func NewDijkstra(g graph.Graph) *Dijkstra {
@@ -30,14 +31,16 @@ func (d *Dijkstra) ComputeShortestPath(origin, destination int) int {
 
 	d.pqPops = 0
 	d.pqUpdates = 0
-	d.edgeRelaxations = 0
+	d.relaxationAttempts = 0
+	d.relaxedEdges = 0
+
 	for len(pq) > 0 {
 		currentPqItem := heap.Pop(&pq).(*queue.PriorityQueueItem)
 		currentNodeId := currentPqItem.ItemId
 		d.pqPops++
 
 		for _, arc := range d.g.GetArcsFrom(currentNodeId) {
-			d.edgeRelaxations++
+			d.relaxationAttempts++
 			successor := arc.Destination()
 
 			if d.dijkstraItems[successor] == nil {
@@ -53,6 +56,7 @@ func (d *Dijkstra) ComputeShortestPath(origin, destination int) int {
 					d.dijkstraItems[successor].Predecessor = currentNodeId
 				}
 			}
+			d.relaxedEdges++
 		}
 
 		if currentNodeId == destination {
@@ -90,5 +94,7 @@ func (d *Dijkstra) GetPqUpdates() int {
 }
 
 func (d *Dijkstra) GetEdgeRelaxations() int {
-	return d.edgeRelaxations
+	return d.relaxedEdges
 }
+
+func (d *Dijkstra) GetRelaxationAttempts() int { return d.relaxationAttempts }

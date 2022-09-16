@@ -39,12 +39,13 @@ type UniversalDijkstra struct {
 	sortedArcs         bool
 	costUpperBound     int // upper bound of cost from origin to destination
 	maxNumSettledNodes int // maximum number of settled nodes before search is terminated
+	debugLevel         int // debug level for logging purpose
 
-	pqPops          int // store the amount of Pops which were performed on the priority queue for the computed search
-	pqUpdates       int // store each update or push to the priority queue
-	edgeRelaxations int // store the attempt for relaxed edges
-	numSettledNodes int // number of settled nodes
-	debugLevel      int // debug level for logging purpose
+	pqPops             int // store the amount of Pops which were performed on the priority queue for the computed search
+	pqUpdates          int // store each update or push to the priority queue
+	relaxationAttempts int // store the attempt for relaxed edges
+	relaxedEdges       int // number of relaxed edges
+	numSettledNodes    int // number of settled nodes
 }
 
 type BidirectionalConnection struct {
@@ -305,7 +306,8 @@ func (d *UniversalDijkstra) initializeSearch(origin, destination graph.NodeId) {
 		d.destination = destination
 		d.pqPops = 0
 		d.pqUpdates = 0
-		d.edgeRelaxations = 0
+		d.relaxationAttempts = 0
+		d.relaxedEdges = 0
 		d.numSettledNodes = 0
 		d.bidirectionalConnection = BidirectionalConnection{nodeId: -1}
 
@@ -359,7 +361,7 @@ func (d *UniversalDijkstra) isFullySettled(nodeId graph.NodeId) bool {
 // Relax the Edges for the given node item and add the new nodes to the MinPath priority queue
 func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 	for _, arc := range d.g.GetArcsFrom(node.NodeId) {
-		d.edgeRelaxations++
+		d.relaxationAttempts++
 		successor := arc.Destination()
 
 		searchSpace, inverseSearchSpace := d.searchSpace, d.backwardSearchSpace
@@ -478,8 +480,8 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 				heap.Push(d.pq, searchSpace[successor])
 				d.pqUpdates++
 			}
-
 		}
+		d.relaxedEdges++
 	}
 }
 
@@ -531,9 +533,10 @@ func (d *UniversalDijkstra) SortedArcs(sorted bool) {
 }
 
 // Returns the amount of priority queue/heap pops which werer performed during the search
-func (d *UniversalDijkstra) GetPqPops() int          { return d.pqPops }
-func (d *UniversalDijkstra) GetEdgeRelaxations() int { return d.edgeRelaxations }
-func (d *UniversalDijkstra) GetPqUpdates() int       { return d.pqUpdates }
+func (d *UniversalDijkstra) GetPqPops() int             { return d.pqPops }
+func (d *UniversalDijkstra) GetEdgeRelaxations() int    { return d.relaxedEdges }
+func (d *UniversalDijkstra) GetRelaxationAttempts() int { return d.relaxationAttempts }
+func (d *UniversalDijkstra) GetPqUpdates() int          { return d.pqUpdates }
 
 // Set the debug level to show different debug messages.
 // If it is 0, no debug messages are printed

@@ -8,4 +8,5 @@ type Navigator interface {
 	GetPqPops() int
 	GetPqUpdates() int
 	GetEdgeRelaxations() int
+	GetRelaxationAttempts() int
 }

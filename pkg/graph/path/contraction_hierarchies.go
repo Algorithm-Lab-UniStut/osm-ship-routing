@@ -58,7 +58,8 @@ type ContractionHierarchies struct {
 	connection           graph.NodeId
 	pqPops               int
 	pqUpdates            int
-	edgeRelaxations      int
+	relaxedEdges         int
+	relaxationAttempts   int
 }
 
 // Describes a shortcut.
@@ -227,13 +228,16 @@ func (ch *ContractionHierarchies) ComputeShortestPath(origin, destination graph.
 	ch.searchSpace = ch.dijkstra.searchSpace
 	ch.pqPops = ch.dijkstra.GetPqPops()
 	ch.pqUpdates = ch.dijkstra.GetPqUpdates()
-	ch.edgeRelaxations = ch.dijkstra.GetEdgeRelaxations()
+	ch.relaxedEdges = ch.dijkstra.GetEdgeRelaxations()
+	ch.relaxationAttempts = ch.dijkstra.GetRelaxationAttempts()
+
 	ch.dijkstra.ComputeShortestPath(destination, -1)
 	ch.backwardVisitedNodes = ch.dijkstra.visitedNodes
 	ch.backwardSearchSpace = ch.dijkstra.searchSpace
 	ch.pqPops += ch.dijkstra.GetPqPops()
 	ch.pqUpdates += ch.dijkstra.GetPqUpdates()
-	ch.edgeRelaxations += ch.dijkstra.GetEdgeRelaxations()
+	ch.relaxedEdges += ch.dijkstra.GetEdgeRelaxations()
+	ch.relaxationAttempts += ch.dijkstra.GetRelaxationAttempts()
 	ch.connection = -1
 	shortestLength := math.MaxInt
 	for nodeId := 0; nodeId < ch.g.NodeCount(); nodeId++ {
@@ -342,7 +346,15 @@ func (ch *ContractionHierarchies) GetEdgeRelaxations() int {
 		return ch.dijkstra.GetEdgeRelaxations()
 	}
 	// use manual computed pq updates when calculated the path manually
-	return ch.edgeRelaxations
+	return ch.relaxedEdges
+}
+
+func (ch *ContractionHierarchies) GetRelaxationAttempts() int {
+	if ch.dijkstra.bidirectional {
+		return ch.dijkstra.GetRelaxationAttempts()
+	}
+	// use manual computed pq updates when calculated the path manually
+	return ch.relaxationAttempts
 }
 
 // Compute an initial node order. If givenNodeOrder is not nil, the OrderOption oo are ignored.
