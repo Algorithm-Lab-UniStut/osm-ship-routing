@@ -85,7 +85,7 @@ func getNavigator(algorithm, graphDirectory string) (p.Navigator, *p.Dijkstra) {
 	referenceDijkstra := p.NewDijkstra(aag)
 
 	if algorithm == "default" {
-		return p.GetNavigator(aag), referenceDijkstra
+		return p.NewUniversalDijkstra(aag), referenceDijkstra
 	} else if algorithm == "dijkstra" {
 		return p.NewUniversalDijkstra(aag), referenceDijkstra
 	} else if algorithm == "reference_dijkstra" {

@@ -26,7 +26,7 @@ type ShipRouter struct {
 }
 
 func NewShipRouter(g, contractedGraph graph.Graph, shortcuts []path.Shortcut, nodeOrdering [][]int, navigator *string) *ShipRouter {
-	sr := &ShipRouter{g: g, contractedGraph: contractedGraph, navigator: path.GetNavigator(g), shortcuts: shortcuts, nodeOrdering: nodeOrdering}
+	sr := &ShipRouter{g: g, contractedGraph: contractedGraph, shortcuts: shortcuts, nodeOrdering: nodeOrdering}
 	if navigator != nil {
 		// overwrite navigator
 		if !sr.SetNavigator(*navigator) {
