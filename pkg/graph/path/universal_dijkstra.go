@@ -466,20 +466,19 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 			}
 			heap.Push(d.pq, nextNode)
 			d.pqUpdates++
-		} else {
-			if updatedPriority := node.distance + arc.Cost() + searchSpace[successor].heuristic; updatedPriority < searchSpace[successor].Priority() {
-				// TODO does this update work when stalled? or should this throw an error/push wrong node (because index=-1)
-				d.pq.update(searchSpace[successor], node.distance+arc.Cost())
+		} else if updatedPriority := node.distance + arc.Cost() + searchSpace[successor].heuristic; updatedPriority < searchSpace[successor].Priority() {
+			// TODO does this update work when stalled? or should this throw an error/push wrong node (because index=-1)
+			d.pq.update(searchSpace[successor], node.distance+arc.Cost())
+			d.pqUpdates++
+			searchSpace[successor].predecessor = node.NodeId
+			if d.stallOnDemand && updatedPriority <= stallingDistance[successor] {
+				stalledNodes[successor] = false
+				// need to push successor (again?) to queue?
+				// was it removed before?
+				heap.Push(d.pq, searchSpace[successor])
 				d.pqUpdates++
-				searchSpace[successor].predecessor = node.NodeId
-				if d.stallOnDemand && updatedPriority <= stallingDistance[successor] {
-					stalledNodes[successor] = false
-					// need to push successor (again?) to queue?
-					// was it removed before?
-					heap.Push(d.pq, searchSpace[successor])
-					d.pqUpdates++
-				}
 			}
+
 		}
 	}
 }
