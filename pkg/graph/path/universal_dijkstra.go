@@ -2,7 +2,7 @@ package path
 
 import (
 	"container/heap"
-	"fmt"
+	"log"
 	"math"
 
 	"github.com/natevvv/osm-ship-routing/pkg/graph"
@@ -92,7 +92,7 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 		// hot start, already found the node in a previous search
 		// just load the distance
 		if d.debugLevel >= 1 {
-			fmt.Printf("Using hot start - loading %v -> %v, distance is %v\n", origin, destination, d.searchSpace[destination].distance)
+			log.Printf("Using hot start - loading %v -> %v, distance is %v\n", origin, destination, d.searchSpace[destination].distance)
 		}
 		d.pqPops = 0
 		d.pqUpdates = 0
@@ -107,7 +107,7 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 		currentNode := heap.Pop(d.pq).(*DijkstraItem)
 		d.pqPops++
 		if d.debugLevel >= 2 {
-			fmt.Printf("Settling node %v, direction: %v, distance %v\n", currentNode.NodeId, currentNode.searchDirection, currentNode.distance)
+			log.Printf("Settling node %v, direction: %v, distance %v\n", currentNode.NodeId, currentNode.searchDirection, currentNode.distance)
 		}
 
 		d.settleNode(currentNode)
@@ -128,7 +128,7 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 			// Each following node exeeds the max allowed cost or the number of allowed nodes is reached
 			// Stop search
 			if d.debugLevel >= 2 {
-				fmt.Printf("Exceeded limits - cost upper bound: %v, current cost: %v, max settled nodes: %v, current settled nodes: %v\n", d.costUpperBound, currentNode.Priority(), d.maxNumSettledNodes, d.numSettledNodes)
+				log.Printf("Exceeded limits - cost upper bound: %v, current cost: %v, max settled nodes: %v, current settled nodes: %v\n", d.costUpperBound, currentNode.Priority(), d.maxNumSettledNodes, d.numSettledNodes)
 			}
 			return -1
 		}
@@ -137,7 +137,7 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 			// check if the node was already settled in both directions, this is a connection
 			// the connection item contains the information, which one is the real connection (this has not to be the current one)
 			if d.debugLevel >= 1 {
-				fmt.Printf("Finished search\n")
+				log.Printf("Finished search\n")
 			}
 			return d.bidirectionalConnection.distance
 		}
@@ -148,7 +148,7 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 			// for normal Dijkstra, this would force that the search space is in the bidirectional search as big as unidirecitonal search
 			// check if the current visited node has already a higher priority (distance) than the connection. If this is the case, no lower connection can get found
 			if d.debugLevel >= 1 {
-				fmt.Printf("Finished search\n")
+				log.Printf("Finished search\n")
 			}
 			return d.bidirectionalConnection.distance
 		}
@@ -160,7 +160,7 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 
 		if currentNode.searchDirection == FORWARD && currentNode.NodeId == destination {
 			if d.debugLevel >= 1 {
-				fmt.Printf("Found path %v -> %v with distance %v\n", origin, destination, d.searchSpace[destination].distance)
+				log.Printf("Found path %v -> %v with distance %v\n", origin, destination, d.searchSpace[destination].distance)
 			}
 			return d.searchSpace[destination].distance
 		} else if currentNode.searchDirection == BACKWARD && currentNode.NodeId == origin {
@@ -169,7 +169,7 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 				panic("connection should not be nil")
 			}
 			if d.debugLevel >= 1 {
-				fmt.Printf("Finished search\n")
+				log.Printf("Finished search\n")
 			}
 			return d.bidirectionalConnection.distance
 		}
@@ -179,7 +179,7 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 	// TODO check termination process
 	if destination == -1 {
 		if d.debugLevel >= 1 {
-			fmt.Printf("Finished search\n")
+			log.Printf("Finished search\n")
 		}
 		// calculated every distance from source to each possible target
 		return 0
@@ -187,7 +187,7 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 
 	if d.bidirectional {
 		if d.debugLevel >= 1 {
-			fmt.Printf("Finished search\n")
+			log.Printf("Finished search\n")
 		}
 		if d.bidirectionalConnection.nodeId == -1 {
 			// no valid path found
@@ -200,7 +200,7 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 	if d.searchSpace[destination] == nil {
 		// no valid path found
 		if d.debugLevel >= 1 {
-			fmt.Printf("No path found\n")
+			log.Printf("No path found\n")
 		}
 		return -1
 	}
@@ -222,7 +222,7 @@ func (d *UniversalDijkstra) GetPath(origin, destination int) []int {
 			return make([]int, 0)
 		}
 		if d.debugLevel >= 1 {
-			fmt.Printf("con: %v, pre: %v, suc: %v\n", d.bidirectionalConnection.nodeId, d.bidirectionalConnection.predecessor, d.bidirectionalConnection.successor)
+			log.Printf("con: %v, pre: %v, suc: %v\n", d.bidirectionalConnection.nodeId, d.bidirectionalConnection.predecessor, d.bidirectionalConnection.successor)
 		}
 		for nodeId := d.bidirectionalConnection.predecessor; nodeId != -1; nodeId = d.searchSpace[nodeId].predecessor {
 			path = append(path, nodeId)
@@ -287,13 +287,13 @@ func (d *UniversalDijkstra) initializeSearch(origin, destination graph.NodeId) {
 				visitedNodes = append(visitedNodes, node)
 			}
 		}
-		fmt.Printf("visited nodes: %v\n", visitedNodes)
+		log.Printf("visited nodes: %v\n", visitedNodes)
 	}
 
 	if d.useHotStart && d.origin == origin {
 		if d.debugLevel >= 2 {
 			// TODO decide debug level
-			fmt.Printf("Use hot start\n")
+			log.Printf("Use hot start\n")
 		}
 		return
 	}
@@ -301,7 +301,7 @@ func (d *UniversalDijkstra) initializeSearch(origin, destination graph.NodeId) {
 	// don't or can't use hot start
 	if d.debugLevel >= 2 {
 		// TODO decide debug level
-		fmt.Printf("Initialize new search, origin: %v\n", origin)
+		log.Printf("Initialize new search, origin: %v\n", origin)
 	}
 	d.searchSpace = make([]*DijkstraItem, d.g.NodeCount())
 	d.backwardSearchSpace = make([]*DijkstraItem, d.g.NodeCount())
@@ -367,7 +367,7 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 		if d.ignoreNodes[successor] {
 			// ignore this node
 			if d.debugLevel >= 3 {
-				fmt.Printf("Ignore Edge %v -> %v, because target is in ignore list\n", node.NodeId, successor)
+				log.Printf("Ignore Edge %v -> %v, because target is in ignore list\n", node.NodeId, successor)
 			}
 			continue
 		}
@@ -385,7 +385,7 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 		if d.considerArcFlags && !arc.ArcFlag() {
 			// ignore this arc
 			if d.debugLevel >= 3 {
-				fmt.Printf("Ignore Edge %v -> %v\n", node.NodeId, successor)
+				log.Printf("Ignore Edge %v -> %v\n", node.NodeId, successor)
 			}
 
 			if d.sortedArcs {
@@ -397,7 +397,7 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 			// but first, check for stall-on-demand ("preemptive", inverse arc direction)
 			if (d.stallOnDemand == 2 || d.stallOnDemand == 4) && searchSpace[successor] != nil && node.Priority()+arc.Cost() < searchSpace[successor].Priority() {
 				if d.debugLevel >= 3 {
-					fmt.Printf("Stall Node %v\n", successor)
+					log.Printf("Stall Node %v\n", successor)
 				}
 				d.stallNode(searchSpace[successor], node.distance+arc.Cost())
 			}
@@ -411,7 +411,7 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 		}
 
 		if d.debugLevel >= 3 {
-			fmt.Printf("Relax Edge %v -> %v\n", node.NodeId, arc.Destination())
+			log.Printf("Relax Edge %v -> %v\n", node.NodeId, arc.Destination())
 		}
 
 		if d.bidirectional && inverseSearchSpace[successor] != nil {
