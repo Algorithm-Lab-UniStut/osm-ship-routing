@@ -482,10 +482,6 @@ func (d *UniversalDijkstra) stallNode(node *DijkstraItem, stallingDistance int) 
 		d.stallWorker.SetMaxNumSettledNodes(10)
 		d.stallWorker.ComputeShortestPath(node.NodeId, -1)
 		for _, v := range d.stallWorker.GetSearchSpace() {
-			// this check could be wrong
-			// every node which is reachable in BFS should be stalled
-			// except that ones which have shorter distance in dijkstra
-			// -> if they are not in search space, they still can get stalled?
 			if v != nil && v.Priority() > 0 && searchSpace[v.NodeId] != nil && stallingDistance+v.distance < searchSpace[v.NodeId].distance {
 				stalledNodes[v.NodeId] = true
 				stallingDistances[v.NodeId] = stallingDistance + v.distance
