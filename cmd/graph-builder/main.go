@@ -4,12 +4,15 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"log"
 	"os"
+	"path"
+	"runtime"
 	"time"
 
 	"github.com/natevvv/osm-ship-routing/pkg/geometry"
 	"github.com/natevvv/osm-ship-routing/pkg/graph"
-	"github.com/natevvv/osm-ship-routing/pkg/graph/path"
+	p "github.com/natevvv/osm-ship-routing/pkg/graph/path"
 	"github.com/natevvv/osm-ship-routing/pkg/grid"
 )
 
@@ -18,14 +21,25 @@ const nTarget = 1e6 // parameter for EquiSphereGrid
 
 func main() {
 	buildGridGraph := flag.Bool("gridgraph", false, "Build grid graph")
-	buildContractedGraph := flag.Bool("contract", false, "Build grid graph")
+	contractGraph := flag.String("contract", "", "Contract the given graph")
+	contractionLimit := flag.Float64("contraction-limit", 100, "Limit the level of contractions")
+	contractionWorkers := flag.Int("contraction-workers", 6, "Set the number of contraction workers")
 	flag.Parse()
 
 	if *buildGridGraph {
 		createGridGraph()
 	}
-	if *buildContractedGraph {
-		createContractedGraph()
+
+	if *contractGraph != "" {
+		_, filename, _, ok := runtime.Caller(0)
+		if !ok {
+			log.Fatal("Error")
+		}
+
+		directory := path.Dir(filename)
+		graphFile := path.Join(directory, "..", "..", "graphs", *contractGraph)
+
+		createContractedGraph(graphFile, *contractionLimit, *contractionWorkers)
 	}
 }
 
@@ -72,19 +86,18 @@ func loadPolyJsonPolygons(file string) []geometry.Polygon {
 	return polygons
 }
 
-func createContractedGraph() {
-	fmt.Printf("Read graph file\n")
-	alg := graph.NewAdjacencyListFromFmiFile("ocean_10k.fmi")
-	//alg = graph.NewAdjacencyListFromFmiFile("ocean_equi_4.fmi")
-	dijkstra := path.NewUniversalDijkstra(alg)
-	fmt.Printf("Initialize Contraction Hierarchies\n")
-	ch := path.NewContractionHierarchies(alg, dijkstra)
+func createContractedGraph(graphFile string, contractionLimit float64, contractionWorkers int) {
+	log.Printf("Read graph file\n")
+	alg := graph.NewAdjacencyListFromFmiFile(graphFile)
+	dijkstra := p.NewUniversalDijkstra(alg)
+	log.Printf("Initialize Contraction Hierarchies\n")
+	ch := p.NewContractionHierarchies(alg, dijkstra)
 	ch.SetDebugLevel(2)
 	ch.SetPrecomputationMilestones([]float64{0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 99.99})
-	fmt.Printf("Initialized Contraction Hierarchies, start precomputation\n")
-	ch.SetContractionWorkers(6)
-	ch.SetContractionLevelLimit(100)
-	ch.Precompute(nil, path.MakeOrderOptions().SetLazyUpdate(true).SetEdgeDifference(true).SetProcessedNeighbors(true).SetPeriodic(false).SetUpdateNeighbors(false))
+	log.Printf("Initialized Contraction Hierarchies, start precomputation\n")
+	ch.SetContractionWorkers(contractionWorkers)
+	ch.SetContractionLevelLimit(contractionLimit)
+	ch.Precompute(nil, p.MakeOrderOptions().SetLazyUpdate(true).SetEdgeDifference(true).SetProcessedNeighbors(true).SetPeriodic(false).SetUpdateNeighbors(false))
 	ch.WriteContractionResult()
-	fmt.Printf("Finished Contraction\n")
+	log.Printf("Finished Contraction\n")
 }

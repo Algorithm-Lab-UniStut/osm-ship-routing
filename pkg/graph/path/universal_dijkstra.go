@@ -2,7 +2,7 @@ package path
 
 import (
 	"container/heap"
-	"fmt"
+	"log"
 	"math"
 
 	"github.com/natevvv/osm-ship-routing/pkg/graph"
@@ -21,47 +21,46 @@ type UniversalDijkstra struct {
 	destination graph.NodeId // the distination of the current search
 
 	visitedNodes             []bool                  // Array which indicates if a node (defined by index) was visited in the forward search
-	backwardVisitedNodes     []bool                  // Array which indicates if a node (defined by index) was visited in the backward search
 	searchSpace              []*DijkstraItem         // search space, a map really reduces performance. If node is also visited, this can be seen as "settled"
-	backwardSearchSpace      []*DijkstraItem         // search space for the backward search
-	bidirectionalConnection  BidirectionalConnection // contains the connection between the forward and backward search (if done bidirecitonal). If no connection is found, this is nil
 	forwardStalledNodes      []bool                  //indicates if the node (index=id) is stalled
-	backwardStalledNodes     []bool                  //indicates if the node (index=id) is stalled
 	forwardStallingDistance  []int                   // stalling distance for node (index=id)
+	backwardVisitedNodes     []bool                  // Array which indicates if a node (defined by index) was visited in the backward search
+	backwardSearchSpace      []*DijkstraItem         // search space for the backward search
+	backwardStalledNodes     []bool                  //indicates if the node (index=id) is stalled
 	backwardStallingDistance []int                   // stalling distance for node (index=id)
+	bidirectionalConnection  BidirectionalConnection // contains the connection between the forward and backward search (if done bidirecitonal). If no connection is found, nodeId is -1
 
 	useHeuristic       bool   // flag indicating if heuristic (remaining distance) should be used (AStar implementation)
 	bidirectional      bool   // flag indicating if search should be done from both sides
 	useHotStart        bool   // flag indicating if the previously cached results should get used
 	considerArcFlags   bool   // flag indicating if arc flags (basically deactivate some edges) should be considered
 	ignoreNodes        []bool // store for each node ID if it is ignored. A map would also be viable (for performance aspect) to achieve this
-	stallOnDemand      bool
+	stallOnDemand      int    // level for stall-on-demand. (0: no stalling, 1: regular stalling, 2: "preemptive" stalling, 3: stall recursively (regular), 4: stall recursive ("preemtpive"))
 	sortedArcs         bool
 	costUpperBound     int // upper bound of cost from origin to destination
 	maxNumSettledNodes int // maximum number of settled nodes before search is terminated
+	debugLevel         int // debug level for logging purpose
 
-	pqPops          int // store the amount of Pops which were performed on the priority queue for the computed search
-	numSettledNodes int // number of settled nodes
-	debugLevel      int // debug level for logging purpose
+	stallWorker *UniversalDijkstra
+
+	pqPops             int // store the amount of Pops which were performed on the priority queue for the computed search
+	pqUpdates          int // store each update or push to the priority queue
+	relaxationAttempts int // store the attempt for relaxed edges
+	relaxedEdges       int // number of relaxed edges
+	numSettledNodes    int // number of settled nodes
 }
 
+// Descibes the connection of a bidirectional search
 type BidirectionalConnection struct {
-	nodeId      graph.NodeId
-	predecessor graph.NodeId
-	successor   graph.NodeId
-	distance    int
+	nodeId      graph.NodeId // the node id of the connecting node
+	predecessor graph.NodeId // the node id of the predecessor
+	successor   graph.NodeId // the node id of the successor
+	distance    int          // the whole distance (in both directions)
 }
 
 // Create a new Dijkstra instance with the given graph g
 func NewUniversalDijkstra(g graph.Graph) *UniversalDijkstra {
 	return &UniversalDijkstra{g: g, costUpperBound: math.MaxInt, maxNumSettledNodes: math.MaxInt, ignoreNodes: make([]bool, g.NodeCount()), origin: -1, destination: -1}
-}
-
-// Creates a new item which describes a connection between a forward and a backward search
-// The nodeId is the id of the node which connects both searches, the predecessor represents the node of the forward search and the successor the node of the backward search.
-// The distance is the length needed from both searches to reach this node
-func NewBidirectionalConnection(nodeId, predecessor, successor graph.NodeId, distance int) *BidirectionalConnection {
-	return &BidirectionalConnection{nodeId: nodeId, predecessor: predecessor, successor: successor, distance: distance}
 }
 
 // Compute the shortest path from the origin to the destination.
@@ -79,9 +78,10 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 		panic("Can't use bidirectional search with no specified destination.")
 	}
 	if d.useHotStart && destination < 0 {
+		// TODO is this necessary
 		panic("Can't use Hot start when calculating path to everywhere.")
 	}
-	if d.stallOnDemand && !d.considerArcFlags {
+	if d.stallOnDemand > 0 && !d.considerArcFlags {
 		panic("stall on demand works only on directed graph.")
 	}
 
@@ -93,11 +93,12 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 		// hot start, already found the node in a previous search
 		// just load the distance
 		if d.debugLevel >= 1 {
-			fmt.Printf("Using hot start - loading %v -> %v, distance is %v\n", origin, destination, d.searchSpace[destination].distance)
+			log.Printf("Using hot start - loading %v -> %v, distance is %v\n", origin, destination, d.searchSpace[destination].distance)
 		}
-		//d.destination = destination
-		//d.bidirectionalConnection = nil
 		d.pqPops = 0
+		d.pqUpdates = 0
+		d.relaxedEdges = 0
+		d.relaxationAttempts = 0
 		return d.searchSpace[destination].distance
 	}
 
@@ -107,78 +108,79 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 		currentNode := heap.Pop(d.pq).(*DijkstraItem)
 		d.pqPops++
 		if d.debugLevel >= 2 {
-			fmt.Printf("Settling node %v, direction: %v, distance %v\n", currentNode.NodeId, currentNode.searchDirection, currentNode.distance)
+			log.Printf("Settling node %v, direction: %v, distance %v\n", currentNode.NodeId, currentNode.searchDirection, currentNode.distance)
 		}
+
 		d.settleNode(currentNode)
-		d.numSettledNodes++
+
 		stalledNodes, backwardStalledNodes := d.forwardStalledNodes, d.backwardStalledNodes
 		if currentNode.searchDirection == BACKWARD {
 			stalledNodes, backwardStalledNodes = backwardStalledNodes, stalledNodes
 		}
-		if d.stallOnDemand && stalledNodes[currentNode.NodeId] {
+
+		if d.stallOnDemand >= 2 && stalledNodes[currentNode.NodeId] {
 			// this is a stalled node -> nothing to do
 			continue
 		}
+
 		d.relaxEdges(currentNode) // edges need to get relaxed before checking for termination to guarantee that hot start works. if peeking is used, this may get done a bit differently
+
 		if d.costUpperBound < currentNode.Priority() || d.maxNumSettledNodes < d.numSettledNodes {
 			// Each following node exeeds the max allowed cost or the number of allowed nodes is reached
 			// Stop search
 			if d.debugLevel >= 2 {
-				fmt.Printf("Exceeded limits - cost upper bound: %v, current cost: %v, max settled nodes: %v, current settled nodes: %v\n", d.costUpperBound, currentNode.Priority(), d.maxNumSettledNodes, d.numSettledNodes)
+				log.Printf("Exceeded limits - cost upper bound: %v, current cost: %v, max settled nodes: %v, current settled nodes: %v\n", d.costUpperBound, currentNode.Priority(), d.maxNumSettledNodes, d.numSettledNodes)
 			}
 			return -1
 		}
+
 		if !d.considerArcFlags && d.bidirectionalConnection.nodeId != -1 && d.isFullySettled(currentNode.NodeId) {
-			// node with lowest priority is the current connection node
-			// -> every edge increases cost/priority
-			// -> this has to be the shortest path --> wrong, if one edge is (really) long
-			// Correction: current node (with lowest possible distance) is already greater than connection distance
-			// -> connection has to be the lowest one
-			// -> Wrong, this condition just made a "normal" Dijkstra out of the Bidirectional Dijkstra
-			// Correction: check if the node was already settled in both directions, this is a connection
+			// check if the node was already settled in both directions, this is a connection
 			// the connection item contains the information, which one is the real connection (this has not to be the current one)
 			if d.debugLevel >= 1 {
-				fmt.Printf("Finished search\n")
+				log.Printf("Finished search\n")
 			}
 			return d.bidirectionalConnection.distance
 		}
-		if d.considerArcFlags && d.bidirectionalConnection.nodeId != -1 && currentNode.Priority() > d.bidirectionalConnection.distance {
+
+		if d.considerArcFlags && d.bidirectionalConnection.nodeId != -1 && d.bidirectionalConnection.distance < currentNode.Priority() {
 			// exit condition for contraction hierarchies
 			// if path is directed, it is not enough to test if node is settled from both sides, since the direction can block to reach the node from one side
 			// for normal Dijkstra, this would force that the search space is in the bidirectional search as big as unidirecitonal search
 			// check if the current visited node has already a higher priority (distance) than the connection. If this is the case, no lower connection can get found
 			if d.debugLevel >= 1 {
-				fmt.Printf("Finished search\n")
+				log.Printf("Finished search\n")
 			}
 			return d.bidirectionalConnection.distance
 		}
 
-		if destination != -1 {
-			if currentNode.searchDirection == FORWARD && currentNode.NodeId == destination {
-				if d.debugLevel >= 1 {
-					fmt.Printf("Found path %v -> %v with distance %v\n", origin, destination, d.searchSpace[destination].distance)
-				}
-				return d.searchSpace[destination].distance
-			} else if d.bidirectional && currentNode.searchDirection == BACKWARD && currentNode.NodeId == origin {
-				// not necessary? - should be catched in bidirectionalConnection
-				// appearently this can happen (at least for contraction hierarchies when calculated bidirectional)
-				// -> first path/connection is found which has higher distance than possible (directed) path from destination to source
-				if d.bidirectionalConnection.nodeId == -1 {
-					// TODO Verify if this can happen
-					panic("connection should not be nil")
-				}
-				if d.debugLevel >= 1 {
-					fmt.Printf("Finished search\n")
-				}
-				return d.bidirectionalConnection.distance
+		if destination < 0 {
+			// calculate path to everywhere, no need to check if destination is reached
+			continue
+		}
+
+		if currentNode.searchDirection == FORWARD && currentNode.NodeId == destination {
+			if d.debugLevel >= 1 {
+				log.Printf("Found path %v -> %v with distance %v\n", origin, destination, d.searchSpace[destination].distance)
 			}
+			return d.searchSpace[destination].distance
+		} else if currentNode.searchDirection == BACKWARD && currentNode.NodeId == origin {
+			if d.bidirectionalConnection.nodeId == -1 {
+				// TODO Verify if this can happen
+				panic("connection should not be nil")
+			}
+			if d.debugLevel >= 1 {
+				log.Printf("Finished search\n")
+			}
+			return d.bidirectionalConnection.distance
 		}
 
 	}
 
+	// TODO check termination process
 	if destination == -1 {
 		if d.debugLevel >= 1 {
-			fmt.Printf("Finished search\n")
+			log.Printf("Finished search\n")
 		}
 		// calculated every distance from source to each possible target
 		return 0
@@ -186,7 +188,7 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 
 	if d.bidirectional {
 		if d.debugLevel >= 1 {
-			fmt.Printf("Finished search\n")
+			log.Printf("Finished search\n")
 		}
 		if d.bidirectionalConnection.nodeId == -1 {
 			// no valid path found
@@ -199,7 +201,7 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 	if d.searchSpace[destination] == nil {
 		// no valid path found
 		if d.debugLevel >= 1 {
-			fmt.Printf("No path found\n")
+			log.Printf("No path found\n")
 		}
 		return -1
 	}
@@ -221,7 +223,7 @@ func (d *UniversalDijkstra) GetPath(origin, destination int) []int {
 			return make([]int, 0)
 		}
 		if d.debugLevel >= 1 {
-			fmt.Printf("con: %v, pre: %v, suc: %v\n", d.bidirectionalConnection.nodeId, d.bidirectionalConnection.predecessor, d.bidirectionalConnection.successor)
+			log.Printf("con: %v, pre: %v, suc: %v\n", d.bidirectionalConnection.nodeId, d.bidirectionalConnection.predecessor, d.bidirectionalConnection.successor)
 		}
 		for nodeId := d.bidirectionalConnection.predecessor; nodeId != -1; nodeId = d.searchSpace[nodeId].predecessor {
 			path = append(path, nodeId)
@@ -286,52 +288,56 @@ func (d *UniversalDijkstra) initializeSearch(origin, destination graph.NodeId) {
 				visitedNodes = append(visitedNodes, node)
 			}
 		}
-		fmt.Printf("visited nodes: %v\n", visitedNodes)
+		log.Printf("visited nodes: %v\n", visitedNodes)
 	}
 
-	if !d.useHotStart || d.origin != origin {
-		// don't or can't use hot start
+	if d.useHotStart && d.origin == origin {
 		if d.debugLevel >= 2 {
 			// TODO decide debug level
-			fmt.Printf("Initialize new search, origin: %v\n", origin)
+			log.Printf("Use hot start\n")
 		}
-		d.searchSpace = make([]*DijkstraItem, d.g.NodeCount())
-		d.backwardSearchSpace = make([]*DijkstraItem, d.g.NodeCount())
-		d.visitedNodes = make([]bool, d.g.NodeCount())
-		d.backwardVisitedNodes = make([]bool, d.g.NodeCount())
-		d.origin = origin
-		d.destination = destination
-		d.pqPops = 0
-		d.numSettledNodes = 0
-		d.bidirectionalConnection = BidirectionalConnection{nodeId: -1}
+		return
+	}
 
-		// Initialize priority queue
-		heuristic := 0
-		if d.useHeuristic {
-			heuristic = d.g.EstimateDistance(d.origin, d.destination)
-		}
-		originItem := NewDijkstraItem(d.origin, 0, -1, heuristic, FORWARD)
-		d.pq = NewMinPath(originItem)
-		d.settleNode(originItem)
+	// don't or can't use hot start
+	if d.debugLevel >= 2 {
+		// TODO decide debug level
+		log.Printf("Initialize new search, origin: %v\n", origin)
+	}
+	d.searchSpace = make([]*DijkstraItem, d.g.NodeCount())
+	d.backwardSearchSpace = make([]*DijkstraItem, d.g.NodeCount())
+	d.visitedNodes = make([]bool, d.g.NodeCount())
+	d.backwardVisitedNodes = make([]bool, d.g.NodeCount())
+	d.origin = origin
+	d.destination = destination
+	d.pqPops = 0
+	d.pqUpdates = 0
+	d.relaxationAttempts = 0
+	d.relaxedEdges = 0
+	d.numSettledNodes = 0
+	d.bidirectionalConnection = BidirectionalConnection{nodeId: -1}
 
-		// for bidirectional algorithm
-		if d.bidirectional {
-			destinationItem := NewDijkstraItem(d.destination, 0, -1, 0, BACKWARD)
-			heap.Push(d.pq, destinationItem)
-			d.settleNode(destinationItem)
-		}
+	// Initialize priority queue
+	heuristic := 0
+	if d.useHeuristic {
+		heuristic = d.g.EstimateDistance(d.origin, d.destination)
+	}
+	originItem := NewDijkstraItem(d.origin, 0, -1, heuristic, FORWARD)
+	d.pq = NewMinPath(originItem)
+	d.settleNode(originItem)
 
-		if d.stallOnDemand {
-			d.forwardStalledNodes = make([]bool, d.g.NodeCount())
-			d.backwardStalledNodes = make([]bool, d.g.NodeCount())
-			d.forwardStallingDistance = make([]int, d.g.NodeCount())
-			d.backwardStallingDistance = make([]int, d.g.NodeCount())
-		}
-	} else {
-		if d.debugLevel >= 2 {
-			// TODO decide debug level
-			fmt.Printf("Use hot start\n")
-		}
+	// for bidirectional algorithm
+	if d.bidirectional {
+		destinationItem := NewDijkstraItem(d.destination, 0, -1, 0, BACKWARD)
+		heap.Push(d.pq, destinationItem)
+		d.settleNode(destinationItem)
+	}
+
+	if d.stallOnDemand > 0 {
+		d.forwardStalledNodes = make([]bool, d.g.NodeCount())
+		d.backwardStalledNodes = make([]bool, d.g.NodeCount())
+		d.forwardStallingDistance = make([]int, d.g.NodeCount())
+		d.backwardStallingDistance = make([]int, d.g.NodeCount())
 	}
 }
 
@@ -341,6 +347,7 @@ func (d *UniversalDijkstra) settleNode(node *DijkstraItem) {
 	if node.searchDirection == BACKWARD {
 		searchSpace, visitedNodes = d.backwardSearchSpace, d.backwardVisitedNodes
 	}
+	d.numSettledNodes++
 	searchSpace[node.NodeId] = node
 	visitedNodes[node.NodeId] = true
 }
@@ -355,7 +362,16 @@ func (d *UniversalDijkstra) isFullySettled(nodeId graph.NodeId) bool {
 // Relax the Edges for the given node item and add the new nodes to the MinPath priority queue
 func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 	for _, arc := range d.g.GetArcsFrom(node.NodeId) {
+		d.relaxationAttempts++
 		successor := arc.Destination()
+
+		if d.ignoreNodes[successor] {
+			// ignore this node
+			if d.debugLevel >= 3 {
+				log.Printf("Ignore Edge %v -> %v, because target is in ignore list\n", node.NodeId, successor)
+			}
+			continue
+		}
 
 		searchSpace, inverseSearchSpace := d.searchSpace, d.backwardSearchSpace
 		stalledNodes, backwardStalledNodes := d.forwardStalledNodes, d.backwardStalledNodes
@@ -367,64 +383,36 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 			stallingDistance, backwardStallingDistance = backwardStallingDistance, stallingDistance
 		}
 
-		if d.ignoreNodes[successor] {
-			// ignore this node
-			if d.debugLevel >= 3 {
-				fmt.Printf("Ignore Edge %v -> %v, because target is in ignore list\n", node.NodeId, successor)
-			}
-			continue
-		}
-
 		if d.considerArcFlags && !arc.ArcFlag() {
 			// ignore this arc
 			if d.debugLevel >= 3 {
-				fmt.Printf("Ignore Edge %v -> %v\n", node.NodeId, successor)
+				log.Printf("Ignore Edge %v -> %v\n", node.NodeId, successor)
 			}
+
 			if d.sortedArcs {
 				// since edges are sorted, the folowing edges will also be disabled
 				// this disables the check for stalling nodes (in inverse direction)
 				break
 			}
 
-			// but first, check for stall-on-demand
-			if d.stallOnDemand && searchSpace[successor] != nil && node.Priority()+arc.Cost() < searchSpace[successor].Priority() {
+			// but first, check for stall-on-demand ("preemptive", inverse arc direction)
+			if (d.stallOnDemand == 2 || d.stallOnDemand == 4) && searchSpace[successor] != nil && node.Priority()+arc.Cost() < searchSpace[successor].Priority() {
 				if d.debugLevel >= 3 {
-					fmt.Printf("Stall Node %v\n", successor)
+					log.Printf("Stall Node %v\n", successor)
 				}
-				stalledNodes[successor] = true
-				stallingDistance[successor] = node.Priority() + arc.Cost()
-
-				// stall recursively
-				// however, this takes very long time (even for only 1 level)
-				// even just creating the Dijkstra object takes very long time
-				/*
-					dijkstra := NewUniversalDijkstra(d.g)
-					dijkstra.SetConsiderArcFlags(true)
-					dijkstra.SetMaxNumSettledNodes(1) // maybe better: specify depth
-						dijkstra.ComputeShortestPath(successor, -1)
-							for _, v := range dijkstra.GetSearchSpace() {
-								// this check could be wrong
-								// every node which is reachable in BFS should be stalled
-								// except that ones which have shorter distance in dijkstra
-								// -> if they are not in search space, they still can get stalled?
-								if v != nil && v.Priority() > 0 && searchSpace[v.NodeId] != nil && node.Priority()+arc.Cost()+v.Priority() < searchSpace[v.NodeId].Priority() {
-									stalledNodes[v.NodeId] = true
-									stallingDistance[v.NodeId] = node.Priority() + arc.Cost() + v.Priority()
-								}
-							}
-				*/
+				d.stallNode(searchSpace[successor], node.distance+arc.Cost())
 			}
 			continue
 		}
 
-		if d.stallOnDemand && searchSpace[successor] != nil && searchSpace[successor].Priority()+arc.Cost() < node.Priority() {
-			stalledNodes[node.NodeId] = true
-			stallingDistance[node.NodeId] = searchSpace[successor].Priority() + arc.Cost()
+		// check for "regular" stall-on-demand
+		if (d.stallOnDemand == 1 || d.stallOnDemand == 3) && searchSpace[successor] != nil && searchSpace[successor].Priority()+arc.Cost() < node.Priority() {
+			d.stallNode(node, searchSpace[successor].distance+arc.Cost())
 			continue
 		}
 
 		if d.debugLevel >= 3 {
-			fmt.Printf("Relax Edge %v -> %v\n", node.NodeId, arc.Destination())
+			log.Printf("Relax Edge %v -> %v\n", node.NodeId, arc.Destination())
 		}
 
 		if d.bidirectional && inverseSearchSpace[successor] != nil {
@@ -456,23 +444,72 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 			}
 			nextNode := NewDijkstraItem(successor, cost, node.NodeId, heuristic, node.searchDirection)
 			searchSpace[successor] = nextNode
-			if d.stallOnDemand && nextNode.Priority() <= stallingDistance[successor] {
-				stalledNodes[successor] = false
-			}
 			heap.Push(d.pq, nextNode)
-		} else {
-			if updatedPriority := node.distance + arc.Cost() + searchSpace[successor].heuristic; updatedPriority < searchSpace[successor].Priority() {
+			d.pqUpdates++
+		} else if updatedPriority := node.distance + arc.Cost() + searchSpace[successor].heuristic; updatedPriority < searchSpace[successor].Priority() {
+			if d.stallOnDemand >= 1 && stalledNodes[successor] && node.distance+arc.Cost() <= stallingDistance[successor] {
+				d.unstallNode(searchSpace[successor], node.distance+arc.Cost())
+			} else {
 				d.pq.update(searchSpace[successor], node.distance+arc.Cost())
-				searchSpace[successor].predecessor = node.NodeId
-				if d.stallOnDemand && updatedPriority <= stallingDistance[successor] {
-					stalledNodes[successor] = false
-					// need to push successor (again?) to queue?
-					// was it removed before?
-					heap.Push(d.pq, searchSpace[successor])
+				d.pqUpdates++
+			}
+			searchSpace[successor].predecessor = node.NodeId
+		}
+		d.relaxedEdges++
+	}
+}
+
+// Stall the given node with the stallingDistance
+func (d *UniversalDijkstra) stallNode(node *DijkstraItem, stallingDistance int) {
+	searchSpace, inverseSearchSpace := d.searchSpace, d.backwardSearchSpace
+	stalledNodes, backwardStalledNodes := d.forwardStalledNodes, d.backwardStalledNodes
+	stallingDistances, backwardStallingDistances := d.forwardStallingDistance, d.backwardStallingDistance
+	if node.searchDirection == BACKWARD {
+		searchSpace, inverseSearchSpace = inverseSearchSpace, searchSpace
+		stalledNodes, backwardStalledNodes = backwardStalledNodes, stalledNodes
+		stallingDistances, backwardStallingDistances = backwardStallingDistances, stallingDistances
+	}
+
+	stalledNodes[node.NodeId] = true
+	stallingDistances[node.NodeId] = stallingDistance
+
+	if node.index >= 0 {
+		heap.Remove(d.pq, node.index)
+	}
+
+	// stall recursively
+	// however, this takes very long time (even for only 1 level)
+	if d.stallOnDemand >= 3 {
+		d.stallWorker.SetConsiderArcFlags(true)
+		d.stallWorker.SetMaxNumSettledNodes(10)
+		d.stallWorker.ComputeShortestPath(node.NodeId, -1)
+		for _, v := range d.stallWorker.GetSearchSpace() {
+			if v != nil && v.Priority() > 0 && searchSpace[v.NodeId] != nil && stallingDistance+v.distance < searchSpace[v.NodeId].distance {
+				stalledNodes[v.NodeId] = true
+				stallingDistances[v.NodeId] = stallingDistance + v.distance
+
+				if v.index >= 0 {
+					heap.Remove(d.pq, v.index)
 				}
 			}
 		}
 	}
+}
+
+// Unstall the given node and update the given distance
+func (d *UniversalDijkstra) unstallNode(node *DijkstraItem, distance int) {
+	stalledNodes, backwardStalledNodes := d.forwardStalledNodes, d.backwardStalledNodes
+	if node.searchDirection == BACKWARD {
+		stalledNodes, backwardStalledNodes = backwardStalledNodes, stalledNodes
+	}
+	stalledNodes[node.NodeId] = false
+	if node.index < 0 {
+		node.distance = distance
+		heap.Push(d.pq, node)
+	} else {
+		d.pq.update(node, distance)
+	}
+	d.pqUpdates++
 }
 
 // Specify whether a heuristic for path finding (AStar) should be used
@@ -501,6 +538,7 @@ func (d *UniversalDijkstra) SetMaxNumSettledNodes(maxNumSettledNodes int) {
 	d.maxNumSettledNodes = maxNumSettledNodes
 }
 
+// Set the nodes which are ignored in the search
 func (d *UniversalDijkstra) SetIgnoreNodes(nodes []graph.NodeId) {
 	d.ignoreNodes = make([]bool, d.g.NodeCount())
 	for _, node := range nodes {
@@ -510,20 +548,40 @@ func (d *UniversalDijkstra) SetIgnoreNodes(nodes []graph.NodeId) {
 	d.origin = -1
 }
 
+// Use a hot start
 func (d *UniversalDijkstra) SetHotStart(useHotStart bool) {
 	d.useHotStart = useHotStart
 }
 
-func (d *UniversalDijkstra) SetStallOnDemand(stallOnDemand bool) {
-	d.stallOnDemand = stallOnDemand
+// Use stall on demand
+func (d *UniversalDijkstra) SetStallOnDemand(level int) {
+	d.stallOnDemand = level
+	if level > 2 {
+		d.stallWorker = NewUniversalDijkstra(d.g)
+	} else {
+		d.stallWorker = nil
+	}
 }
 
+// use sorted arcs (for early termination)
 func (d *UniversalDijkstra) SortedArcs(sorted bool) {
 	d.sortedArcs = sorted
 }
 
 // Returns the amount of priority queue/heap pops which werer performed during the search
 func (d *UniversalDijkstra) GetPqPops() int { return d.pqPops }
+
+// Get the number of relaxed edges
+func (d *UniversalDijkstra) GetEdgeRelaxations() int { return d.relaxedEdges }
+
+// Get the number of attempted edge relaxations (some may early terminated)
+func (d *UniversalDijkstra) GetRelaxationAttempts() int { return d.relaxationAttempts }
+
+// Get the number of pq updates
+func (d *UniversalDijkstra) GetPqUpdates() int { return d.pqUpdates }
+
+// Get the used graph
+func (d *UniversalDijkstra) GetGraph() graph.Graph { return d.g }
 
 // Set the debug level to show different debug messages.
 // If it is 0, no debug messages are printed

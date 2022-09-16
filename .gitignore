@@ -26,8 +26,6 @@
 !generator-config.yaml
 !openapi.yaml
 
-!graphs/ocean_equi_4.fmi
-
 !Dockerfile
 !.dockerignore
 

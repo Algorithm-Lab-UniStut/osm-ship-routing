@@ -1,6 +1,7 @@
 package routing
 
 import (
+	"log"
 	"math"
 
 	geo "github.com/natevvv/osm-ship-routing/pkg/geometry"
@@ -24,8 +25,15 @@ type ShipRouter struct {
 	navigator       path.Navigator
 }
 
-func NewShipRouter(g, contractedGraph graph.Graph, shortcuts []path.Shortcut, nodeOrdering [][]int) *ShipRouter {
-	return &ShipRouter{g: g, contractedGraph: contractedGraph, navigator: path.GetNavigator(g), shortcuts: shortcuts, nodeOrdering: nodeOrdering}
+func NewShipRouter(g, contractedGraph graph.Graph, shortcuts []path.Shortcut, nodeOrdering [][]int, navigator *string) *ShipRouter {
+	sr := &ShipRouter{g: g, contractedGraph: contractedGraph, shortcuts: shortcuts, nodeOrdering: nodeOrdering}
+	if navigator != nil {
+		// overwrite navigator
+		if !sr.SetNavigator(*navigator) {
+			log.Fatal("Could not set navigator")
+		}
+	}
+	return sr
 }
 
 func (sr ShipRouter) closestNodes(p1, p2 geo.Point) (n1, n2 int) {
@@ -103,7 +111,8 @@ func (sr *ShipRouter) SetNavigator(navigator string) bool {
 		return true
 	case "contraction-hierarchies":
 		dijkstra := path.NewUniversalDijkstra(sr.contractedGraph)
-		ch := path.NewContractionHierarchiesInitialized(sr.contractedGraph, dijkstra, sr.shortcuts, sr.nodeOrdering)
+		dijkstra.SetStallOnDemand(2)
+		ch := path.NewContractionHierarchiesInitialized(sr.contractedGraph, dijkstra, sr.shortcuts, sr.nodeOrdering, false)
 		sr.navigator = ch
 		return true
 	case "alt":

@@ -20,12 +20,12 @@ type DefaultApiService struct {
 }
 
 // NewDefaultApiService creates a default api service
-func NewDefaultApiService(graphFile, contractedGraphFile, shortcutFile, nodeOrderingFile string) DefaultApiServicer {
+func NewDefaultApiService(graphFile, contractedGraphFile, shortcutFile, nodeOrderingFile string, navigator *string) DefaultApiServicer {
 	g := graph.NewAdjacencyArrayFromFmiFile(graphFile)
 	contractedGraph := graph.NewAdjacencyArrayFromFmiFile(contractedGraphFile)
 	shortcuts := path.ReadShortcutFile(shortcutFile)
 	nodeOrdering := path.ReadNodeOrderingFile(nodeOrderingFile)
-	sr := routing.NewShipRouter(g, contractedGraph, shortcuts, nodeOrdering)
+	sr := routing.NewShipRouter(g, contractedGraph, shortcuts, nodeOrdering, navigator)
 	return &DefaultApiService{shipRouter: sr}
 }
 

@@ -10,20 +10,42 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"net/http"
+	"os"
+	"path"
+	"runtime"
 
 	server "github.com/natevvv/osm-ship-routing/pkg/server/openapi_server"
 )
 
-const plainGraphFile = "graphs/ocean_10k.fmi"
-const contractedGraphFile = "contracted_graph.fmi"
-const shortcutFile = "shortcuts.txt"
-const nodeOrderingFile = "node_ordering.txt"
-
 func main() {
+	targetGraph := flag.String("graph", "big_lazy", "Select the graph to work with")
+	navigator := flag.String("navigator", "contraction-hierarchies", "Select the navigator for the ship router")
+	flag.Parse()
+
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		log.Fatal("Error")
+	}
+
+	directory := path.Dir(filename)
+	graphDirectory := path.Join(directory, "..", "..", "graphs", *targetGraph)
+
+	if _, err := os.Stat(graphDirectory); os.IsNotExist(err) {
+		log.Fatal("Graph directory does not exist")
+	} else {
+		log.Printf("Using graph directory: %v\n", graphDirectory)
+	}
+
+	plainGraphFile := path.Join(graphDirectory, "plain_graph.fmi")
+	contractedGraphFile := path.Join(graphDirectory, "contracted_graph.fmi")
+	shortcutFile := path.Join(graphDirectory, "shortcuts.txt")
+	nodeOrderingFile := path.Join(graphDirectory, "node_ordering.txt")
+
 	log.Printf("Loading graph '%s' into memory", plainGraphFile)
-	DefaultApiService := server.NewDefaultApiService(plainGraphFile, contractedGraphFile, shortcutFile, nodeOrderingFile)
+	DefaultApiService := server.NewDefaultApiService(plainGraphFile, contractedGraphFile, shortcutFile, nodeOrderingFile, navigator)
 	DefaultApiController := server.NewDefaultApiController(DefaultApiService)
 
 	router := server.NewRouter(DefaultApiController)
