@@ -111,7 +111,7 @@ func (sr *ShipRouter) SetNavigator(navigator string) bool {
 		return true
 	case "contraction-hierarchies":
 		dijkstra := path.NewUniversalDijkstra(sr.contractedGraph)
-		ch := path.NewContractionHierarchiesInitialized(sr.contractedGraph, dijkstra, sr.shortcuts, sr.nodeOrdering, path.MakeDefaultPathFindingOptions())
+		ch := path.NewContractionHierarchiesInitialized(sr.contractedGraph, dijkstra, sr.shortcuts, sr.nodeOrdering, path.MakeDefaultPathFindingOptions()) // use default path finding options
 		sr.navigator = ch
 		return true
 	case "alt":
