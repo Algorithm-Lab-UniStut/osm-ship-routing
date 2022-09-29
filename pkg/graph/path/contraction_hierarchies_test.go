@@ -73,7 +73,7 @@ func TestGivenNodeOrdering(t *testing.T) {
 	ch := NewContractionHierarchies(alg, dijkstra)
 	nodeOrdering := []int{0, 1, 10, 12, 7, 4, 9, 3, 6, 5, 8, 11, 2}
 	//ch.SetDebugLevel(1)
-	ch.Precompute(nodeOrdering, MakeOrderOptions())
+	ch.Precompute(nodeOrdering, MakeOrderOptions(), MakeDefaultPathFindingOptions())
 	if len(ch.nodeOrdering) != len(nodeOrdering) {
 		t.Errorf("noder ordering length does not match")
 	}
@@ -95,7 +95,7 @@ func TestContractGraph(t *testing.T) {
 	ch := NewContractionHierarchies(alg, dijkstra)
 	ch.SetDebugLevel(1)
 	nodeOrdering := []int{0, 1, 10, 12, 7, 4, 9, 3, 6, 5, 8, 11, 2}
-	ch.Precompute(nodeOrdering, MakeOrderOptions())
+	ch.Precompute(nodeOrdering, MakeOrderOptions(), MakeDefaultPathFindingOptions())
 	for i, cascadedNodeOrdering := range ch.nodeOrdering {
 		if len(cascadedNodeOrdering) != 1 {
 			// in each hierarchy, only one level should be present (when node order is given)
@@ -129,7 +129,7 @@ func TestPathFinding(t *testing.T) {
 	p := dijkstra.GetPath(source, target)
 	ch := NewContractionHierarchies(alg, dijkstra)
 	nodeOrdering := []int{0, 1, 10, 12, 7, 4, 9, 3, 6, 5, 8, 11, 2}
-	ch.Precompute(nodeOrdering, MakeOrderOptions())
+	ch.Precompute(nodeOrdering, MakeOrderOptions(), MakeDefaultPathFindingOptions())
 	length := ch.ComputeShortestPath(source, target)
 	if l != length {
 		t.Errorf("Length do not match")
@@ -143,7 +143,7 @@ func TestPathFinding(t *testing.T) {
 	dijkstra = NewUniversalDijkstra(alg)
 	ch = NewContractionHierarchies(alg, dijkstra)
 	nodeOrdering = []int{1, 5, 9, 4, 3, 11, 10, 6, 8, 2, 7, 0, 12}
-	ch.Precompute(nodeOrdering, MakeOrderOptions())
+	ch.Precompute(nodeOrdering, MakeOrderOptions(), MakeDefaultPathFindingOptions())
 	length = ch.ComputeShortestPath(source, target)
 	if l != length {
 		t.Errorf("Length do not match")
@@ -159,7 +159,7 @@ func TestPrecompute(t *testing.T) {
 	dijkstra := NewUniversalDijkstra(alg)
 	ch := NewContractionHierarchies(alg, dijkstra)
 	ch.SetDebugLevel(3)
-	ch.Precompute(nil, MakeOrderOptions().SetLazyUpdate(false).SetEdgeDifference(true).SetProcessedNeighbors(true).SetUpdateNeighbors(true))
+	ch.Precompute(nil, MakeOrderOptions().SetLazyUpdate(false).SetEdgeDifference(true).SetProcessedNeighbors(true).SetUpdateNeighbors(true), MakeDefaultPathFindingOptions())
 }
 
 func TestContractionHierarchies(t *testing.T) {
@@ -171,7 +171,7 @@ func TestContractionHierarchies(t *testing.T) {
 	dijkstra.SetDebugLevel(1)
 	ch := NewContractionHierarchies(alg, dijkstra)
 	ch.SetDebugLevel(2)
-	ch.Precompute(nil, MakeOrderOptions().SetLazyUpdate(false).SetEdgeDifference(true).SetProcessedNeighbors(true).SetUpdateNeighbors(true))
+	ch.Precompute(nil, MakeOrderOptions().SetLazyUpdate(false).SetEdgeDifference(true).SetProcessedNeighbors(true).SetUpdateNeighbors(true), MakeDefaultPathFindingOptions())
 	length := ch.ComputeShortestPath(source, target)
 	if length != l {
 		t.Errorf("Length does not match")
@@ -196,7 +196,7 @@ func TestRandomContraction(t *testing.T) {
 		dijkstra = NewUniversalDijkstra(alg)
 		ch := NewContractionHierarchies(alg, dijkstra)
 		//ch.SetDebugLevel(2)
-		ch.Precompute(nil, MakeOrderOptions().SetLazyUpdate(false).SetRandom(true))
+		ch.Precompute(nil, MakeOrderOptions().SetLazyUpdate(false).SetRandom(true), MakeDefaultPathFindingOptions())
 		length := ch.ComputeShortestPath(source, target)
 		if length != l {
 			t.Errorf("Length does not match - Is: %v. Should: %v", length, l)

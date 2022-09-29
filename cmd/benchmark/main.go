@@ -24,6 +24,11 @@ func main() {
 	algorithm := flag.String("search", "default", "Select the search algorithm")
 	cpuProfile := flag.String("cpu", "", "write cpu profile to file")
 	targetGraph := flag.String("graph", "big_lazy", "Select the graph to work with")
+	// CH options
+	stallOnDemand := flag.Int("stallOnDemand", 2, "Set the stall on demand level")
+	useHeuristic := flag.Bool("heuristic", false, "use astar search")
+	manual := flag.Bool("manual", false, "Use manual (not bidirectional) search of dijkstra")
+	sortArcs := flag.Bool("sortArcs", false, "Sort the arcs according if they are active or not for each node")
 	flag.Parse()
 
 	_, filename, _, ok := runtime.Caller(0)
@@ -40,9 +45,11 @@ func main() {
 		fmt.Printf("Using graph directory: %v\n", graphDirectory)
 	}
 
+	chPathFindingOptions := p.PathFindingOptions{Manual: *manual, UseHeuristic: *useHeuristic, StallOnDemand: *stallOnDemand, SortArcs: *sortArcs}
+
 	start := time.Now()
 
-	navigator, referenceDijkstra := getNavigator(*algorithm, graphDirectory)
+	navigator, referenceDijkstra := getNavigator(*algorithm, graphDirectory, chPathFindingOptions)
 	if navigator == nil {
 		log.Fatal("Navigator not supported")
 	}
@@ -75,7 +82,7 @@ func main() {
 	benchmark(navigator, targets, referenceDijkstra)
 }
 
-func getNavigator(algorithm, graphDirectory string) (p.Navigator, *p.Dijkstra) {
+func getNavigator(algorithm, graphDirectory string, chPathFindingOptions p.PathFindingOptions) (p.Navigator, *p.Dijkstra) {
 	plainGraphFile := path.Join(graphDirectory, "plain_graph.fmi")
 	contractedGraphFile := path.Join(graphDirectory, "contracted_graph.fmi")
 	shortcutFile := path.Join(graphDirectory, "shortcuts.txt")
@@ -104,9 +111,7 @@ func getNavigator(algorithm, graphDirectory string) (p.Navigator, *p.Dijkstra) {
 		nodeOrdering := p.ReadNodeOrderingFile(nodeOrderingFile)
 
 		dijkstra := p.NewUniversalDijkstra(contractedAag)
-		dijkstra.SetStallOnDemand(2)
-
-		ch := p.NewContractionHierarchiesInitialized(contractedAag, dijkstra, shortcuts, nodeOrdering, false)
+		ch := p.NewContractionHierarchiesInitialized(contractedAag, dijkstra, shortcuts, nodeOrdering, chPathFindingOptions)
 		return ch, referenceDijkstra
 	}
 

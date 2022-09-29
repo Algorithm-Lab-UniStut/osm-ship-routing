@@ -29,6 +29,7 @@ type ContractionHierarchies struct {
 	orderItems         []*OrderItem
 	pqOrder            *NodeOrder
 	contractionWorkers []*UniversalDijkstra
+	pathFindingOptions PathFindingOptions
 
 	// decide for one, currently both are needed (but probably could get rid of the slice)
 	shortcuts   []Shortcut                                     // array which contains all shortcuts
@@ -79,6 +80,17 @@ type ContractionResult struct {
 	contractedNeighbors int          // number of contracted neighbors
 }
 
+type PathFindingOptions struct {
+	Manual        bool
+	UseHeuristic  bool
+	StallOnDemand int
+	SortArcs      bool
+}
+
+func MakeDefaultPathFindingOptions() PathFindingOptions {
+	return PathFindingOptions{Manual: false, UseHeuristic: false, StallOnDemand: 2, SortArcs: false}
+}
+
 // Create a new Contraciton Hierarchy.
 // Before a query can get executed, the Precomputation has to be done
 func NewContractionHierarchies(g graph.Graph, dijkstra *UniversalDijkstra) *ContractionHierarchies {
@@ -89,13 +101,12 @@ func NewContractionHierarchies(g graph.Graph, dijkstra *UniversalDijkstra) *Cont
 
 // Create a new Contraction Hierarchy which is already initialized with the shortcuts and node ordering.
 // This can directly start a new query
-func NewContractionHierarchiesInitialized(g graph.Graph, dijkstra *UniversalDijkstra, shortcuts []Shortcut, nodeOrdering [][]int, sortArgs bool) *ContractionHierarchies {
+func NewContractionHierarchiesInitialized(g graph.Graph, dijkstra *UniversalDijkstra, shortcuts []Shortcut, nodeOrdering [][]int, pathFindingOptions PathFindingOptions) *ContractionHierarchies {
 	ch := NewContractionHierarchies(g, dijkstra)
-	ch.SetSortArcs(sortArgs)
 	ch.SetShortcuts(shortcuts)
 	ch.SetNodeOrdering(nodeOrdering)
 	ch.matchArcsWithNodeOrder()
-	ch.shortestPathSetup()
+	ch.shortestPathSetup(pathFindingOptions)
 	return ch
 }
 
@@ -104,7 +115,7 @@ func NewContractionHierarchiesInitialized(g graph.Graph, dijkstra *UniversalDijk
 // If givenNodeOrder is not nil, the OrderOption oo are ignored.
 // givenNodeOrder predefines the order of the nodes.
 // oo defines how the node ordering will be calculated.
-func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptions) {
+func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptions, pathFindingOptions PathFindingOptions) {
 	ch.initialTime = time.Now()
 	ch.milestoneIndex = 0
 
@@ -177,7 +188,7 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 	// match arcs with node order
 	ch.matchArcsWithNodeOrder()
 	// setup for path computation
-	ch.shortestPathSetup()
+	ch.shortestPathSetup(pathFindingOptions)
 
 	for i, m := range ch.milestones {
 		runtime := ch.runtime[i]
@@ -198,14 +209,19 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 }
 
 // Setup ch to compute the shortest path
-func (ch *ContractionHierarchies) shortestPathSetup() {
-	ch.dijkstra.SetMaxNumSettledNodes(math.MaxInt)
+func (ch *ContractionHierarchies) shortestPathSetup(options PathFindingOptions) {
+	// set fix options for CH search
 	ch.dijkstra.SetCostUpperBound(math.MaxInt)
+	ch.dijkstra.SetMaxNumSettledNodes(math.MaxInt)
 	ch.dijkstra.SetConsiderArcFlags(true)
-	ch.dijkstra.SetBidirectional(true)
-	ch.dijkstra.SetUseHeuristic(false)
 	ch.dijkstra.SetIgnoreNodes(nil)
 	ch.dijkstra.SetHotStart(false)
+
+	// set tuning options
+	ch.dijkstra.SetBidirectional(!options.Manual)
+	ch.dijkstra.SetUseHeuristic(options.UseHeuristic)
+	ch.dijkstra.SetStallOnDemand(options.StallOnDemand)
+	ch.SetSortArcs(options.SortArcs)
 }
 
 // Compute the shortest path for the given query (from origin to destination node).
@@ -1001,10 +1017,6 @@ func (ch *ContractionHierarchies) matchArcsWithNodeOrder() {
 			arc.SetArcFlag(ch.orderOfNode[source] < ch.orderOfNode[target] || ch.orderOfNode[target] == math.MaxInt)
 		}
 	}
-	if ch.sortArcs {
-		ch.g.SortArcs()
-		ch.dijkstra.SortedArcs(true)
-	}
 }
 
 // checks whether the node given by nodeId is already contracted.
@@ -1084,6 +1096,11 @@ func (ch *ContractionHierarchies) SetContractionWorkers(numberOfWorkers int) {
 // TODO
 func (ch *ContractionHierarchies) SetSortArcs(flag bool) {
 	ch.sortArcs = flag
+
+	if flag {
+		ch.g.SortArcs()
+		ch.dijkstra.SortedArcs(true)
+	}
 }
 
 // Set the limit for the contractions
