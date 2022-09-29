@@ -30,7 +30,7 @@ type ContractionHierarchies struct {
 	pqOrder            *NodeOrder
 	contractionWorkers []*UniversalDijkstra
 
-	// decide for one, currently both are needed (but probalby could get rid of the slice)
+	// decide for one, currently both are needed (but probably could get rid of the slice)
 	shortcuts   []Shortcut                                     // array which contains all shortcuts
 	shortcutMap map[graph.NodeId]map[graph.NodeId]graph.NodeId // map of the shortcuts (from/source -> to/target -> via)
 
