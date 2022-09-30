@@ -21,8 +21,14 @@ const density = 710 // parameter for SimpleSphereGrid
 const nTarget = 1e6 // parameter for EquiSphereGrid
 
 func main() {
-	buildGridGraph := flag.Bool("gridgraph", false, "Build grid graph")
+	buildGridGraph := flag.String("gridgraph", "", "Build grid graph")
 	contractGraph := flag.String("contract", "", "Contract the given graph")
+
+	// Grid graph options
+	gridType := flag.String("grid-type", "equi-sphere", "Define the type of the grid")
+	nTargets := flag.Int("nTarget", 1e6, "Define the density/number of targets for the grid. Typical values: 1e6 (equi-sphere), 710 (simple-sphere)")
+	neighbors := flag.Int("neighbors", 4, "Define the number of neighbors on the grid (only equi-sphere)")
+
 	// CH contraction options
 	contractionLimit := flag.Float64("contraction-limit", 100, "Limit the level of contractions")
 	contractionWorkers := flag.Int("contraction-workers", 6, "Set the number of contraction workers")
@@ -38,8 +44,10 @@ func main() {
 	updateNeighbors := flag.Bool("update-neighbors", false, "update neighbors (priority) of contracted nodes for ch")
 	flag.Parse()
 
-	if *buildGridGraph {
-		createGridGraph()
+	if *buildGridGraph != "" {
+		// possible graphFile: "antarctica.poly.json", "planet-coastlines.poly.json"
+		graphFile := *buildGridGraph
+		createGridGraph(graphFile, *gridType, *nTargets, *neighbors)
 	}
 
 	if *contractGraph != "" {
@@ -58,14 +66,18 @@ func main() {
 	}
 }
 
-func createGridGraph() {
-	//arg := loadPolyJsonPolygons("antarctica.poly.json")
-	arg := loadPolyJsonPolygons("planet-coastlines.poly.json")
+func createGridGraph(graphFile, gridType string, nTargets int, meshType int) {
+	arg := loadPolyJsonPolygons(graphFile)
 
-	//grid := grid.NewSimpleSphereGrid(2*density, density, arg)
-	grid := grid.NewEquiSphereGrid(nTarget, grid.SIX_NEIGHBORS, arg)
+	gridGraph := func() graph.Graph {
+		if gridType == "equi-sphere" {
+			return grid.NewEquiSphereGrid(nTargets, meshType, arg).ToGraph()
+		} else if gridType == "simple-sphere" {
+			return grid.NewSimpleSphereGrid(2*nTargets, nTargets, arg).ToGraph()
+		}
+		panic("grid-type not supported")
+	}()
 
-	gridGraph := grid.ToGraph()
 	jsonObj, err := json.Marshal(gridGraph)
 	if err != nil {
 		panic(err)
