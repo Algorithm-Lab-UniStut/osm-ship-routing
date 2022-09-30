@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"path"
 	"runtime"
@@ -24,6 +25,10 @@ func main() {
 	contractGraph := flag.String("contract", "", "Contract the given graph")
 	contractionLimit := flag.Float64("contraction-limit", 100, "Limit the level of contractions")
 	contractionWorkers := flag.Int("contraction-workers", 6, "Set the number of contraction workers")
+	bidirectional := flag.Bool("bidirectional", false, "Compute the contraction bidirectional")
+	useHeuristic := flag.Bool("use-heuristic", false, "Use A* search for contraction")
+	coldStart := flag.Bool("cold-start", false, "explicitely do a cold start (not hot start) when computing contraction")
+	maxNumSettledNodes := flag.Int("max-settled-nodes", math.MaxInt, "Set the number of max allowed settled nodes for each contraction")
 	flag.Parse()
 
 	if *buildGridGraph {
@@ -39,7 +44,9 @@ func main() {
 		directory := path.Dir(filename)
 		graphFile := path.Join(directory, "..", "..", "graphs", *contractGraph)
 
-		createContractedGraph(graphFile, *contractionLimit, *contractionWorkers)
+		options := p.ContractionOptions{Bidirectional: *bidirectional, UseHeuristic: *useHeuristic, HotStart: !*coldStart, MaxNumSettledNodes: *maxNumSettledNodes, ContractionLimit: *contractionLimit, ContractionWorkers: *contractionWorkers}
+
+		createContractedGraph(graphFile, options)
 	}
 }
 
@@ -86,17 +93,15 @@ func loadPolyJsonPolygons(file string) []geometry.Polygon {
 	return polygons
 }
 
-func createContractedGraph(graphFile string, contractionLimit float64, contractionWorkers int) {
+func createContractedGraph(graphFile string, options p.ContractionOptions) {
 	log.Printf("Read graph file\n")
 	alg := graph.NewAdjacencyListFromFmiFile(graphFile)
 	dijkstra := p.NewUniversalDijkstra(alg)
 	log.Printf("Initialize Contraction Hierarchies\n")
-	ch := p.NewContractionHierarchies(alg, dijkstra)
+	ch := p.NewContractionHierarchies(alg, dijkstra, options)
 	ch.SetDebugLevel(2)
 	ch.SetPrecomputationMilestones([]float64{0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 99.99})
 	log.Printf("Initialized Contraction Hierarchies, start precomputation\n")
-	ch.SetContractionWorkers(contractionWorkers)
-	ch.SetContractionLevelLimit(contractionLimit)
 	pathFindingOptions := p.MakeDefaultPathFindingOptions() // Just use default parameters (they are not used anyway)
 	ch.Precompute(nil, p.MakeOrderOptions().SetLazyUpdate(true).SetEdgeDifference(true).SetProcessedNeighbors(true).SetPeriodic(false).SetUpdateNeighbors(false), pathFindingOptions)
 	ch.WriteContractionResult()

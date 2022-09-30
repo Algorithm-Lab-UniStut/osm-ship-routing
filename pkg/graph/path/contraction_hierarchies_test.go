@@ -70,7 +70,7 @@ const cuttableGraph = `13
 func TestGivenNodeOrdering(t *testing.T) {
 	alg := graph.NewAdjacencyListFromFmiString(cuttableGraph)
 	dijkstra := NewUniversalDijkstra(alg)
-	ch := NewContractionHierarchies(alg, dijkstra)
+	ch := NewContractionHierarchies(alg, dijkstra, MakeDefaultContractionOptions())
 	nodeOrdering := []int{0, 1, 10, 12, 7, 4, 9, 3, 6, 5, 8, 11, 2}
 	//ch.SetDebugLevel(1)
 	ch.Precompute(nodeOrdering, MakeOrderOptions(), MakeDefaultPathFindingOptions())
@@ -92,7 +92,7 @@ func TestContractGraph(t *testing.T) {
 	alg := graph.NewAdjacencyListFromFmiString(cuttableGraph)
 	dijkstra := NewUniversalDijkstra(alg)
 	dijkstra.SetDebugLevel(1)
-	ch := NewContractionHierarchies(alg, dijkstra)
+	ch := NewContractionHierarchies(alg, dijkstra, MakeDefaultContractionOptions())
 	ch.SetDebugLevel(1)
 	nodeOrdering := []int{0, 1, 10, 12, 7, 4, 9, 3, 6, 5, 8, 11, 2}
 	ch.Precompute(nodeOrdering, MakeOrderOptions(), MakeDefaultPathFindingOptions())
@@ -127,7 +127,7 @@ func TestPathFinding(t *testing.T) {
 	source, target := 0, 12
 	l := dijkstra.ComputeShortestPath(source, target)
 	p := dijkstra.GetPath(source, target)
-	ch := NewContractionHierarchies(alg, dijkstra)
+	ch := NewContractionHierarchies(alg, dijkstra, MakeDefaultContractionOptions())
 	nodeOrdering := []int{0, 1, 10, 12, 7, 4, 9, 3, 6, 5, 8, 11, 2}
 	ch.Precompute(nodeOrdering, MakeOrderOptions(), MakeDefaultPathFindingOptions())
 	length := ch.ComputeShortestPath(source, target)
@@ -141,7 +141,7 @@ func TestPathFinding(t *testing.T) {
 
 	alg = graph.NewAdjacencyListFromFmiString(cuttableGraph)
 	dijkstra = NewUniversalDijkstra(alg)
-	ch = NewContractionHierarchies(alg, dijkstra)
+	ch = NewContractionHierarchies(alg, dijkstra, MakeDefaultContractionOptions())
 	nodeOrdering = []int{1, 5, 9, 4, 3, 11, 10, 6, 8, 2, 7, 0, 12}
 	ch.Precompute(nodeOrdering, MakeOrderOptions(), MakeDefaultPathFindingOptions())
 	length = ch.ComputeShortestPath(source, target)
@@ -157,7 +157,7 @@ func TestPathFinding(t *testing.T) {
 func TestPrecompute(t *testing.T) {
 	alg := graph.NewAdjacencyListFromFmiString(cuttableGraph)
 	dijkstra := NewUniversalDijkstra(alg)
-	ch := NewContractionHierarchies(alg, dijkstra)
+	ch := NewContractionHierarchies(alg, dijkstra, MakeDefaultContractionOptions())
 	ch.SetDebugLevel(3)
 	ch.Precompute(nil, MakeOrderOptions().SetLazyUpdate(false).SetEdgeDifference(true).SetProcessedNeighbors(true).SetUpdateNeighbors(true), MakeDefaultPathFindingOptions())
 }
@@ -169,7 +169,7 @@ func TestContractionHierarchies(t *testing.T) {
 	l := dijkstra.ComputeShortestPath(source, target)
 	p := dijkstra.GetPath(source, target)
 	dijkstra.SetDebugLevel(1)
-	ch := NewContractionHierarchies(alg, dijkstra)
+	ch := NewContractionHierarchies(alg, dijkstra, MakeDefaultContractionOptions())
 	ch.SetDebugLevel(2)
 	ch.Precompute(nil, MakeOrderOptions().SetLazyUpdate(false).SetEdgeDifference(true).SetProcessedNeighbors(true).SetUpdateNeighbors(true), MakeDefaultPathFindingOptions())
 	length := ch.ComputeShortestPath(source, target)
@@ -194,7 +194,7 @@ func TestRandomContraction(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		alg = graph.NewAdjacencyListFromFmiString(cuttableGraph)
 		dijkstra = NewUniversalDijkstra(alg)
-		ch := NewContractionHierarchies(alg, dijkstra)
+		ch := NewContractionHierarchies(alg, dijkstra, MakeDefaultContractionOptions())
 		//ch.SetDebugLevel(2)
 		ch.Precompute(nil, MakeOrderOptions().SetLazyUpdate(false).SetRandom(true), MakeDefaultPathFindingOptions())
 		length := ch.ComputeShortestPath(source, target)
