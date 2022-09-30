@@ -818,12 +818,8 @@ func (ch *ContractionHierarchies) updateFullContractionOrder(oo OrderOptions) {
 	// heap.Init(pqOrder)
 }
 
-// Contract the node given by nodeId and add shortcuts if necessary.
-// if computeEdgeDifferenceOnly is true, the node is not contracted but only the necessary shortcuts are calculated.
-// This returns 3 values:
-//	- number of added/needed shortcuts
-//	- number of (active) incident arcs to that node (arcs from nodes which are not contracted, yet)
-//	- number of already contracted neighbors
+// Compute a (virtual) contraction for the given node. Ignore the nodes given by ignoreNodes.
+// This returns the ContractionResult, containing the necessary shortcuts, incident arcs, and already contracted neighbors
 func (ch *ContractionHierarchies) computeNodeContraction(nodeId graph.NodeId, ignoreNodes []graph.NodeId, contractionWorker *UniversalDijkstra) *ContractionResult {
 	if ch.isNodeContracted(nodeId) {
 		panic("Node already contracted.")
@@ -864,7 +860,6 @@ func (ch *ContractionHierarchies) computeNodeContraction(nodeId graph.NodeId, ig
 				if ch.debugLevel >= 4 {
 					log.Printf("target %v already processed\n", target)
 				}
-				//contractedNeighbors++
 				continue
 			}
 
@@ -905,44 +900,40 @@ func (ch *ContractionHierarchies) computeNodeContraction(nodeId graph.NodeId, ig
 	incidentArcsAmount -= contractedNeighbors
 
 	// number of shortcuts is doubled, since we have two arcs for each each (because symmetric graph)
-	// TODO maybe divide len(shortcuts) by 2 when using them
 	contractionResult := &ContractionResult{nodeId: nodeId, shortcuts: shortcuts, incidentEdges: 2 * incidentArcsAmount, contractedNeighbors: contractedNeighbors}
 	return contractionResult
 }
 
 // Add the shortcuts to the graph (by adding new arcs)
 func (ch *ContractionHierarchies) addShortcuts(shortcuts []Shortcut) {
+	addedShortcuts := 0
 	for _, sc := range shortcuts {
-		ch.addShortcut(sc.source, sc.target, sc.via, sc.cost)
+		added := ch.addShortcut(sc)
+		if added {
+			addedShortcuts++
+		}
 	}
-	_, exists := ch.addedShortcuts[len(shortcuts)]
+	_, exists := ch.addedShortcuts[addedShortcuts]
 	if !exists {
-		ch.addedShortcuts[len(shortcuts)] = 1
+		ch.addedShortcuts[addedShortcuts] = 1
 	} else {
-		ch.addedShortcuts[len(shortcuts)]++
+		ch.addedShortcuts[addedShortcuts]++
 	}
 }
 
 // Adds a shortcut to the graph from source to target with length cost which is spanned over node defined by via.
 // This adds a new arc in the graph.
-func (ch *ContractionHierarchies) addShortcut(source, target, via graph.NodeId, cost int) {
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Printf("from: %v, to: %v, via: %v, cost: %v\n", source, target, via, cost)
-			fmt.Printf("Level - source: %v, target: %v, via: %v\n", ch.orderOfNode[source], ch.orderOfNode[target], ch.orderOfNode[via])
-			panic("Terminating.")
-		}
-	}()
+func (ch *ContractionHierarchies) addShortcut(shortcut Shortcut) bool {
 	if ch.debugLevel >= 3 {
-		log.Printf("Add shortcut %v %v %v %v\n", source, target, via, cost)
+		log.Printf("Add shortcut %v %v %v %v\n", shortcut.source, shortcut.target, shortcut.via, shortcut.cost)
 	}
-	if ch.orderOfNode[source] != -1 || ch.orderOfNode[target] != -1 {
+	if ch.orderOfNode[shortcut.source] != -1 || ch.orderOfNode[shortcut.target] != -1 {
 		panic("Edge Node already contracted")
 	}
-	added := ch.dg.AddArc(source, target, cost)
+	added := ch.dg.AddArc(shortcut.source, shortcut.target, shortcut.cost)
 	if added {
-		sc := Shortcut{source: source, target: target, via: via}
-		ch.shortcuts = append(ch.shortcuts, sc)
+		ch.shortcuts = append(ch.shortcuts, shortcut)
+		return true
 	}
 	// maybe this map is not so a good idea
 	/*
@@ -951,6 +942,7 @@ func (ch *ContractionHierarchies) addShortcut(source, target, via graph.NodeId, 
 		}
 		ch.shortcutMap[source][target] = nodeId
 	*/
+	return false
 }
 
 // Enable all arcs for the node given by nodeId.
@@ -1024,7 +1016,7 @@ func (ch *ContractionHierarchies) GetShortcuts() []Shortcut {
 
 // Set the node ordering by an already available list.
 // This is used when one has already a contracted graph and one need to define in which order the nodes were contracted.
-//the index of the list reflects to the node id, the value to the level/position, when the node was contracted.
+// the index of the list reflects to the node id, the value to the level/position, when the node was contracted.
 func (ch *ContractionHierarchies) SetNodeOrdering(nodeOrdering [][]int) {
 	ch.orderOfNode = make([]int, ch.g.NodeCount())
 
@@ -1044,14 +1036,14 @@ func (ch *ContractionHierarchies) SetNodeOrdering(nodeOrdering [][]int) {
 	ch.liftUncontractedNodes()
 }
 
-// Set if the arcs should be sorted?
+// Set if the arcs should be sorted
 // TODO
 // flag indicating if the arcs are sorted (first enabled arcs, then disabled arcs)
-func (ch *ContractionHierarchies) SetSortArcs(flag bool) {
-	if flag {
+func (ch *ContractionHierarchies) SetSortArcs(sort bool) {
+	if sort {
 		ch.g.SortArcs()
-		ch.dijkstra.SortedArcs(true)
 	}
+	ch.dijkstra.SortedArcs(sort)
 }
 
 // Set the debug level
