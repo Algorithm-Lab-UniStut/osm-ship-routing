@@ -23,12 +23,19 @@ const nTarget = 1e6 // parameter for EquiSphereGrid
 func main() {
 	buildGridGraph := flag.Bool("gridgraph", false, "Build grid graph")
 	contractGraph := flag.String("contract", "", "Contract the given graph")
+	// CH contraction options
 	contractionLimit := flag.Float64("contraction-limit", 100, "Limit the level of contractions")
 	contractionWorkers := flag.Int("contraction-workers", 6, "Set the number of contraction workers")
 	bidirectional := flag.Bool("bidirectional", false, "Compute the contraction bidirectional")
 	useHeuristic := flag.Bool("use-heuristic", false, "Use A* search for contraction")
 	coldStart := flag.Bool("cold-start", false, "explicitely do a cold start (not hot start) when computing contraction")
 	maxNumSettledNodes := flag.Int("max-settled-nodes", math.MaxInt, "Set the number of max allowed settled nodes for each contraction")
+	// CH order options
+	noLazyUpdate := flag.Bool("no-lazy-update", false, "Disable lazy update for ch")
+	noEdgeDifference := flag.Bool("no-edge-difference", false, "Disable edge difference for ch")
+	noProcessedNeighbors := flag.Bool("no-processed-neighbors", false, "Disable processed neighbors for ch")
+	periodic := flag.Bool("periodic", false, "recompute contraction priority periodically for ch")
+	updateNeighbors := flag.Bool("update-neighbors", false, "update neighbors (priority) of contracted nodes for ch")
 	flag.Parse()
 
 	if *buildGridGraph {
@@ -44,9 +51,10 @@ func main() {
 		directory := path.Dir(filename)
 		graphFile := path.Join(directory, "..", "..", "graphs", *contractGraph)
 
+		oo := p.MakeOrderOptions().SetLazyUpdate(!*noLazyUpdate).SetEdgeDifference(!*noEdgeDifference).SetProcessedNeighbors(!*noProcessedNeighbors).SetPeriodic(*periodic).SetUpdateNeighbors(*updateNeighbors)
 		options := p.ContractionOptions{Bidirectional: *bidirectional, UseHeuristic: *useHeuristic, HotStart: !*coldStart, MaxNumSettledNodes: *maxNumSettledNodes, ContractionLimit: *contractionLimit, ContractionWorkers: *contractionWorkers}
 
-		createContractedGraph(graphFile, options)
+		createContractedGraph(graphFile, oo, options)
 	}
 }
 
@@ -93,7 +101,7 @@ func loadPolyJsonPolygons(file string) []geometry.Polygon {
 	return polygons
 }
 
-func createContractedGraph(graphFile string, options p.ContractionOptions) {
+func createContractedGraph(graphFile string, oo p.OrderOptions, options p.ContractionOptions) {
 	log.Printf("Read graph file\n")
 	alg := graph.NewAdjacencyListFromFmiFile(graphFile)
 	dijkstra := p.NewUniversalDijkstra(alg)
@@ -102,7 +110,7 @@ func createContractedGraph(graphFile string, options p.ContractionOptions) {
 	ch.SetDebugLevel(2)
 	ch.SetPrecomputationMilestones([]float64{0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 99.99})
 	log.Printf("Initialized Contraction Hierarchies, start precomputation\n")
-	ch.Precompute(nil, p.MakeOrderOptions().SetLazyUpdate(true).SetEdgeDifference(true).SetProcessedNeighbors(true).SetPeriodic(false).SetUpdateNeighbors(false))
+	ch.Precompute(nil, oo)
 	ch.WriteContractionResult()
 	log.Printf("Finished Contraction\n")
 }
