@@ -1037,8 +1037,7 @@ func (ch *ContractionHierarchies) SetNodeOrdering(nodeOrdering [][]int) {
 }
 
 // Set if the arcs should be sorted
-// TODO
-// flag indicating if the arcs are sorted (first enabled arcs, then disabled arcs)
+// flag indicating if the arcs are sorted according if they are enabled or not (list will contain enabled arcs, then disabled arcs)
 func (ch *ContractionHierarchies) SetSortArcs(sort bool) {
 	if sort {
 		ch.g.SortArcs()
