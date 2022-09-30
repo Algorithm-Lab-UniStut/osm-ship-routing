@@ -522,7 +522,6 @@ func (ch *ContractionHierarchies) computeIndependentSet(ignorePriority bool) []g
 func (ch *ContractionHierarchies) updateOrderForNodes(nodes []graph.NodeId, oo OrderOptions) {
 	// add "current node" to the ignore list, because it is not contracted, yet (what is the basis for the ignore list)
 	contractionResult := ch.computeNodeContractionParallel(nodes, nil, true)
-	log.Printf("Computed contraction results\n")
 	for _, result := range contractionResult {
 		nodeId := result.nodeId
 		edgeDifference := len(result.shortcuts) - result.incidentEdges
