@@ -520,17 +520,8 @@ func (ch *ContractionHierarchies) computeIndependentSet(ignorePriority bool) []g
 
 // update the node order for the given nodes by computing a virtual contraction for each given node
 func (ch *ContractionHierarchies) updateOrderForNodes(nodes []graph.NodeId, oo OrderOptions) {
-	// collect all nodes which have to get updates
-	// TODO maybe remove this precheck
-	updateNodes := make([]graph.NodeId, 0, len(nodes))
-	for _, node := range nodes {
-		if !ch.isNodeContracted(node) {
-			updateNodes = append(updateNodes, node)
-		}
-	}
-
 	// add "current node" to the ignore list, because it is not contracted, yet (what is the basis for the ignore list)
-	contractionResult := ch.computeNodeContractionParallel(updateNodes, nil, true)
+	contractionResult := ch.computeNodeContractionParallel(nodes, nil, true)
 	log.Printf("Computed contraction results\n")
 	for _, result := range contractionResult {
 		nodeId := result.nodeId
@@ -880,6 +871,10 @@ func (ch *ContractionHierarchies) updateFullContractionOrder(oo OrderOptions) {
 //	- number of (active) incident arcs to that node (arcs from nodes which are not contracted, yet)
 //	- number of already contracted neighbors
 func (ch *ContractionHierarchies) computeNodeContraction(nodeId graph.NodeId, ignoreNodes []graph.NodeId, contractionWorker *UniversalDijkstra) *ContractionResult {
+	if ch.isNodeContracted(nodeId) {
+		panic("Node already contracted.")
+	}
+
 	shortcuts := make([]Shortcut, 0)
 	contractedNeighbors := 0
 
