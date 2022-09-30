@@ -102,8 +102,7 @@ func createContractedGraph(graphFile string, options p.ContractionOptions) {
 	ch.SetDebugLevel(2)
 	ch.SetPrecomputationMilestones([]float64{0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 99.99})
 	log.Printf("Initialized Contraction Hierarchies, start precomputation\n")
-	pathFindingOptions := p.MakeDefaultPathFindingOptions() // Just use default parameters (they are not used anyway)
-	ch.Precompute(nil, p.MakeOrderOptions().SetLazyUpdate(true).SetEdgeDifference(true).SetProcessedNeighbors(true).SetPeriodic(false).SetUpdateNeighbors(false), pathFindingOptions)
+	ch.Precompute(nil, p.MakeOrderOptions().SetLazyUpdate(true).SetEdgeDifference(true).SetProcessedNeighbors(true).SetPeriodic(false).SetUpdateNeighbors(false))
 	ch.WriteContractionResult()
 	log.Printf("Finished Contraction\n")
 }

@@ -129,7 +129,7 @@ func NewContractionHierarchiesInitialized(g graph.Graph, dijkstra *UniversalDijk
 	ch.SetShortcuts(shortcuts)
 	ch.SetNodeOrdering(nodeOrdering)
 	ch.matchArcsWithNodeOrder()
-	ch.shortestPathSetup(pathFindingOptions)
+	ch.ShortestPathSetup(pathFindingOptions)
 	return ch
 }
 
@@ -138,7 +138,7 @@ func NewContractionHierarchiesInitialized(g graph.Graph, dijkstra *UniversalDijk
 // If givenNodeOrder is not nil, the OrderOption oo are ignored.
 // givenNodeOrder predefines the order of the nodes.
 // oo defines how the node ordering will be calculated.
-func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptions, pathFindingOptions PathFindingOptions) {
+func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptions) {
 	ch.initialTime = time.Now()
 	ch.milestoneIndex = 0
 
@@ -208,8 +208,6 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 	ch.SetShortcuts(ch.shortcuts)
 	// match arcs with node order
 	ch.matchArcsWithNodeOrder()
-	// setup for path computation
-	ch.shortestPathSetup(pathFindingOptions)
 
 	for i, m := range ch.milestones {
 		runtime := ch.runtime[i]
@@ -230,7 +228,7 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 }
 
 // Setup ch to compute the shortest path
-func (ch *ContractionHierarchies) shortestPathSetup(options PathFindingOptions) {
+func (ch *ContractionHierarchies) ShortestPathSetup(options PathFindingOptions) {
 	// set fix options for CH search
 	ch.dijkstra.SetCostUpperBound(math.MaxInt)
 	ch.dijkstra.SetMaxNumSettledNodes(math.MaxInt)
