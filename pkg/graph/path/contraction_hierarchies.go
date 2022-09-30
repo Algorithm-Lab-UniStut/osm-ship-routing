@@ -498,12 +498,12 @@ func (ch *ContractionHierarchies) computeIndependentSet(ignorePriority bool) []g
 
 	for i := 0; i < ch.pqOrder.Len(); i++ {
 		item := ch.pqOrder.PeekAt(i).(*OrderItem)
-		if priority < item.Priority() {
-			increasedPriority = true
-		}
 		if forbiddenNodes[item.nodeId] == true {
 			ignoredNode = true
 			continue
+		}
+		if priority < item.Priority() {
+			increasedPriority = true
 		}
 		if increasedPriority && ignoredNode {
 			break
