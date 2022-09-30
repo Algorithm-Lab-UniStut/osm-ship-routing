@@ -25,10 +25,10 @@ func main() {
 	cpuProfile := flag.String("cpu", "", "write cpu profile to file")
 	targetGraph := flag.String("graph", "big_lazy", "Select the graph to work with")
 	// CH options
-	stallOnDemand := flag.Int("stallOnDemand", 2, "Set the stall on demand level")
-	useHeuristic := flag.Bool("heuristic", false, "use astar search")
-	manual := flag.Bool("manual", false, "Use manual (not bidirectional) search of dijkstra")
-	sortArcs := flag.Bool("sortArcs", false, "Sort the arcs according if they are active or not for each node")
+	stallOnDemand := flag.Int("ch-stall-on-demand", 2, "Set the stall on demand level")
+	useHeuristic := flag.Bool("ch-heuristic", false, "use astar search in ch")
+	manual := flag.Bool("ch-manual", false, "Use manual (not bidirectional) search of dijkstra")
+	sortArcs := flag.Bool("ch-sort-arcs", false, "Sort the arcs according if they are active or not for each node")
 	flag.Parse()
 
 	_, filename, _, ok := runtime.Caller(0)
