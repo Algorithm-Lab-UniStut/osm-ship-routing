@@ -12,7 +12,7 @@ type NodeId = int
 type Graph interface {
 	GetNode(id NodeId) geo.Point
 	GetNodes() []geo.Point
-	GetArcsFrom(id NodeId) []*Arc
+	GetArcsFrom(id NodeId) []Arc
 	NodeCount() int
 	ArcCount() int
 	AsString() string
@@ -71,8 +71,8 @@ func (e Edge) Invert() Edge {
 	return Edge{From: e.To, To: e.From, Distance: e.Distance}
 }
 
-func (e Edge) toArc() *Arc {
-	return NewArc(e.To, e.Distance, e.ArcFlag())
+func (e Edge) toArc() Arc {
+	return MakeArc(e.To, e.Distance, e.ArcFlag())
 }
 
 func (e Edge) ArcFlag() bool {

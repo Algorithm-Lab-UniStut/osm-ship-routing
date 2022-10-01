@@ -12,7 +12,7 @@ import (
 // Implementation for dynamic graphs
 type AdjacencyListGraph struct {
 	Nodes     []geo.Point // The nodes of the graph
-	Edges     [][]*Arc    // The Arcs of the graph. The first slice specifies to which the arc belongs
+	Edges     [][]Arc     // The Arcs of the graph. The first slice specifies to which the arc belongs
 	edgeCount int         // the number of edges/arcs in the graph
 }
 
@@ -30,7 +30,7 @@ func (alg *AdjacencyListGraph) GetNodes() []geo.Point {
 }
 
 // Get the arcs for the given node
-func (alg *AdjacencyListGraph) GetArcsFrom(id NodeId) []*Arc {
+func (alg *AdjacencyListGraph) GetArcsFrom(id NodeId) []Arc {
 	if id < 0 || id >= alg.NodeCount() {
 		panic(id)
 	}
@@ -97,7 +97,7 @@ func (alg *AdjacencyListGraph) AsString() string {
 // Add a node to the graph
 func (alg *AdjacencyListGraph) AddNode(n geo.Point) {
 	alg.Nodes = append(alg.Nodes, n)
-	alg.Edges = append(alg.Edges, make([]*Arc, 0))
+	alg.Edges = append(alg.Edges, make([]Arc, 0))
 }
 
 // Add an Edge to the graph
@@ -123,7 +123,9 @@ func (alg *AdjacencyListGraph) AddArc(from, to NodeId, distance int) bool {
 		panic(fmt.Sprintf("Arc out of range %v -> %v", from, to))
 	}
 	// Check for duplicates
-	for _, arc := range alg.Edges[from] {
+	arcs := alg.Edges[from]
+	for i := range arcs {
+		arc := &arcs[i]
 		if to == arc.To {
 			// TODO check if updating or ignoring edges is better. Does this break some stuff wih the shortcuts?
 			// update should be better: use new shortcut
@@ -138,7 +140,7 @@ func (alg *AdjacencyListGraph) AddArc(from, to NodeId, distance int) bool {
 		}
 
 	}
-	alg.Edges[from] = append(alg.Edges[from], NewArc(to, distance, true))
+	alg.Edges[from] = append(alg.Edges[from], MakeArc(to, distance, true))
 	alg.edgeCount++
 	return true
 }
@@ -154,7 +156,9 @@ func (alg *AdjacencyListGraph) EstimateDistance(source, target NodeId) int {
 // Set the arc flags for all arcs of the given node
 func (alg *AdjacencyListGraph) SetArcFlags(id NodeId, flag bool) {
 	// set the arc flags for the outgoing edges
-	for _, arc := range alg.GetArcsFrom(id) {
+	arcs := alg.GetArcsFrom(id)
+	for i := range arcs {
+		arc := &arcs[i]
 		arc.SetArcFlag(flag)
 	}
 	// TODO maybe an improvement (Usefull when removing the pointer from the arcs)

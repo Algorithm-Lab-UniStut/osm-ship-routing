@@ -10,14 +10,14 @@ import (
 // Implementation for static graphs
 type AdjacencyArrayGraph struct {
 	Nodes   []geo.Point
-	arcs    []*Arc
+	arcs    []Arc
 	Offsets []int
 }
 
 // Create an AdjacencyArrayGraph from the given graph
 func NewAdjacencyArrayFromGraph(g Graph) *AdjacencyArrayGraph {
 	nodes := make([]geo.Point, 0)
-	arcs := make([]*Arc, 0)
+	arcs := make([]Arc, 0)
 	offsets := make([]int, g.NodeCount()+1)
 
 	for i := 0; i < g.NodeCount(); i++ {
@@ -49,7 +49,7 @@ func (aag *AdjacencyArrayGraph) GetNodes() []geo.Point {
 }
 
 // Get the Arcs for the given node id
-func (aag *AdjacencyArrayGraph) GetArcsFrom(id NodeId) []*Arc {
+func (aag *AdjacencyArrayGraph) GetArcsFrom(id NodeId) []Arc {
 	if id < 0 || id >= aag.NodeCount() {
 		panic(fmt.Sprintf("NodeId %d is not contained in the graph.", id))
 	}
@@ -126,7 +126,9 @@ func (aag *AdjacencyArrayGraph) EstimateDistance(source, target NodeId) int {
 // Set the arc flags for all arcs of the given node
 func (aag *AdjacencyArrayGraph) SetArcFlags(id NodeId, flag bool) {
 	// set the arc flags for the outgoing edges
-	for _, arc := range aag.GetArcsFrom(id) {
+	arcs := aag.GetArcsFrom(id)
+	for i := range arcs {
+		arc := &arcs[i]
 		arc.SetArcFlag(flag)
 	}
 	// TODO maybe this can get improved to directly set the arcs flags without calling GetArcsFrom()

@@ -947,7 +947,9 @@ func (ch *ContractionHierarchies) addShortcut(shortcut Shortcut) bool {
 // Enable arcs which point to a node with higher level. Disable all other ones
 func (ch *ContractionHierarchies) matchArcsWithNodeOrder() {
 	for source := range ch.g.GetNodes() {
-		for _, arc := range ch.g.GetArcsFrom(source) {
+		arcs := ch.g.GetArcsFrom(source)
+		for i := range arcs {
+			arc := &arcs[i]
 			target := arc.Destination()
 			arc.SetArcFlag(ch.orderOfNode[source] < ch.orderOfNode[target] || ch.orderOfNode[target] == math.MaxInt)
 		}
