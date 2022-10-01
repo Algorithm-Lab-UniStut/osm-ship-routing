@@ -63,6 +63,15 @@ func NewUniversalDijkstra(g graph.Graph) *UniversalDijkstra {
 	return &UniversalDijkstra{g: g, costUpperBound: math.MaxInt, maxNumSettledNodes: math.MaxInt, ignoreNodes: make([]bool, g.NodeCount()), origin: -1, destination: -1}
 }
 
+func alignWithSearchDirection[T any](searchDirection Direction, a, b T) (T, T) {
+	if searchDirection == FORWARD {
+		return a, b
+	} else if searchDirection == BACKWARD {
+		return b, a
+	}
+	panic("Search direction not supported")
+}
+
 // Compute the shortest path from the origin to the destination.
 // It returns the length of the found path
 // If no path was found, it returns -1
@@ -113,10 +122,7 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 
 		d.settleNode(currentNode)
 
-		stalledNodes, backwardStalledNodes := d.forwardStalledNodes, d.backwardStalledNodes
-		if currentNode.searchDirection == BACKWARD {
-			stalledNodes, backwardStalledNodes = backwardStalledNodes, stalledNodes
-		}
+		stalledNodes, _ := alignWithSearchDirection(currentNode.searchDirection, d.forwardStalledNodes, d.backwardStalledNodes)
 
 		if d.stallOnDemand >= 2 && stalledNodes[currentNode.NodeId] {
 			// this is a stalled node -> nothing to do
@@ -343,10 +349,8 @@ func (d *UniversalDijkstra) initializeSearch(origin, destination graph.NodeId) {
 
 // Settle the given node item
 func (d *UniversalDijkstra) settleNode(node *DijkstraItem) {
-	searchSpace, visitedNodes := d.searchSpace, d.visitedNodes
-	if node.searchDirection == BACKWARD {
-		searchSpace, visitedNodes = d.backwardSearchSpace, d.backwardVisitedNodes
-	}
+	searchSpace, _ := alignWithSearchDirection(node.searchDirection, d.searchSpace, d.backwardSearchSpace)
+	visitedNodes, _ := alignWithSearchDirection(node.searchDirection, d.visitedNodes, d.backwardVisitedNodes)
 	d.numSettledNodes++
 	searchSpace[node.NodeId] = node
 	visitedNodes[node.NodeId] = true
@@ -373,15 +377,9 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 			continue
 		}
 
-		searchSpace, inverseSearchSpace := d.searchSpace, d.backwardSearchSpace
-		stalledNodes, backwardStalledNodes := d.forwardStalledNodes, d.backwardStalledNodes
-		stallingDistance, backwardStallingDistance := d.forwardStallingDistance, d.backwardStallingDistance
-
-		if node.searchDirection == BACKWARD {
-			searchSpace, inverseSearchSpace = inverseSearchSpace, searchSpace
-			stalledNodes, backwardStalledNodes = backwardStalledNodes, stalledNodes
-			stallingDistance, backwardStallingDistance = backwardStallingDistance, stallingDistance
-		}
+		searchSpace, inverseSearchSpace := alignWithSearchDirection(node.searchDirection, d.searchSpace, d.backwardSearchSpace)
+		stalledNodes, _ := alignWithSearchDirection(node.searchDirection, d.forwardStalledNodes, d.backwardStalledNodes)
+		stallingDistance, _ := alignWithSearchDirection(node.searchDirection, d.forwardStallingDistance, d.backwardStallingDistance)
 
 		if d.considerArcFlags && !arc.ArcFlag() {
 			// ignore this arc
@@ -419,13 +417,9 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 			// store potential connection node, needed for later
 			// this is a "real" copy, not just a pointer since it get changed now
 			connection := inverseSearchSpace[successor]
-			connectionPredecessor := node.NodeId
-			connectionSuccessor := connection.predecessor
-			if node.searchDirection == BACKWARD {
-				// Default direction is forward
-				// if it is backward, switch successor and predecessor
-				connectionPredecessor, connectionSuccessor = connectionSuccessor, connectionPredecessor
-			}
+			// Default direction is forward
+			// if it is backward, switch successor and predecessor
+			connectionPredecessor, connectionSuccessor := alignWithSearchDirection(node.searchDirection, node.NodeId, connection.predecessor)
 
 			connectionDistance := node.distance + arc.Cost() + connection.distance
 			if d.bidirectionalConnection.nodeId == -1 || connectionDistance < d.bidirectionalConnection.distance {
