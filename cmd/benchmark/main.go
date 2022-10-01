@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"runtime/pprof"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/natevvv/osm-ship-routing/pkg/graph"
@@ -106,12 +107,31 @@ func getNavigator(algorithm, graphDirectory string, chPathFindingOptions p.PathF
 		bid.SetBidirectional(true)
 		return bid, referenceDijkstra
 	} else if algorithm == "ch" {
-		contractedAag := graph.NewAdjacencyArrayFromFmiFile(contractedGraphFile)
-		shortcuts := p.ReadShortcutFile(shortcutFile)
-		nodeOrdering := p.ReadNodeOrderingFile(nodeOrderingFile)
+		var wg sync.WaitGroup
+		var contractedGraph graph.Graph
+		var shortcuts []p.Shortcut
+		var nodeOrdering [][]graph.NodeId
 
-		dijkstra := p.NewUniversalDijkstra(contractedAag)
-		ch := p.NewContractionHierarchiesInitialized(contractedAag, dijkstra, shortcuts, nodeOrdering, chPathFindingOptions)
+		wg.Add(3)
+		go func() {
+			contractedGraph = graph.NewAdjacencyArrayFromFmiFile(contractedGraphFile)
+			log.Println("Imported graph")
+			wg.Done()
+		}()
+		go func() {
+			shortcuts = p.ReadShortcutFile(shortcutFile)
+			log.Println("Imported shortcuts")
+			wg.Done()
+		}()
+		go func() {
+			nodeOrdering = p.ReadNodeOrderingFile(nodeOrderingFile)
+			log.Println("Imported node ordering")
+			wg.Done()
+		}()
+		wg.Wait()
+
+		dijkstra := p.NewUniversalDijkstra(contractedGraph)
+		ch := p.NewContractionHierarchiesInitialized(contractedGraph, dijkstra, shortcuts, nodeOrdering, chPathFindingOptions)
 		return ch, referenceDijkstra
 	}
 
