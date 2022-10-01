@@ -18,16 +18,14 @@ type AdjacencyArrayGraph struct {
 func NewAdjacencyArrayFromGraph(g Graph) *AdjacencyArrayGraph {
 	nodes := make([]geo.Point, 0)
 	arcs := make([]*Arc, 0)
-	offsets := make([]int, g.NodeCount()+1, g.NodeCount()+1)
+	offsets := make([]int, g.NodeCount()+1)
 
 	for i := 0; i < g.NodeCount(); i++ {
 		// add node
 		nodes = append(nodes, g.GetNode(i))
 
 		// add all edges of node
-		for _, arc := range g.GetArcsFrom(i) {
-			arcs = append(arcs, arc)
-		}
+		arcs = append(arcs, g.GetArcsFrom(i)...)
 
 		// set stop-offset
 		offsets[i+1] = len(arcs)
@@ -100,14 +98,14 @@ func (aag *AdjacencyArrayGraph) AsString() string {
 	sb.WriteString(fmt.Sprintf("%v\n", aag.NodeCount()))
 	sb.WriteString(fmt.Sprintf("%v\n", aag.ArcCount()))
 
-	sb.WriteString(fmt.Sprintf("#Nodes\n"))
+	sb.WriteString("#Nodes\n")
 	// list all nodes structured as "id lat lon"
 	for i := 0; i < aag.NodeCount(); i++ {
 		node := aag.GetNode(i)
 		sb.WriteString(fmt.Sprintf("%v %v %v\n", i, node.Lat(), node.Lon()))
 	}
 
-	sb.WriteString(fmt.Sprintf("#Edges\n"))
+	sb.WriteString("#Edges\n")
 	// list all edges structured as "fromId targetId distance"
 	for i := 0; i < aag.NodeCount(); i++ {
 		for _, arc := range aag.GetArcsFrom(i) {

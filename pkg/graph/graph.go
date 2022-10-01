@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/natevvv/osm-ship-routing/pkg/geometry"
+	geo "github.com/natevvv/osm-ship-routing/pkg/geometry"
 )
 
 type NodeId = int
 
 type Graph interface {
-	GetNode(id NodeId) geometry.Point
-	GetNodes() []geometry.Point
+	GetNode(id NodeId) geo.Point
+	GetNodes() []geo.Point
 	GetArcsFrom(id NodeId) []*Arc
 	NodeCount() int
 	ArcCount() int
@@ -24,7 +24,7 @@ type Graph interface {
 
 type DynamicGraph interface {
 	Graph
-	AddNode(n geometry.Point)
+	AddNode(n geo.Point)
 	AddEdge(edge Edge) bool
 	AddArc(from, to NodeId, distance int) bool
 }

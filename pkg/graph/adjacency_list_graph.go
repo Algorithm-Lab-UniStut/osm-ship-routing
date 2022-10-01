@@ -77,14 +77,14 @@ func (alg *AdjacencyListGraph) AsString() string {
 	sb.WriteString(fmt.Sprintf("%v\n", alg.NodeCount()))
 	sb.WriteString(fmt.Sprintf("%v\n", alg.ArcCount()))
 
-	sb.WriteString(fmt.Sprintf("#Nodes\n"))
+	sb.WriteString("#Nodes\n")
 	// list all nodes structured as "id lat lon"
 	for i := 0; i < alg.NodeCount(); i++ {
 		node := alg.GetNode(i)
 		sb.WriteString(fmt.Sprintf("%v %v %v\n", i, node.Lat(), node.Lon()))
 	}
 
-	sb.WriteString(fmt.Sprintf("#Edges\n"))
+	sb.WriteString("#Edges\n")
 	// list all edges structured as "fromId targetId distance"
 	for i := 0; i < alg.NodeCount(); i++ {
 		for _, arc := range alg.GetArcsFrom(i) {
