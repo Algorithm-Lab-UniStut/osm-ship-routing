@@ -17,11 +17,11 @@ func NewBidirectionalDijkstra(g graph.Graph) BidirectionalDijkstra {
 }
 
 func (bd BidirectionalDijkstra) GetPath(origin, destination int) ([]int, int) {
-	forwardDijkstraItems := make([]*queue.PriorityQueueItem, bd.g.NodeCount(), bd.g.NodeCount())
+	forwardDijkstraItems := make([]*queue.PriorityQueueItem, bd.g.NodeCount())
 	originItem := queue.NewPriorityQueueItem(origin, 0, -1) //{ItemId: origin, Priority: 0, Predecessor: -1, Index: -1}
 	forwardDijkstraItems[origin] = originItem
 
-	backwardDijkstraItems := make([]*queue.PriorityQueueItem, bd.g.NodeCount(), bd.g.NodeCount())
+	backwardDijkstraItems := make([]*queue.PriorityQueueItem, bd.g.NodeCount())
 	destinationItem := queue.NewPriorityQueueItem(destination, 0, -1) //{ItemId: destination, Priority: 0, Predecessor: -1, Index: -1}
 	backwardDijkstraItems[destination] = destinationItem
 

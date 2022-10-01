@@ -21,7 +21,7 @@ func NewDijkstra(g graph.Graph) *Dijkstra {
 }
 
 func (d *Dijkstra) ComputeShortestPath(origin, destination int) int {
-	d.dijkstraItems = make([]*queue.PriorityQueueItem, d.g.NodeCount(), d.g.NodeCount())
+	d.dijkstraItems = make([]*queue.PriorityQueueItem, d.g.NodeCount())
 	originItem := queue.NewPriorityQueueItem(origin, 0, -1) //{ItemId: origin, Priority: 0, Predecessor: -1, Index: -1}
 	d.dijkstraItems[origin] = originItem
 

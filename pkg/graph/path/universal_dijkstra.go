@@ -456,14 +456,9 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 
 // Stall the given node with the stallingDistance
 func (d *UniversalDijkstra) stallNode(node *DijkstraItem, stallingDistance int) {
-	searchSpace, inverseSearchSpace := d.searchSpace, d.backwardSearchSpace
-	stalledNodes, backwardStalledNodes := d.forwardStalledNodes, d.backwardStalledNodes
-	stallingDistances, backwardStallingDistances := d.forwardStallingDistance, d.backwardStallingDistance
-	if node.searchDirection == BACKWARD {
-		searchSpace, inverseSearchSpace = inverseSearchSpace, searchSpace
-		stalledNodes, backwardStalledNodes = backwardStalledNodes, stalledNodes
-		stallingDistances, backwardStallingDistances = backwardStallingDistances, stallingDistances
-	}
+	searchSpace, _ := alignWithSearchDirection(node.searchDirection, d.searchSpace, d.backwardSearchSpace)
+	stalledNodes, _ := alignWithSearchDirection(node.searchDirection, d.forwardStalledNodes, d.backwardStalledNodes)
+	stallingDistances, _ := alignWithSearchDirection(node.searchDirection, d.forwardStallingDistance, d.backwardStallingDistance)
 
 	stalledNodes[node.NodeId] = true
 	stallingDistances[node.NodeId] = stallingDistance
@@ -493,10 +488,7 @@ func (d *UniversalDijkstra) stallNode(node *DijkstraItem, stallingDistance int) 
 
 // Unstall the given node and update the given distance
 func (d *UniversalDijkstra) unstallNode(node *DijkstraItem, distance int) {
-	stalledNodes, backwardStalledNodes := d.forwardStalledNodes, d.backwardStalledNodes
-	if node.searchDirection == BACKWARD {
-		stalledNodes, backwardStalledNodes = backwardStalledNodes, stalledNodes
-	}
+	stalledNodes, _ := alignWithSearchDirection(node.searchDirection, d.forwardStalledNodes, d.backwardStalledNodes)
 	stalledNodes[node.NodeId] = false
 	if node.index < 0 {
 		node.distance = distance

@@ -92,7 +92,7 @@ func TestAStarDijkstra(t *testing.T) {
 	}
 	for i := 0; i < int(math.Min(float64(len(path)), float64(len(astarPath)))); i++ {
 		if path[i] != astarPath[i] {
-			//t.Errorf("Path does not match. At pos %v, it is %v, should be %v", i, astarPath[i], path[i])
+			t.Errorf("Path does not match. At pos %v, it is %v, should be %v", i, astarPath[i], path[i])
 		}
 	}
 }
@@ -117,7 +117,7 @@ func TestBidirectionalDijkstra(t *testing.T) {
 	}
 	for i := 0; i < int(math.Min(float64(len(path)), float64(len(bidijkstraPath)))); i++ {
 		if path[i] != bidijkstraPath[i] {
-			//t.Errorf("Path does not match. At pos %v, it is %v, should be %v", i, astarPath[i], path[i])
+			t.Errorf("Path does not match. At pos %v, it is %v, should be %v", i, bidijkstraPath[i], path[i])
 		}
 	}
 }

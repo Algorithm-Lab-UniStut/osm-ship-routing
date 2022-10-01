@@ -105,7 +105,7 @@ func (a AStar) estimatedDistance(originNodeId, destinationNodeId int) int {
 }
 
 func (a AStar) GetPath(origin, destination int) ([]int, int) {
-	dijkstraItems := make([]*AStarPriorityQueueItem, a.g.NodeCount(), a.g.NodeCount())
+	dijkstraItems := make([]*AStarPriorityQueueItem, a.g.NodeCount())
 	originItem := NewAStarPriorityQueueItem(origin, 0, -1, 0) //{PriorityQueueItem: queue.PriorityQueueItem{ItemId: origin, Priority: 0, Predecessor: -1, Index: -1}}
 	dijkstraItems[origin] = originItem
 

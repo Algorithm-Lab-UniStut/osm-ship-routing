@@ -498,7 +498,7 @@ func (ch *ContractionHierarchies) computeIndependentSet(ignorePriority bool) []g
 
 	for i := 0; i < ch.pqOrder.Len(); i++ {
 		item := ch.pqOrder.PeekAt(i).(*OrderItem)
-		if forbiddenNodes[item.nodeId] == true {
+		if forbiddenNodes[item.nodeId] {
 			ignoredNode = true
 			continue
 		}
@@ -669,7 +669,6 @@ func (ch *ContractionHierarchies) contractNodes(oo OrderOptions, fixedOrder bool
 		return uniqueShortcuts
 	}
 	for ch.pqOrder.Len() > 0 && contractionLevel() <= ch.contractionLevelLimit {
-		updateNodes := make([]graph.NodeId, 0)
 		nodes := getTargetNodes()
 
 		contractionResults := ch.computeNodeContractionParallel(nodes, nodes, true) // Ignore nodes for current level (they are not contracted, yet)
@@ -751,7 +750,7 @@ func (ch *ContractionHierarchies) contractNodes(oo OrderOptions, fixedOrder bool
 			}
 		}
 
-		updateNodes = affectedNeighbors
+		updateNodes := affectedNeighbors
 
 		// TODO Recalculation of shortcuts, incident edges and processed neighbors
 		// may not be necessary when updating the neighbors with every contraction
@@ -887,7 +886,7 @@ func (ch *ContractionHierarchies) computeNodeContraction(nodeId graph.NodeId, ig
 				// add reverse shortcut since this is only computed once
 				// only calculate source -> target once, don't calculate target -> source
 				reverseShortcut := Shortcut{source: target, target: source, via: nodeId, cost: maxCost}
-				shortcuts = append(shortcuts, []Shortcut{shortcut, reverseShortcut}...)
+				shortcuts = append(shortcuts, shortcut, reverseShortcut)
 			}
 		}
 	}
@@ -943,22 +942,6 @@ func (ch *ContractionHierarchies) addShortcut(shortcut Shortcut) bool {
 		ch.shortcutMap[source][target] = nodeId
 	*/
 	return false
-}
-
-// Enable all arcs for the node given by nodeId.
-func (ch *ContractionHierarchies) enableArcsForNode(nodeId graph.NodeId) {
-	ch.g.SetArcFlags(nodeId, true)
-	if ch.debugLevel >= 3 {
-		log.Printf("enable arcs of node %v\n", nodeId)
-	}
-}
-
-// Disable all arcs for the node given by nodeId.
-func (ch *ContractionHierarchies) disableArcsForNode(nodeId graph.NodeId) {
-	ch.g.SetArcFlags(nodeId, false)
-	if ch.debugLevel >= 3 {
-		log.Printf("disable arcs of node %v\n", nodeId)
-	}
 }
 
 // Enable arcs which point to a node with higher level. Disable all other ones
@@ -1097,8 +1080,7 @@ func (ch *ContractionHierarchies) WriteNodeOrdering() {
 			order := fmt.Sprintf("%v ", v)
 			sb.WriteString(order)
 		}
-		order := fmt.Sprintf("\n")
-		sb.WriteString(order)
+		sb.WriteString("\n")
 	}
 	writer := bufio.NewWriter(file)
 	writer.WriteString(sb.String())
