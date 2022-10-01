@@ -89,25 +89,36 @@ func getNavigator(algorithm, graphDirectory string, chPathFindingOptions p.PathF
 	shortcutFile := path.Join(graphDirectory, "shortcuts.txt")
 	nodeOrderingFile := path.Join(graphDirectory, "node_ordering.txt")
 
-	aag := graph.NewAdjacencyArrayFromFmiFile(plainGraphFile)
-	referenceDijkstra := p.NewDijkstra(aag)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	var aag graph.Graph
+	var referenceDijkstra *p.Dijkstra
+	go func() {
+		aag = graph.NewAdjacencyArrayFromFmiFile(plainGraphFile)
+		referenceDijkstra = p.NewDijkstra(aag)
+		wg.Done()
+	}()
 
 	if algorithm == "default" {
+		wg.Wait()
 		return p.NewUniversalDijkstra(aag), referenceDijkstra
 	} else if algorithm == "dijkstra" {
+		wg.Wait()
 		return p.NewUniversalDijkstra(aag), referenceDijkstra
 	} else if algorithm == "reference_dijkstra" {
+		wg.Wait()
 		return p.NewDijkstra(aag), referenceDijkstra
 	} else if algorithm == "astar" {
+		wg.Wait()
 		astar := p.NewUniversalDijkstra(aag)
 		astar.SetUseHeuristic(true)
 		return astar, referenceDijkstra
 	} else if algorithm == "bidijkstra" {
+		wg.Wait()
 		bid := p.NewUniversalDijkstra(aag)
 		bid.SetBidirectional(true)
 		return bid, referenceDijkstra
 	} else if algorithm == "ch" {
-		var wg sync.WaitGroup
 		var contractedGraph graph.Graph
 		var shortcuts []p.Shortcut
 		var nodeOrdering [][]graph.NodeId
@@ -115,17 +126,14 @@ func getNavigator(algorithm, graphDirectory string, chPathFindingOptions p.PathF
 		wg.Add(3)
 		go func() {
 			contractedGraph = graph.NewAdjacencyArrayFromFmiFile(contractedGraphFile)
-			log.Println("Imported graph")
 			wg.Done()
 		}()
 		go func() {
 			shortcuts = p.ReadShortcutFile(shortcutFile)
-			log.Println("Imported shortcuts")
 			wg.Done()
 		}()
 		go func() {
 			nodeOrdering = p.ReadNodeOrderingFile(nodeOrderingFile)
-			log.Println("Imported node ordering")
 			wg.Done()
 		}()
 		wg.Wait()
