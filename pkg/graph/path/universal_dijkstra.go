@@ -72,6 +72,13 @@ func alignWithSearchDirection[T any](searchDirection Direction, a, b T) (T, T) {
 	panic("Search direction not supported")
 }
 
+func heuristicValue(useHeuristic bool, g graph.Graph, origin, destination graph.NodeId) int {
+	if useHeuristic {
+		return g.EstimateDistance(origin, destination)
+	}
+	return 0
+}
+
 // Compute the shortest path from the origin to the destination.
 // It returns the length of the found path
 // If no path was found, it returns -1
@@ -324,10 +331,7 @@ func (d *UniversalDijkstra) initializeSearch(origin, destination graph.NodeId) {
 	d.bidirectionalConnection = BidirectionalConnection{nodeId: -1}
 
 	// Initialize priority queue
-	heuristic := 0
-	if d.useHeuristic {
-		heuristic = d.g.EstimateDistance(d.origin, d.destination)
-	}
+	heuristic := heuristicValue(d.useHeuristic, d.g, d.origin, d.destination)
 	originItem := NewDijkstraItem(d.origin, 0, -1, heuristic, FORWARD)
 	d.pq = NewMinPath(originItem)
 	d.settleNode(originItem)
@@ -432,10 +436,7 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 
 		if searchSpace[successor] == nil {
 			cost := node.distance + arc.Cost()
-			heuristic := 0
-			if d.useHeuristic {
-				heuristic = d.g.EstimateDistance(successor, d.destination)
-			}
+			heuristic := heuristicValue(d.useHeuristic, d.g, successor, d.destination)
 			nextNode := NewDijkstraItem(successor, cost, node.NodeId, heuristic, node.searchDirection)
 			searchSpace[successor] = nextNode
 			heap.Push(d.pq, nextNode)
