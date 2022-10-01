@@ -3,7 +3,6 @@ package path
 import (
 	"container/heap"
 
-	geo "github.com/natevvv/osm-ship-routing/pkg/geometry"
 	"github.com/natevvv/osm-ship-routing/pkg/graph"
 	"github.com/natevvv/osm-ship-routing/pkg/queue"
 )
@@ -102,10 +101,7 @@ func NewAStar(g graph.Graph) AStar {
 func (a AStar) estimatedDistance(originNodeId, destinationNodeId int) int {
 	origin := a.g.GetNode(originNodeId)
 	destination := a.g.GetNode(destinationNodeId)
-	//originPoint := geo.NewPoint(origin.Point.X, origin.Point.Y) // TODO: access point via node
-	originPoint := geo.NewPoint(origin.Lat, origin.Lon)
-	destinationPoint := geo.NewPoint(destination.Lat, destination.Lon)
-	return originPoint.IntHaversine(destinationPoint)
+	return origin.IntHaversine(&destination)
 }
 
 func (a AStar) GetPath(origin, destination int) ([]int, int) {
@@ -156,6 +152,6 @@ func (a AStar) GetPath(origin, destination int) ([]int, int) {
 	return path, length
 }
 
-func (a AStar) GetSearchSpace() []graph.Node {
+func (a AStar) GetSearchSpace() []*DijkstraItem {
 	panic("not implemented")
 }

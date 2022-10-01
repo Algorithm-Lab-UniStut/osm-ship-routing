@@ -11,13 +11,13 @@ import (
 
 // Implementation for dynamic graphs
 type AdjacencyListGraph struct {
-	Nodes     []Node   // The nodes of the graph
-	Edges     [][]*Arc // The Arcs of the graph. The first slice specifies to which the arc belongs
-	edgeCount int      // the number of edges/arcs in the graph
+	Nodes     []geo.Point // The nodes of the graph
+	Edges     [][]*Arc    // The Arcs of the graph. The first slice specifies to which the arc belongs
+	edgeCount int         // the number of edges/arcs in the graph
 }
 
-// Retrurn the node for the given id
-func (alg *AdjacencyListGraph) GetNode(id NodeId) Node {
+// Return the node for the given id
+func (alg *AdjacencyListGraph) GetNode(id NodeId) geo.Point {
 	if id < 0 || id >= alg.NodeCount() {
 		panic(id)
 	}
@@ -25,7 +25,7 @@ func (alg *AdjacencyListGraph) GetNode(id NodeId) Node {
 }
 
 // Return all nodes of the graph
-func (alg *AdjacencyListGraph) GetNodes() []Node {
+func (alg *AdjacencyListGraph) GetNodes() []geo.Point {
 	return alg.Nodes
 }
 
@@ -81,7 +81,7 @@ func (alg *AdjacencyListGraph) AsString() string {
 	// list all nodes structured as "id lat lon"
 	for i := 0; i < alg.NodeCount(); i++ {
 		node := alg.GetNode(i)
-		sb.WriteString(fmt.Sprintf("%v %v %v\n", i, node.Lat, node.Lon))
+		sb.WriteString(fmt.Sprintf("%v %v %v\n", i, node.Lat(), node.Lon()))
 	}
 
 	sb.WriteString(fmt.Sprintf("#Edges\n"))
@@ -95,7 +95,7 @@ func (alg *AdjacencyListGraph) AsString() string {
 }
 
 // Add a node to the graph
-func (alg *AdjacencyListGraph) AddNode(n Node) {
+func (alg *AdjacencyListGraph) AddNode(n geo.Point) {
 	alg.Nodes = append(alg.Nodes, n)
 	alg.Edges = append(alg.Edges, make([]*Arc, 0))
 }
@@ -148,9 +148,7 @@ func (alg *AdjacencyListGraph) AddArc(from, to NodeId, distance int) bool {
 func (alg *AdjacencyListGraph) EstimateDistance(source, target NodeId) int {
 	origin := alg.GetNode(source)
 	destination := alg.GetNode(target)
-	originPoint := geo.NewPoint(origin.Lat, origin.Lon)
-	destinationPoint := geo.NewPoint(destination.Lat, destination.Lon)
-	return int(0.99 * float64(originPoint.IntHaversine(destinationPoint)))
+	return int(0.99 * float64(origin.IntHaversine(&destination)))
 }
 
 // Set the arc flags for all arcs of the given node

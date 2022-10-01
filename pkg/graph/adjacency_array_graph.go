@@ -9,14 +9,14 @@ import (
 
 // Implementation for static graphs
 type AdjacencyArrayGraph struct {
-	Nodes   []Node
+	Nodes   []geo.Point
 	arcs    []*Arc
 	Offsets []int
 }
 
 // Create an AdjacencyArrayGraph from the given graph
 func NewAdjacencyArrayFromGraph(g Graph) *AdjacencyArrayGraph {
-	nodes := make([]Node, 0)
+	nodes := make([]geo.Point, 0)
 	arcs := make([]*Arc, 0)
 	offsets := make([]int, g.NodeCount()+1, g.NodeCount()+1)
 
@@ -38,7 +38,7 @@ func NewAdjacencyArrayFromGraph(g Graph) *AdjacencyArrayGraph {
 }
 
 // Get the node for the given id
-func (aag *AdjacencyArrayGraph) GetNode(id NodeId) Node {
+func (aag *AdjacencyArrayGraph) GetNode(id NodeId) geo.Point {
 	if id < 0 || id >= aag.NodeCount() {
 		panic(fmt.Sprintf("NodeId %d is not contained in the graph.", id))
 	}
@@ -46,7 +46,7 @@ func (aag *AdjacencyArrayGraph) GetNode(id NodeId) Node {
 }
 
 // get all nodes of the graph
-func (aag *AdjacencyArrayGraph) GetNodes() []Node {
+func (aag *AdjacencyArrayGraph) GetNodes() []geo.Point {
 	return aag.Nodes
 }
 
@@ -104,7 +104,7 @@ func (aag *AdjacencyArrayGraph) AsString() string {
 	// list all nodes structured as "id lat lon"
 	for i := 0; i < aag.NodeCount(); i++ {
 		node := aag.GetNode(i)
-		sb.WriteString(fmt.Sprintf("%v %v %v\n", i, node.Lat, node.Lon))
+		sb.WriteString(fmt.Sprintf("%v %v %v\n", i, node.Lat(), node.Lon()))
 	}
 
 	sb.WriteString(fmt.Sprintf("#Edges\n"))
@@ -122,9 +122,7 @@ func (aag *AdjacencyArrayGraph) AsString() string {
 func (aag *AdjacencyArrayGraph) EstimateDistance(source, target NodeId) int {
 	origin := aag.GetNode(source)
 	destination := aag.GetNode(target)
-	originPoint := geo.NewPoint(origin.Lat, origin.Lon)
-	destinationPoint := geo.NewPoint(destination.Lat, destination.Lon)
-	return int(0.99 * float64(originPoint.IntHaversine(destinationPoint)))
+	return int(0.99 * float64(origin.IntHaversine(&destination)))
 }
 
 // Set the arc flags for all arcs of the given node

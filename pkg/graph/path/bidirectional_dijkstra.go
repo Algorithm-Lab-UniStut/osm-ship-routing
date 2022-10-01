@@ -115,6 +115,6 @@ func (bd BidirectionalDijkstra) GetPath(origin, destination int) ([]int, int) {
 	return path, length
 }
 
-func (bd BidirectionalDijkstra) GetSearchSpace() []graph.Node {
+func (bd BidirectionalDijkstra) GetSearchSpace() []*DijkstraItem {
 	panic("not implemented")
 }

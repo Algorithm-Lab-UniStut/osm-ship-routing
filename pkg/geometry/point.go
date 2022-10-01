@@ -11,6 +11,10 @@ func NewPoint(lat, lon float64) *Point {
 	return &Point{lat, lon}
 }
 
+func MakePoint(lat, lon float64) Point {
+	return Point{lat, lon}
+}
+
 func NewPointFromBearing(initialPoint *Point, bearing float64, distance float64) *Point {
 	phi := math.Asin(math.Sin(initialPoint.Phi())*math.Cos(distance/earthRadius) + math.Cos(initialPoint.Phi())*math.Sin(distance/earthRadius)*math.Cos(bearing))
 	lambda := initialPoint.Lambda() + math.Atan2(math.Sin(bearing)*math.Sin(distance/earthRadius)*math.Cos(initialPoint.Phi()),

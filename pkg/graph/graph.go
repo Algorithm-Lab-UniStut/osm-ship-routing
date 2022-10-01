@@ -3,13 +3,15 @@ package graph
 import (
 	"fmt"
 	"strings"
+
+	"github.com/natevvv/osm-ship-routing/pkg/geometry"
 )
 
 type NodeId = int
 
 type Graph interface {
-	GetNode(id NodeId) Node
-	GetNodes() []Node
+	GetNode(id NodeId) geometry.Point
+	GetNodes() []geometry.Point
 	GetArcsFrom(id NodeId) []*Arc
 	NodeCount() int
 	ArcCount() int
@@ -22,16 +24,9 @@ type Graph interface {
 
 type DynamicGraph interface {
 	Graph
-	AddNode(n Node)
+	AddNode(n geometry.Point)
 	AddEdge(edge Edge) bool
 	AddArc(from, to NodeId, distance int) bool
-}
-
-type Node struct {
-	Lon float64
-	Lat float64
-	// TODO: id?
-	// TODO: Point attribute/ implement Point type
 }
 
 type Edge struct {
@@ -48,10 +43,6 @@ type Arc struct {
 }
 
 type Arcs = []Arc
-
-func NewNode(lon float64, lat float64) *Node {
-	return &Node{Lon: lon, Lat: lat}
-}
 
 func NewEdge(to, from NodeId, distance int, arcFlag bool) *Edge {
 	return &Edge{To: to, From: from, Distance: distance, arcFlag: arcFlag}
@@ -118,7 +109,7 @@ func GraphAsString(g Graph) string {
 	// list all nodes structured as "id lat lon"
 	for i := 0; i < g.NodeCount(); i++ {
 		node := g.GetNode(i)
-		sb.WriteString(fmt.Sprintf("%v %v %v\n", i, node.Lat, node.Lon))
+		sb.WriteString(fmt.Sprintf("%v %v %v\n", i, node.Lat(), node.Lon()))
 	}
 
 	// list all edges structured as "fromId targetId distance"

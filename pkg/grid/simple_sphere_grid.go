@@ -16,7 +16,7 @@ type SimpleSphereGrid struct {
 	isWater    []bool
 	grid2nodes map[int]int
 	nodes2grid []int
-	nodes      []gr.Node
+	nodes      []geo.Point
 	edges      []gr.Edge
 }
 
@@ -118,11 +118,11 @@ func (ssg *SimpleSphereGrid) landWaterTest(polygons []geo.Polygon) {
 func (ssg *SimpleSphereGrid) createNodes() {
 	ssg.grid2nodes = make(map[int]int)
 	ssg.nodes2grid = make([]int, 0)
-	ssg.nodes = make([]gr.Node, 0)
+	ssg.nodes = make([]geo.Point, 0)
 	for cellId, point := range ssg.points {
 		if ssg.isWater[cellId] {
 			ssg.grid2nodes[cellId] = len(ssg.nodes)
-			ssg.nodes = append(ssg.nodes, *gr.NewNode(point.Lon(), point.Lat()))
+			ssg.nodes = append(ssg.nodes, point)
 			ssg.nodes2grid = append(ssg.nodes2grid, cellId)
 		}
 	}
@@ -134,8 +134,8 @@ func (ssg *SimpleSphereGrid) createEdges() {
 		neighborCellIds := ssg.neighborsOf(cellId)
 		for _, neighborCellId := range neighborCellIds {
 			if neighborNodeId, ok := ssg.grid2nodes[neighborCellId]; ok {
-				p1 := geo.NewPoint(ssg.nodes[nodeId].Lat, ssg.nodes[nodeId].Lon)
-				p2 := geo.NewPoint(ssg.nodes[neighborNodeId].Lat, ssg.nodes[neighborNodeId].Lon)
+				p1 := &ssg.nodes[nodeId]
+				p2 := &ssg.nodes[neighborNodeId]
 				distance := p1.IntHaversine(p2)
 				edge := gr.Edge{From: nodeId, To: neighborNodeId, Distance: distance}
 				ssg.edges = append(ssg.edges, edge)

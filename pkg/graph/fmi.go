@@ -7,6 +7,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	geo "github.com/natevvv/osm-ship-routing/pkg/geometry"
 )
 
 // fmi parse states
@@ -63,7 +65,7 @@ func NewAdjacencyListFromFmiString(fmi string) *AdjacencyListGraph {
 			var lat, lon float64
 			fmt.Sscanf(line, "%d %f %f", &id, &lat, &lon)
 			id2index[id] = alg.NodeCount()
-			alg.AddNode(Node{Lon: lon, Lat: lat})
+			alg.AddNode(geo.MakePoint(lat, lon))
 			numParsedNodes++
 			if numParsedNodes == numNodes {
 				parseState = PARSE_EDGES

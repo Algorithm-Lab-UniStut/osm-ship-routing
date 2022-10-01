@@ -24,7 +24,7 @@ type EquiSphereGrid struct {
 	isWater    []bool
 	grid2nodes map[IndexTupel]int
 	nodes2grid []IndexTupel
-	nodes      []gr.Node
+	nodes      []geo.Point
 	edges      []gr.Edge
 }
 
@@ -139,14 +139,14 @@ func (esg *EquiSphereGrid) landWaterTest(polygons []geo.Polygon) {
 func (esg *EquiSphereGrid) createNodes() {
 	esg.grid2nodes = make(map[IndexTupel]int)
 	esg.nodes2grid = make([]IndexTupel, 0)
-	esg.nodes = make([]gr.Node, 0)
+	esg.nodes = make([]geo.Point, 0)
 	cellId := 0
 	for latRow, ring := range esg.points {
 		for lonCol, point := range ring {
 			if esg.isWater[cellId] {
 				indexTuple := IndexTupel{LatRow: latRow, lonCol: lonCol}
 				esg.grid2nodes[indexTuple] = len(esg.nodes)
-				esg.nodes = append(esg.nodes, *gr.NewNode(point.Lon(), point.Lat()))
+				esg.nodes = append(esg.nodes, point)
 				esg.nodes2grid = append(esg.nodes2grid, indexTuple)
 			}
 			cellId++
@@ -161,8 +161,8 @@ func (esg *EquiSphereGrid) createEdges() {
 		neighborIndexTuples := esg.neighborsOf(indexTuple)
 		for _, neighborIndexTuple := range neighborIndexTuples {
 			if neighborNodeId, ok := esg.grid2nodes[neighborIndexTuple]; ok {
-				p1 := geo.NewPoint(esg.nodes[nodeId].Lat, esg.nodes[nodeId].Lon)
-				p2 := geo.NewPoint(esg.nodes[neighborNodeId].Lat, esg.nodes[neighborNodeId].Lon)
+				p1 := &esg.nodes[nodeId]
+				p2 := &esg.nodes[neighborNodeId]
 				distance := p1.IntHaversine(p2)
 				edge := gr.Edge{From: nodeId, To: neighborNodeId, Distance: distance}
 				esg.edges = append(esg.edges, edge)
