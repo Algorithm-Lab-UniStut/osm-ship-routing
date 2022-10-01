@@ -101,7 +101,7 @@ func NewAStar(g graph.Graph) AStar {
 func (a AStar) estimatedDistance(originNodeId, destinationNodeId int) int {
 	origin := a.g.GetNode(originNodeId)
 	destination := a.g.GetNode(destinationNodeId)
-	return origin.IntHaversine(&destination)
+	return origin.IntHaversine(destination)
 }
 
 func (a AStar) GetPath(origin, destination int) ([]int, int) {

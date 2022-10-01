@@ -22,7 +22,7 @@ func NewAdjacencyArrayFromGraph(g Graph) *AdjacencyArrayGraph {
 
 	for i := 0; i < g.NodeCount(); i++ {
 		// add node
-		nodes = append(nodes, g.GetNode(i))
+		nodes = append(nodes, *g.GetNode(i))
 
 		// add all edges of node
 		arcs = append(arcs, g.GetArcsFrom(i)...)
@@ -36,11 +36,11 @@ func NewAdjacencyArrayFromGraph(g Graph) *AdjacencyArrayGraph {
 }
 
 // Get the node for the given id
-func (aag *AdjacencyArrayGraph) GetNode(id NodeId) geo.Point {
+func (aag *AdjacencyArrayGraph) GetNode(id NodeId) *geo.Point {
 	if id < 0 || id >= aag.NodeCount() {
 		panic(fmt.Sprintf("NodeId %d is not contained in the graph.", id))
 	}
-	return aag.Nodes[id]
+	return &aag.Nodes[id]
 }
 
 // get all nodes of the graph
@@ -107,14 +107,6 @@ func (aag *AdjacencyArrayGraph) AsString() string {
 		}
 	}
 	return sb.String()
-}
-
-// Estimate the distance between the given nodes
-// This calculates the direct distance (air line, bird path length) between the nodes
-func (aag *AdjacencyArrayGraph) EstimateDistance(source, target NodeId) int {
-	origin := aag.GetNode(source)
-	destination := aag.GetNode(target)
-	return int(0.99 * float64(origin.IntHaversine(&destination)))
 }
 
 // Set the arc flags for all arcs of the given node

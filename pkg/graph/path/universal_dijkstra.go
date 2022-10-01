@@ -74,7 +74,7 @@ func alignWithSearchDirection[T any](searchDirection Direction, a, b T) (T, T) {
 
 func heuristicValue(useHeuristic bool, g graph.Graph, origin, destination graph.NodeId) int {
 	if useHeuristic {
-		return g.EstimateDistance(origin, destination)
+		return int(0.99 * float64(g.GetNode(origin).IntHaversine(g.GetNode(destination))))
 	}
 	return 0
 }

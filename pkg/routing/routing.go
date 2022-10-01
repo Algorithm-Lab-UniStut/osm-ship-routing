@@ -42,12 +42,12 @@ func (sr ShipRouter) closestNodes(p1, p2 geo.Point) (n1, n2 int) {
 
 	for i := 0; i < sr.g.NodeCount(); i++ {
 		testPoint := sr.g.GetNode(i)
-		distance := p1.IntHaversine(&testPoint)
+		distance := p1.IntHaversine(testPoint)
 		if distance < d1 {
 			n1 = i
 			d1 = distance
 		}
-		distance = p2.IntHaversine(&testPoint)
+		distance = p2.IntHaversine(testPoint)
 		if distance < d2 {
 			n2 = i
 			d2 = distance
@@ -65,7 +65,7 @@ func (sr ShipRouter) ComputeRoute(origin, destination geo.Point) (route Route) {
 		// shortest path exists
 		waypoints := make([]geo.Point, 0)
 		for _, nodeId := range nodePath {
-			waypoints = append(waypoints, sr.g.GetNode(nodeId))
+			waypoints = append(waypoints, *sr.g.GetNode(nodeId))
 		}
 		route = Route{Origin: origin, Destination: destination, Exists: true, Waypoints: waypoints, Length: length}
 	} else {
@@ -89,7 +89,7 @@ func (sr ShipRouter) GetSearchSpace() []geo.Point {
 	waypoints := make([]geo.Point, 0)
 	for _, nodeItem := range nodes {
 		node := sr.g.GetNode(nodeItem.NodeId)
-		waypoints = append(waypoints, node)
+		waypoints = append(waypoints, *node)
 	}
 	return waypoints
 }

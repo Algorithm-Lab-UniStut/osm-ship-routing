@@ -10,13 +10,12 @@ import (
 type NodeId = int
 
 type Graph interface {
-	GetNode(id NodeId) geo.Point
+	GetNode(id NodeId) *geo.Point
 	GetNodes() []geo.Point
 	GetArcsFrom(id NodeId) []Arc
 	NodeCount() int
 	ArcCount() int
 	AsString() string
-	EstimateDistance(source, target NodeId) int
 	SortArcs()
 }
 

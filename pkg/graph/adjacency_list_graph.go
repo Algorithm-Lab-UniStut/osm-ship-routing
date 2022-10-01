@@ -7,8 +7,6 @@ import (
 	geo "github.com/natevvv/osm-ship-routing/pkg/geometry"
 )
 
-// TODO: Maybe add a graph class for "planar" geometry (not spherical)
-
 // Implementation for dynamic graphs
 type AdjacencyListGraph struct {
 	Nodes    []geo.Point // The nodes of the graph
@@ -17,11 +15,11 @@ type AdjacencyListGraph struct {
 }
 
 // Return the node for the given id
-func (alg *AdjacencyListGraph) GetNode(id NodeId) geo.Point {
+func (alg *AdjacencyListGraph) GetNode(id NodeId) *geo.Point {
 	if id < 0 || id >= alg.NodeCount() {
 		panic(id)
 	}
-	return alg.Nodes[id]
+	return &alg.Nodes[id]
 }
 
 // Return all nodes of the graph
@@ -120,14 +118,6 @@ func (alg *AdjacencyListGraph) AddArc(from, to NodeId, distance int) bool {
 	alg.Edges[from] = append(alg.Edges[from], MakeArc(to, distance, true))
 	alg.arcCount++
 	return true
-}
-
-// Estimate the distance between the given nodes
-// This calculates the direct distance (air line, bird path length) between the nodes
-func (alg *AdjacencyListGraph) EstimateDistance(source, target NodeId) int {
-	origin := alg.GetNode(source)
-	destination := alg.GetNode(target)
-	return int(0.99 * float64(origin.IntHaversine(&destination)))
 }
 
 // Set the arc flags for all arcs of the given node
