@@ -177,7 +177,7 @@ func (ssg *SimpleSphereGrid) ToGraph() gr.Graph {
 		alg.AddNode(node)
 	}
 	for _, edge := range ssg.edges {
-		alg.AddEdge(edge)
+		alg.AddArc(edge.From, edge.To, edge.Distance)
 	}
 	return alg
 }

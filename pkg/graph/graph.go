@@ -17,15 +17,12 @@ type Graph interface {
 	ArcCount() int
 	AsString() string
 	EstimateDistance(source, target NodeId) int
-	SetArcFlags(nodeId NodeId, flag bool)
-	EnableAllArcs()
 	SortArcs()
 }
 
 type DynamicGraph interface {
 	Graph
 	AddNode(n geo.Point)
-	AddEdge(edge Edge) bool
 	AddArc(from, to NodeId, distance int) bool
 }
 
@@ -71,20 +68,12 @@ func (e Edge) Invert() Edge {
 	return Edge{From: e.To, To: e.From, Distance: e.Distance}
 }
 
-func (e Edge) toArc() Arc {
-	return MakeArc(e.To, e.Distance, e.ArcFlag())
-}
-
 func (e Edge) ArcFlag() bool {
 	return e.arcFlag
 }
 
 func (e *Edge) SetArcFlag(flag bool) {
 	e.arcFlag = flag
-}
-
-func (a Arc) toEdge(from NodeId) *Edge {
-	return NewEdge(from, a.To, a.Distance, a.ArcFlag())
 }
 
 func (a Arc) Destination() NodeId {

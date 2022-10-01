@@ -11,9 +11,9 @@ import (
 
 // Implementation for dynamic graphs
 type AdjacencyListGraph struct {
-	Nodes     []geo.Point // The nodes of the graph
-	Edges     [][]Arc     // The Arcs of the graph. The first slice specifies to which the arc belongs
-	edgeCount int         // the number of edges/arcs in the graph
+	Nodes    []geo.Point // The nodes of the graph
+	Edges    [][]Arc     // The Arcs of the graph. The first slice specifies to which the arc belongs
+	arcCount int         // the number of arcs in the graph
 }
 
 // Return the node for the given id
@@ -58,15 +58,9 @@ func (alg *AdjacencyListGraph) NodeCount() int {
 	return len(alg.Nodes)
 }
 
-/*
-func (alg *AdjacencyListGraph) EdgeCount() int {
-	return alg.edgeCount
-}
-*/
-
 // Return the numebr of total arcs
 func (alg *AdjacencyListGraph) ArcCount() int {
-	return alg.edgeCount
+	return alg.arcCount
 }
 
 // Return a human readable string of the graph
@@ -100,23 +94,6 @@ func (alg *AdjacencyListGraph) AddNode(n geo.Point) {
 	alg.Edges = append(alg.Edges, make([]Arc, 0))
 }
 
-// Add an Edge to the graph
-func (alg *AdjacencyListGraph) AddEdge(e Edge) bool {
-	// Check if both source and target node exit
-	if e.From >= alg.NodeCount() || e.To >= alg.NodeCount() {
-		panic(fmt.Sprintf("Edge out of range %v", e))
-	}
-	// Check for duplicates
-	for _, arc := range alg.Edges[e.From] {
-		if e.To == arc.To {
-			return false // ignore duplicate edges
-		}
-	}
-	alg.Edges[e.From] = append(alg.Edges[e.From], e.toArc())
-	alg.edgeCount++
-	return true
-}
-
 // Add an arc to the graph, going from source to target with the given distance
 func (alg *AdjacencyListGraph) AddArc(from, to NodeId, distance int) bool {
 	if from >= alg.NodeCount() || to >= alg.NodeCount() {
@@ -141,7 +118,7 @@ func (alg *AdjacencyListGraph) AddArc(from, to NodeId, distance int) bool {
 
 	}
 	alg.Edges[from] = append(alg.Edges[from], MakeArc(to, distance, true))
-	alg.edgeCount++
+	alg.arcCount++
 	return true
 }
 
@@ -158,31 +135,6 @@ func (alg *AdjacencyListGraph) SetArcFlags(id NodeId, flag bool) {
 	// set the arc flags for the outgoing edges
 	arcs := alg.GetArcsFrom(id)
 	for i := range arcs {
-		arc := &arcs[i]
-		arc.SetArcFlag(flag)
-	}
-	// TODO maybe an improvement (Usefull when removing the pointer from the arcs)
-	/*
-		for i := range alg.Edges[id] {
-			alg.Edges[id][i].SetArcFlag(flag)
-		}
-	*/
-}
-
-// Set the arc flag for the given arc
-func (alg *AdjacencyListGraph) SetArcFlag(id NodeId, arcIndex int, flag bool) {
-	if id < 0 || id >= alg.NodeCount() {
-		panic("Node does not exist")
-	}
-	if arcIndex >= len(alg.Edges[id]) {
-		panic("Edge does not exist")
-	}
-	alg.Edges[id][arcIndex].SetArcFlag(flag)
-}
-
-// Enable all arcs in the graph
-func (alg *AdjacencyListGraph) EnableAllArcs() {
-	for i := range alg.GetNodes() {
-		alg.SetArcFlags(i, true)
+		arcs[i].SetArcFlag(flag)
 	}
 }

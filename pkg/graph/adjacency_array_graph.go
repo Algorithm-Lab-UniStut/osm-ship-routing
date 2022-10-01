@@ -79,12 +79,6 @@ func (aag *AdjacencyArrayGraph) NodeCount() int {
 	return len(aag.Nodes)
 }
 
-/*
-func (aag *AdjacencyArrayGraph) EdgeCount() int {
-	return len(aag.Arcs)
-}
-*/
-
 // Returns the total number of arcs in the graph
 func (aag *AdjacencyArrayGraph) ArcCount() int {
 	return len(aag.arcs)
@@ -128,20 +122,6 @@ func (aag *AdjacencyArrayGraph) SetArcFlags(id NodeId, flag bool) {
 	// set the arc flags for the outgoing edges
 	arcs := aag.GetArcsFrom(id)
 	for i := range arcs {
-		arc := &arcs[i]
-		arc.SetArcFlag(flag)
-	}
-	// TODO maybe this can get improved to directly set the arcs flags without calling GetArcsFrom()
-}
-
-// Set the arc flag for the given arc
-func (aag *AdjacencyArrayGraph) SetArcFlag(id NodeId, arcIndex int, flag bool) {
-	panic("Not implemented")
-}
-
-// Enable all arcs in the graph
-func (aag *AdjacencyArrayGraph) EnableAllArcs() {
-	for i := range aag.GetNodes() {
-		aag.SetArcFlags(i, true)
+		arcs[i].SetArcFlag(flag)
 	}
 }
