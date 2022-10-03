@@ -193,22 +193,18 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 
 	if ch.debugLevel >= 1 {
 		for i := range ch.contractionProgress.achievedMilestones {
-			m := ch.contractionProgress.milestones[i]
-			runtime := ch.contractionProgress.achievedMilestones[i].runtime
-			timeDif := func() time.Duration {
+			milestone := ch.contractionProgress.milestones[i]
+			achievedMilestone := &ch.contractionProgress.achievedMilestones[i]
+			runtime := achievedMilestone.runtime
+			totalShortcuts := achievedMilestone.shortcuts
+			timeDif, addedShortcuts := func() (time.Duration, int) {
 				if i == 0 {
-					return runtime
+					return runtime, totalShortcuts
 				}
-				return runtime - ch.contractionProgress.achievedMilestones[i-1].runtime
+				previousMilestone := &ch.contractionProgress.achievedMilestones[i-1]
+				return runtime - previousMilestone.runtime, totalShortcuts - previousMilestone.shortcuts
 			}()
-			totalShortcuts := ch.contractionProgress.achievedMilestones[i].shortcuts
-			addedShortcuts := func() int {
-				if i == 0 {
-					return totalShortcuts
-				}
-				return totalShortcuts - ch.contractionProgress.achievedMilestones[i-1].shortcuts
-			}()
-			log.Printf("Milestone %05.2f %% - Runtime: %6.3f s, difference: %.3f s, total Shortcuts: %5v, added Shortcuts: %5v\n", m, float64(runtime.Microseconds())/1000000, float64(timeDif.Microseconds())/1000000, totalShortcuts, addedShortcuts)
+			log.Printf("Milestone %05.2f %% - Runtime: %6.3f s, difference: %.3f s, total Shortcuts: %5v, added Shortcuts: %5v\n", milestone, float64(runtime.Microseconds())/1000000, float64(timeDif.Microseconds())/1000000, totalShortcuts, addedShortcuts)
 		}
 	}
 }
