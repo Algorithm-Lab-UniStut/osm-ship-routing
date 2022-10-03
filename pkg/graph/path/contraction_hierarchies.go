@@ -43,23 +43,19 @@ type ContractionHierarchies struct {
 	nodeOrderingFilename string      // the filname were the node ordering gets stored
 
 	// For some debuging
-	initialTime       time.Time
-	runtime           []time.Duration
-	shortcutCounter   []int
-	milestones        []float64
-	milestoneIndex    int
-	milestoneFilename string
+	progress struct {
+		initialTime       time.Time
+		runtime           []time.Duration
+		shortcutCounter   []int
+		milestones        []float64
+		milestoneFilename string
+	}
 
 	// search items needed for (manual) path calculation
-	visitedNodes         []bool
-	backwardVisitedNodes []bool
-	searchSpace          []*DijkstraItem
-	backwardSearchSpace  []*DijkstraItem
-	connection           graph.NodeId
-	pqPops               int
-	pqUpdates            int
-	relaxedEdges         int
-	relaxationAttempts   int
+	forwardSearch  SearchStats
+	backwardSearch SearchStats
+	connection     graph.NodeId
+	searchKPIs     SearchKPIs
 }
 
 // Describes a shortcut.
@@ -119,7 +115,9 @@ func NewContractionHierarchies(g graph.Graph, dijkstra *UniversalDijkstra, optio
 
 	}
 
-	return &ContractionHierarchies{g: g, dijkstra: dijkstra, contractionWorkers: cw, contractionLevelLimit: options.ContractionLimit, graphFilename: "contracted_graph.fmi", shortcutsFilename: "shortcuts.txt", nodeOrderingFilename: "node_ordering.txt", milestoneFilename: "milestones.txt"}
+	ch := &ContractionHierarchies{g: g, dijkstra: dijkstra, contractionWorkers: cw, contractionLevelLimit: options.ContractionLimit, graphFilename: "contracted_graph.fmi", shortcutsFilename: "shortcuts.txt", nodeOrderingFilename: "node_ordering.txt"}
+	ch.progress.milestoneFilename = "milestones.txt"
+	return ch
 }
 
 // Create a new Contraction Hierarchy which is already initialized with the shortcuts and node ordering.
@@ -139,8 +137,7 @@ func NewContractionHierarchiesInitialized(g graph.Graph, dijkstra *UniversalDijk
 // givenNodeOrder predefines the order of the nodes.
 // oo defines how the node ordering will be calculated.
 func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptions) {
-	ch.initialTime = time.Now()
-	ch.milestoneIndex = 0
+	ch.progress.initialTime = time.Now()
 
 	ch.addedShortcuts = make(map[int]int)
 	ch.shortcuts = make([]Shortcut, 0)
@@ -171,22 +168,9 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 	if ch.debugLevel >= 3 {
 		log.Printf("Initial computed order:\n%v\n", ch.pqOrder)
 	}
-	if ch.milestones != nil && ch.milestones[0] == 0 {
-		runtime := time.Since(ch.initialTime)
-		milestone := ch.milestones[ch.milestoneIndex]
-		ch.runtime[ch.milestoneIndex] = runtime
-		ch.shortcutCounter[ch.milestoneIndex] = 0
 
-		f, err := os.OpenFile(ch.milestoneFilename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
-		if err != nil {
-			panic(err)
-		}
-
-		defer f.Close()
-		if _, err = f.WriteString(fmt.Sprintf("Milestone %05.2f %% - Runtime: %6.3f s, difference: %.3f s, total Shortcuts: %5v, added Shortcuts: %5v\n", milestone, float64(runtime.Microseconds())/1000000, float64(runtime.Microseconds())/1000000, 0, 0)); err != nil {
-			panic(err)
-		}
-		ch.milestoneIndex++
+	if ch.progress.milestones != nil && ch.progress.milestones[0] == 0 {
+		ch.storeContractionProgressInfo(time.Since(ch.progress.initialTime), 0, 0)
 	}
 
 	if ch.debugLevel >= 1 {
@@ -209,16 +193,17 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 	// match arcs with node order
 	ch.matchArcsWithNodeOrder()
 
-	for i, m := range ch.milestones {
-		runtime := ch.runtime[i]
-		timeDif := ch.runtime[i]
+	for i := range ch.progress.runtime {
+		m := ch.progress.milestones[i]
+		runtime := ch.progress.runtime[i]
+		timeDif := ch.progress.runtime[i]
 		if i > 0 {
-			timeDif -= ch.runtime[i-1]
+			timeDif -= ch.progress.runtime[i-1]
 		}
-		totalShortcuts := ch.shortcutCounter[i]
-		previousShortcuts := ch.shortcutCounter[0]
+		totalShortcuts := ch.progress.shortcutCounter[i]
+		previousShortcuts := ch.progress.shortcutCounter[0]
 		if i > 0 {
-			previousShortcuts = ch.shortcutCounter[i-1]
+			previousShortcuts = ch.progress.shortcutCounter[i-1]
 		}
 		addedDifference := totalShortcuts - previousShortcuts
 		if ch.debugLevel >= 1 {
@@ -255,31 +240,31 @@ func (ch *ContractionHierarchies) ComputeShortestPath(origin, destination graph.
 		log.Printf("Node ordering: %v\n", ch.nodeOrdering)
 	}
 
-	if ch.dijkstra.bidirectional {
+	if ch.dijkstra.searchOptions.bidirectional {
 		return ch.dijkstra.ComputeShortestPath(origin, destination)
 	}
 	// if path should not get calculated bidirectional, the following will get executed
 	// compute shortest path manually since two unidirectinoal dijkstras were used
 	ch.dijkstra.ComputeShortestPath(origin, -1)
-	ch.visitedNodes = ch.dijkstra.visitedNodes
-	ch.searchSpace = ch.dijkstra.searchSpace
-	ch.pqPops = ch.dijkstra.GetPqPops()
-	ch.pqUpdates = ch.dijkstra.GetPqUpdates()
-	ch.relaxedEdges = ch.dijkstra.GetEdgeRelaxations()
-	ch.relaxationAttempts = ch.dijkstra.GetRelaxationAttempts()
+	ch.forwardSearch.visitedNodes = ch.dijkstra.forwardSearch.visitedNodes
+	ch.forwardSearch.searchSpace = ch.dijkstra.forwardSearch.searchSpace
+	ch.searchKPIs.pqPops = ch.dijkstra.GetPqPops()
+	ch.searchKPIs.pqUpdates = ch.dijkstra.GetPqUpdates()
+	ch.searchKPIs.relaxedEdges = ch.dijkstra.GetEdgeRelaxations()
+	ch.searchKPIs.relaxationAttempts = ch.dijkstra.GetRelaxationAttempts()
 
 	ch.dijkstra.ComputeShortestPath(destination, -1)
-	ch.backwardVisitedNodes = ch.dijkstra.visitedNodes
-	ch.backwardSearchSpace = ch.dijkstra.searchSpace
-	ch.pqPops += ch.dijkstra.GetPqPops()
-	ch.pqUpdates += ch.dijkstra.GetPqUpdates()
-	ch.relaxedEdges += ch.dijkstra.GetEdgeRelaxations()
-	ch.relaxationAttempts += ch.dijkstra.GetRelaxationAttempts()
+	ch.backwardSearch.visitedNodes = ch.dijkstra.forwardSearch.visitedNodes
+	ch.backwardSearch.searchSpace = ch.dijkstra.forwardSearch.searchSpace
+	ch.searchKPIs.pqPops += ch.dijkstra.GetPqPops()
+	ch.searchKPIs.pqUpdates += ch.dijkstra.GetPqUpdates()
+	ch.searchKPIs.relaxedEdges += ch.dijkstra.GetEdgeRelaxations()
+	ch.searchKPIs.relaxationAttempts += ch.dijkstra.GetRelaxationAttempts()
 	ch.connection = -1
 	shortestLength := math.MaxInt
 	for nodeId := 0; nodeId < ch.g.NodeCount(); nodeId++ {
-		if ch.visitedNodes[nodeId] && ch.backwardVisitedNodes[nodeId] {
-			length := ch.searchSpace[nodeId].distance + ch.backwardSearchSpace[nodeId].distance
+		if ch.forwardSearch.visitedNodes[nodeId] && ch.backwardSearch.visitedNodes[nodeId] {
+			length := ch.forwardSearch.searchSpace[nodeId].distance + ch.backwardSearch.searchSpace[nodeId].distance
 			if length < shortestLength {
 				shortestLength = length
 				ch.connection = nodeId
@@ -301,16 +286,16 @@ func (ch *ContractionHierarchies) GetPath(origin, destination graph.NodeId) []in
 		return make([]int, 0)
 	}
 	path := make([]int, 0)
-	if ch.dijkstra.bidirectional {
+	if ch.dijkstra.searchOptions.bidirectional {
 		path = ch.dijkstra.GetPath(origin, destination)
 	} else {
 		// compute path manually, since two unidirectional dijkstras were used
-		for nodeId := ch.searchSpace[ch.connection].predecessor; nodeId != -1; nodeId = ch.searchSpace[nodeId].predecessor {
+		for nodeId := ch.forwardSearch.searchSpace[ch.connection].predecessor; nodeId != -1; nodeId = ch.forwardSearch.searchSpace[nodeId].predecessor {
 			path = append(path, nodeId)
 		}
 		slice.ReverseIntInPlace(path)
 		path = append(path, ch.connection)
-		for nodeId := ch.backwardSearchSpace[ch.connection].predecessor; nodeId != -1; nodeId = ch.backwardSearchSpace[nodeId].predecessor {
+		for nodeId := ch.backwardSearch.searchSpace[ch.connection].predecessor; nodeId != -1; nodeId = ch.backwardSearch.searchSpace[nodeId].predecessor {
 			path = append(path, nodeId)
 		}
 	}
@@ -347,16 +332,16 @@ func (ch *ContractionHierarchies) GetPath(origin, destination graph.NodeId) []in
 // Get the search space of the path finding query
 // S slice is returned which contains all settled nodes of the query (containing the search information, e.g. distance to source node, which search direction was used for this item, ...)
 func (ch *ContractionHierarchies) GetSearchSpace() []*DijkstraItem {
-	if ch.dijkstra.bidirectional {
+	if ch.dijkstra.searchOptions.bidirectional {
 		return ch.dijkstra.GetSearchSpace()
 	}
 	// compute search space manually, since two unidirectional dijkstras were used
 	searchSpace := make([]*DijkstraItem, 0)
 	for i := 0; i < ch.g.NodeCount(); i++ {
-		if ch.visitedNodes[i] {
-			searchSpace = append(searchSpace, ch.searchSpace[i])
-		} else if ch.backwardVisitedNodes[i] {
-			searchSpace = append(searchSpace, ch.backwardSearchSpace[i])
+		if ch.forwardSearch.visitedNodes[i] {
+			searchSpace = append(searchSpace, ch.forwardSearch.searchSpace[i])
+		} else if ch.backwardSearch.visitedNodes[i] {
+			searchSpace = append(searchSpace, ch.backwardSearch.searchSpace[i])
 		}
 	}
 	return searchSpace
@@ -364,38 +349,38 @@ func (ch *ContractionHierarchies) GetSearchSpace() []*DijkstraItem {
 
 // Get the number of pq pops (from the priority queue)
 func (ch *ContractionHierarchies) GetPqPops() int {
-	if ch.dijkstra.bidirectional {
+	if ch.dijkstra.searchOptions.bidirectional {
 		return ch.dijkstra.GetPqPops()
 	}
 	// use manual computed pq pops when calculated the path manually
-	return ch.pqPops
+	return ch.searchKPIs.pqPops
 }
 
 // Get the number of the pq updates
 func (ch *ContractionHierarchies) GetPqUpdates() int {
-	if ch.dijkstra.bidirectional {
+	if ch.dijkstra.searchOptions.bidirectional {
 		return ch.dijkstra.GetPqUpdates()
 	}
 	// use manual computed pq updates when calculated the path manually
-	return ch.pqUpdates
+	return ch.searchKPIs.pqUpdates
 }
 
 // Get the number of relaxed edges
 func (ch *ContractionHierarchies) GetEdgeRelaxations() int {
-	if ch.dijkstra.bidirectional {
+	if ch.dijkstra.searchOptions.bidirectional {
 		return ch.dijkstra.GetEdgeRelaxations()
 	}
 	// use manual computed pq updates when calculated the path manually
-	return ch.relaxedEdges
+	return ch.searchKPIs.relaxedEdges
 }
 
 // Get the number for how many edges the relaxation was tested (but maybe early terminated)
 func (ch *ContractionHierarchies) GetRelaxationAttempts() int {
-	if ch.dijkstra.bidirectional {
+	if ch.dijkstra.searchOptions.bidirectional {
 		return ch.dijkstra.GetRelaxationAttempts()
 	}
 	// use manual computed pq updates when calculated the path manually
-	return ch.relaxationAttempts
+	return ch.searchKPIs.relaxationAttempts
 }
 
 // get the used graph
@@ -755,34 +740,11 @@ func (ch *ContractionHierarchies) contractNodes(oo OrderOptions, fixedOrder bool
 		// TODO Recalculation of shortcuts, incident edges and processed neighbors
 		// may not be necessary when updating the neighbors with every contraction
 
+		latestMilestoneIndex := len(ch.progress.runtime)
 		shortcutCounter += newShortcuts
-		if ch.milestones != nil && ch.milestoneIndex < len(ch.milestones) && float64(len(ch.contractedNodes))/float64(len(ch.orderOfNode)) > ch.milestones[ch.milestoneIndex]/100 {
-			runtime := time.Since(ch.initialTime)
-			timeDif := runtime
-			if ch.milestoneIndex > 0 {
-				timeDif -= ch.runtime[ch.milestoneIndex-1]
-			}
-			milestone := ch.milestones[ch.milestoneIndex]
-			ch.runtime[ch.milestoneIndex] = runtime
-			ch.shortcutCounter[ch.milestoneIndex] = shortcutCounter
-			totalShortcuts := ch.shortcutCounter[ch.milestoneIndex]
-			previousShortcuts := ch.shortcutCounter[0]
-			if ch.milestoneIndex > 0 {
-				previousShortcuts = ch.shortcutCounter[ch.milestoneIndex-1]
-			}
-			addedDifference := totalShortcuts - previousShortcuts
 
-			f, err := os.OpenFile(ch.milestoneFilename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
-			if err != nil {
-				panic(err)
-			}
-
-			defer f.Close()
-			if _, err = f.WriteString(fmt.Sprintf("Milestone %05.2f %% - Runtime: %6.3f s, difference: %.3f s, total Shortcuts: %5v, added Shortcuts: %5v\n", milestone, float64(runtime.Microseconds())/1000000, float64(timeDif.Microseconds())/1000000, totalShortcuts, addedDifference)); err != nil {
-				panic(err)
-			}
-
-			ch.milestoneIndex++
+		if ch.progress.milestones != nil && latestMilestoneIndex < len(ch.progress.milestones) && float64(len(ch.contractedNodes))/float64(len(ch.orderOfNode)) > ch.progress.milestones[latestMilestoneIndex]/100 {
+			ch.storeContractionProgressInfo(time.Since(ch.progress.initialTime), ch.progress.milestones[latestMilestoneIndex], shortcutCounter)
 		}
 
 		// update all nodes or neighbors (if required)
@@ -1037,10 +999,31 @@ func (ch *ContractionHierarchies) SetDebugLevel(level int) {
 
 // Set the precomputation milestones (which are worth a log message)
 func (ch *ContractionHierarchies) SetPrecomputationMilestones(milestones []float64) {
-	ch.milestones = milestones
-	ch.milestoneIndex = 0
-	ch.runtime = make([]time.Duration, len(milestones))
-	ch.shortcutCounter = make([]int, len(milestones))
+	ch.progress.milestones = milestones
+	ch.progress.runtime = make([]time.Duration, 0, len(milestones))
+	ch.progress.shortcutCounter = make([]int, 0, len(milestones))
+}
+
+func (ch *ContractionHierarchies) storeContractionProgressInfo(runtime time.Duration, milestone float64, shortcuts int) {
+	timeDif, addedShortcuts := func() (time.Duration, int) {
+		if len(ch.progress.runtime) > 0 {
+			return runtime - ch.progress.runtime[len(ch.progress.runtime)-1], shortcuts - ch.progress.shortcutCounter[len(ch.progress.shortcutCounter)-1]
+		}
+		return 0, shortcuts
+	}()
+
+	ch.progress.runtime = append(ch.progress.runtime, runtime)
+	ch.progress.shortcutCounter = append(ch.progress.shortcutCounter, shortcuts)
+
+	f, err := os.OpenFile(ch.progress.milestoneFilename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	if err != nil {
+		panic(err)
+	}
+
+	defer f.Close()
+	if _, err = f.WriteString(fmt.Sprintf("Milestone %05.2f %% - Runtime: %6.3f s, difference: %.3f s, total Shortcuts: %5v, added Shortcuts: %5v\n", milestone, float64(runtime.Microseconds())/1000000, float64(timeDif.Microseconds())/1000000, shortcuts, addedShortcuts)); err != nil {
+		panic(err)
+	}
 }
 
 // Write the graph to a file
