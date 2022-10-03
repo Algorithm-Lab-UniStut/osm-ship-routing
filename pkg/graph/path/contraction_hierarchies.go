@@ -43,11 +43,13 @@ type ContractionHierarchies struct {
 	nodeOrderingFilename string      // the filname were the node ordering gets stored
 
 	// For some debuging
-	progress struct {
-		initialTime       time.Time
-		runtime           []time.Duration
-		shortcutCounter   []int
-		milestones        []float64
+	contractionProgress struct {
+		initialTime        time.Time
+		milestones         []float64
+		achievedMilestones []struct {
+			runtime   time.Duration
+			shortcuts int
+		}
 		milestoneFilename string
 	}
 
@@ -116,7 +118,7 @@ func NewContractionHierarchies(g graph.Graph, dijkstra *UniversalDijkstra, optio
 	}
 
 	ch := &ContractionHierarchies{g: g, dijkstra: dijkstra, contractionWorkers: cw, contractionLevelLimit: options.ContractionLimit, graphFilename: "contracted_graph.fmi", shortcutsFilename: "shortcuts.txt", nodeOrderingFilename: "node_ordering.txt"}
-	ch.progress.milestoneFilename = "milestones.txt"
+	ch.contractionProgress.milestoneFilename = "milestones.txt"
 	return ch
 }
 
@@ -137,7 +139,7 @@ func NewContractionHierarchiesInitialized(g graph.Graph, dijkstra *UniversalDijk
 // givenNodeOrder predefines the order of the nodes.
 // oo defines how the node ordering will be calculated.
 func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptions) {
-	ch.progress.initialTime = time.Now()
+	ch.contractionProgress.initialTime = time.Now()
 
 	ch.addedShortcuts = make(map[int]int)
 	ch.shortcuts = make([]Shortcut, 0)
@@ -169,10 +171,6 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 		log.Printf("Initial computed order:\n%v\n", ch.pqOrder)
 	}
 
-	if ch.progress.milestones != nil && ch.progress.milestones[0] == 0 {
-		ch.storeContractionProgressInfo(time.Since(ch.progress.initialTime), 0, 0)
-	}
-
 	if ch.debugLevel >= 1 {
 		log.Printf("Contract Nodes\n")
 	}
@@ -193,21 +191,24 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 	// match arcs with node order
 	ch.matchArcsWithNodeOrder()
 
-	for i := range ch.progress.runtime {
-		m := ch.progress.milestones[i]
-		runtime := ch.progress.runtime[i]
-		timeDif := ch.progress.runtime[i]
-		if i > 0 {
-			timeDif -= ch.progress.runtime[i-1]
-		}
-		totalShortcuts := ch.progress.shortcutCounter[i]
-		previousShortcuts := ch.progress.shortcutCounter[0]
-		if i > 0 {
-			previousShortcuts = ch.progress.shortcutCounter[i-1]
-		}
-		addedDifference := totalShortcuts - previousShortcuts
-		if ch.debugLevel >= 1 {
-			log.Printf("Milestone %05.2f %% - Runtime: %6.3f s, difference: %.3f s, total Shortcuts: %5v, added Shortcuts: %5v\n", m, float64(runtime.Microseconds())/1000000, float64(timeDif.Microseconds())/1000000, totalShortcuts, addedDifference)
+	if ch.debugLevel >= 1 {
+		for i := range ch.contractionProgress.achievedMilestones {
+			m := ch.contractionProgress.milestones[i]
+			runtime := ch.contractionProgress.achievedMilestones[i].runtime
+			timeDif := func() time.Duration {
+				if i == 0 {
+					return runtime
+				}
+				return runtime - ch.contractionProgress.achievedMilestones[i-1].runtime
+			}()
+			totalShortcuts := ch.contractionProgress.achievedMilestones[i].shortcuts
+			addedShortcuts := func() int {
+				if i == 0 {
+					return totalShortcuts
+				}
+				return totalShortcuts - ch.contractionProgress.achievedMilestones[i-1].shortcuts
+			}()
+			log.Printf("Milestone %05.2f %% - Runtime: %6.3f s, difference: %.3f s, total Shortcuts: %5v, added Shortcuts: %5v\n", m, float64(runtime.Microseconds())/1000000, float64(timeDif.Microseconds())/1000000, totalShortcuts, addedShortcuts)
 		}
 	}
 }
@@ -653,6 +654,12 @@ func (ch *ContractionHierarchies) contractNodes(oo OrderOptions, fixedOrder bool
 		}
 		return uniqueShortcuts
 	}
+
+	storeContractionProgress := len(ch.contractionProgress.milestones) > 0
+	if storeContractionProgress && ch.contractionProgress.milestones[0] == 0 {
+		ch.storeContractionProgressInfo(time.Since(ch.contractionProgress.initialTime), 0, 0)
+	}
+
 	for ch.pqOrder.Len() > 0 && contractionLevel() <= ch.contractionLevelLimit {
 		nodes := getTargetNodes()
 
@@ -740,11 +747,12 @@ func (ch *ContractionHierarchies) contractNodes(oo OrderOptions, fixedOrder bool
 		// TODO Recalculation of shortcuts, incident edges and processed neighbors
 		// may not be necessary when updating the neighbors with every contraction
 
-		latestMilestoneIndex := len(ch.progress.runtime)
+		nextMilestoneIndex := len(ch.contractionProgress.achievedMilestones)
 		shortcutCounter += newShortcuts
+		contractionProgress := float64(len(ch.contractedNodes)) / float64(len(ch.orderOfNode))
 
-		if ch.progress.milestones != nil && latestMilestoneIndex < len(ch.progress.milestones) && float64(len(ch.contractedNodes))/float64(len(ch.orderOfNode)) > ch.progress.milestones[latestMilestoneIndex]/100 {
-			ch.storeContractionProgressInfo(time.Since(ch.progress.initialTime), ch.progress.milestones[latestMilestoneIndex], shortcutCounter)
+		if storeContractionProgress && nextMilestoneIndex < len(ch.contractionProgress.milestones) && contractionProgress >= ch.contractionProgress.milestones[nextMilestoneIndex]/100 {
+			ch.storeContractionProgressInfo(time.Since(ch.contractionProgress.initialTime), ch.contractionProgress.milestones[nextMilestoneIndex], shortcutCounter)
 		}
 
 		// update all nodes or neighbors (if required)
@@ -999,28 +1007,34 @@ func (ch *ContractionHierarchies) SetDebugLevel(level int) {
 
 // Set the precomputation milestones (which are worth a log message)
 func (ch *ContractionHierarchies) SetPrecomputationMilestones(milestones []float64) {
-	ch.progress.milestones = milestones
-	ch.progress.runtime = make([]time.Duration, 0, len(milestones))
-	ch.progress.shortcutCounter = make([]int, 0, len(milestones))
+	ch.contractionProgress.milestones = milestones
+	ch.contractionProgress.achievedMilestones = make([]struct {
+		runtime   time.Duration
+		shortcuts int
+	}, 0, len(milestones))
 }
 
 func (ch *ContractionHierarchies) storeContractionProgressInfo(runtime time.Duration, milestone float64, shortcuts int) {
-	timeDif, addedShortcuts := func() (time.Duration, int) {
-		if len(ch.progress.runtime) > 0 {
-			return runtime - ch.progress.runtime[len(ch.progress.runtime)-1], shortcuts - ch.progress.shortcutCounter[len(ch.progress.shortcutCounter)-1]
-		}
-		return 0, shortcuts
-	}()
+	ch.contractionProgress.achievedMilestones = append(ch.contractionProgress.achievedMilestones, struct {
+		runtime   time.Duration
+		shortcuts int
+	}{runtime, shortcuts})
 
-	ch.progress.runtime = append(ch.progress.runtime, runtime)
-	ch.progress.shortcutCounter = append(ch.progress.shortcutCounter, shortcuts)
-
-	f, err := os.OpenFile(ch.progress.milestoneFilename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	f, err := os.OpenFile(ch.contractionProgress.milestoneFilename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
 		panic(err)
 	}
 
 	defer f.Close()
+
+	timeDif, addedShortcuts := func() (time.Duration, int) {
+		if len(ch.contractionProgress.achievedMilestones) <= 1 {
+			return runtime, shortcuts
+		}
+		previousPos := len(ch.contractionProgress.achievedMilestones) - 2
+		return runtime - ch.contractionProgress.achievedMilestones[previousPos].runtime, shortcuts - int(ch.contractionProgress.achievedMilestones[previousPos].shortcuts)
+	}()
+
 	if _, err = f.WriteString(fmt.Sprintf("Milestone %05.2f %% - Runtime: %6.3f s, difference: %.3f s, total Shortcuts: %5v, added Shortcuts: %5v\n", milestone, float64(runtime.Microseconds())/1000000, float64(timeDif.Microseconds())/1000000, shortcuts, addedShortcuts)); err != nil {
 		panic(err)
 	}
