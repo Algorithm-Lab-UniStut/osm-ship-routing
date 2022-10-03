@@ -109,7 +109,6 @@ func MakeDefaultPathFindingOptions() PathFindingOptions {
 // Create a new Contraction Hierarchy.
 // Before a query can get executed, the Precomputation has to be done
 func NewContractionHierarchies(g graph.Graph, dijkstra *UniversalDijkstra, options ContractionOptions) *ContractionHierarchies {
-	// just add one worker by default
 	cw := make([]*UniversalDijkstra, 0, options.ContractionWorkers)
 	for i := 0; i < options.ContractionWorkers; i++ {
 		worker := NewUniversalDijkstra(g)
@@ -118,7 +117,6 @@ func NewContractionHierarchies(g graph.Graph, dijkstra *UniversalDijkstra, optio
 		worker.SetUseHeuristic(options.UseHeuristic)
 		worker.SetMaxNumSettledNodes(options.MaxNumSettledNodes)
 		cw = append(cw, worker)
-
 	}
 
 	ch := &ContractionHierarchies{g: g, dijkstra: dijkstra, contractionWorkers: cw, contractionLevelLimit: options.ContractionLimit, graphFilename: "contracted_graph.fmi", shortcutsFilename: "shortcuts.txt", nodeOrderingFilename: "node_ordering.txt"}
@@ -179,6 +177,7 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 		log.Printf("Contract Nodes\n")
 	}
 	ch.contractNodes(oo, givenNodeOrder != nil)
+
 	if ch.debugLevel >= 1 {
 		log.Printf("Shortcuts:\n")
 		shortcutOrder := make([]int, 0, len(ch.addedShortcuts))
@@ -190,6 +189,7 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 			log.Printf("%v x %v Shortcuts\n", ch.addedShortcuts[amount], amount)
 		}
 	}
+
 	// store the computed shortcuts in the map
 	ch.SetShortcuts(ch.shortcuts)
 	// match arcs with node order
@@ -473,12 +473,14 @@ func (ch *ContractionHierarchies) computeInitialNodeOrder(givenNodeOrder []int, 
 // compute an independent set from the node order (pqOrder).
 func (ch *ContractionHierarchies) computeIndependentSet(ignorePriority bool) []graph.NodeId {
 	priority := ch.pqOrder.Peek().(*OrderItem).Priority()
+
 	if ignorePriority {
 		priority = math.MaxInt
 	}
 
 	independentSet := make([]graph.NodeId, 0)
 	forbiddenNodes := make([]bool, ch.g.NodeCount())
+
 	increasedPriority := false
 	ignoredNode := false
 
