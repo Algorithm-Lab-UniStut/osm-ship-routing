@@ -43,21 +43,25 @@ type ContractionHierarchies struct {
 	nodeOrderingFilename string      // the filname were the node ordering gets stored
 
 	// For some debuging
-	contractionProgress struct {
-		initialTime        time.Time
-		milestones         []float64
-		achievedMilestones []struct {
-			runtime   time.Duration
-			shortcuts int
-		}
-		milestoneFilename string
-	}
+	contractionProgress ContractionProgress
 
 	// search items needed for (manual) path calculation
 	forwardSearch  SearchStats
 	backwardSearch SearchStats
 	connection     graph.NodeId
 	searchKPIs     SearchKPIs
+}
+
+type ContractionProgress struct {
+	initialTime        time.Time
+	milestones         []float64
+	achievedMilestones []AchievedMilestone
+	milestoneFilename  string
+}
+
+type AchievedMilestone struct {
+	runtime   time.Duration
+	shortcuts int
 }
 
 // Describes a shortcut.
@@ -1004,17 +1008,11 @@ func (ch *ContractionHierarchies) SetDebugLevel(level int) {
 // Set the precomputation milestones (which are worth a log message)
 func (ch *ContractionHierarchies) SetPrecomputationMilestones(milestones []float64) {
 	ch.contractionProgress.milestones = milestones
-	ch.contractionProgress.achievedMilestones = make([]struct {
-		runtime   time.Duration
-		shortcuts int
-	}, 0, len(milestones))
+	ch.contractionProgress.achievedMilestones = make([]AchievedMilestone, 0, len(milestones))
 }
 
 func (ch *ContractionHierarchies) storeContractionProgressInfo(runtime time.Duration, milestone float64, shortcuts int) {
-	ch.contractionProgress.achievedMilestones = append(ch.contractionProgress.achievedMilestones, struct {
-		runtime   time.Duration
-		shortcuts int
-	}{runtime, shortcuts})
+	ch.contractionProgress.achievedMilestones = append(ch.contractionProgress.achievedMilestones, AchievedMilestone{runtime, shortcuts})
 
 	f, err := os.OpenFile(ch.contractionProgress.milestoneFilename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
