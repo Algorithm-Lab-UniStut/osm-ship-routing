@@ -23,27 +23,27 @@ type ContractionHierarchies struct {
 	g                  graph.Graph        // graph to work on (for precomputation, this ha sto be a graph.DynamicGraph)
 	dg                 graph.DynamicGraph // Dynamic graph which is used for precomputation (to add shortcuts)
 	dijkstra           *UniversalDijkstra // the dijkstra algorithm to perform the searches
-	nodeOrdering       [][]graph.NodeId   // the node ordering (in which order the nodes were contracted)
-	orderOfNode        []int              // the order of the node ("reverse" node ordering). At which position the specified node was contracted
-	contractedNodes    []graph.NodeId     // contains the IDs of the contracted nodes
-	orderItems         []*OrderItem
-	pqOrder            *NodeOrder
 	contractionWorkers []*UniversalDijkstra
 
-	contractionLevelLimit float64 // percentage, how many nodes should get contracted
+	nodeOrdering    [][]graph.NodeId // the node ordering (in which order the nodes were contracted)
+	orderOfNode     []int            // the order of the node ("reverse" node ordering). At which position the specified node was contracted
+	contractedNodes []graph.NodeId   // contains the IDs of the contracted nodes
+
+	orderItems []*OrderItem
+	pqOrder    *NodeOrder
+
+	contractionLevelLimit float64             // percentage, how many nodes should get contracted
+	contractionProgress   ContractionProgress // for some debugging
 
 	// decide for one, currently both are needed (but probably could get rid of the slice)
-	shortcuts   []Shortcut                                     // array which contains all shortcuts
-	shortcutMap map[graph.NodeId]map[graph.NodeId]graph.NodeId // map of the shortcuts (from/source -> to/target -> via)
+	shortcuts      []Shortcut                                     // array which contains all shortcuts
+	shortcutMap    map[graph.NodeId]map[graph.NodeId]graph.NodeId // map of the shortcuts (from/source -> to/target -> via)
+	addedShortcuts map[int]int                                    // debug information - stores the number of how many nodes introduced the specified amount of shortcuts. Key is the number of shortcuts, value is how many introduced them
 
-	addedShortcuts       map[int]int // debug information - stores the number of how many nodes introduced the specified amount of shortcuts. Key is the number of shortcuts, value is how many introduced them
-	debugLevel           int         // the debug level - used for printing some informaiton
-	graphFilename        string      // the filename were the file gets stored
-	shortcutsFilename    string      // the filename were the shourtcuts gets stored
-	nodeOrderingFilename string      // the filname were the node ordering gets stored
-
-	// For some debuging
-	contractionProgress ContractionProgress
+	debugLevel           int    // the debug level - used for printing some informaiton
+	graphFilename        string // the filename were the file gets stored
+	shortcutsFilename    string // the filename were the shourtcuts gets stored
+	nodeOrderingFilename string // the filname were the node ordering gets stored
 
 	// search items needed for (manual) path calculation
 	forwardSearch  SearchStats
