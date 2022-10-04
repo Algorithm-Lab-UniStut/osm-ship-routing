@@ -119,7 +119,7 @@ func createContractedGraph(graphFile string, oo p.OrderOptions, options p.Contra
 	dijkstra := p.NewUniversalDijkstra(alg)
 	log.Printf("Initialize Contraction Hierarchies\n")
 	ch := p.NewContractionHierarchies(alg, dijkstra, options)
-	ch.SetDebugLevel(2)
+	ch.SetDebugLevel(1)
 	ch.SetPrecomputationMilestones([]float64{0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 99.99})
 	log.Printf("Initialized Contraction Hierarchies, start precomputation\n")
 	ch.Precompute(nil, oo)
