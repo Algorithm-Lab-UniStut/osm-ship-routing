@@ -19,10 +19,10 @@ import (
 // Provides the precomputation and query for shortest paths with the use of Contraction Hierarchies.
 // Implements the Navigator Interface.
 type ContractionHierarchies struct {
-	g                  graph.Graph        // graph to work on (for precomputation, this ha sto be a graph.DynamicGraph)
-	dg                 graph.DynamicGraph // Dynamic graph which is used for precomputation (to add shortcuts)
-	dijkstra           *UniversalDijkstra // the dijkstra algorithm to perform the searches
-	contractionWorkers []*UniversalDijkstra
+	g                  graph.Graph          // graph to work on (for precomputation, this ha sto be a graph.DynamicGraph)
+	dg                 graph.DynamicGraph   // Dynamic graph which is used for precomputation (to add shortcuts)
+	dijkstra           *UniversalDijkstra   // the dijkstra algorithm to perform the searches
+	contractionWorkers []*UniversalDijkstra // the elements/workers who perform the (potential parallel) contraction of nodes
 
 	nodeOrdering    [][]graph.NodeId // the node ordering (in which order the nodes were contracted)
 	orderOfNode     []int            // the order of the node ("reverse" node ordering). At which position the specified node was contracted
