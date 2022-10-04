@@ -272,7 +272,6 @@ func (ch *ContractionHierarchies) ComputeShortestPath(origin, destination graph.
 // Get the computed path.
 // A slice is returned which contains the node IDs in order from source to target
 func (ch *ContractionHierarchies) GetPath(origin, destination graph.NodeId) []int {
-	// TODO: this probably gets more efficient with other data structures (store shortcuts as map -> faster access)
 	if ch.connection == -1 {
 		return make([]int, 0)
 	}
@@ -605,26 +604,28 @@ func (ch *ContractionHierarchies) contractNodes(minHeap *queue.MinHeap[*OrderIte
 		return prio
 	}
 	findUniqueShortcuts := func(shortcuts []Shortcut) []Shortcut {
-		// remove duplicate shortcuts (shortcuts which are found from both middle nodes. However, both nodes ignore each other so there is a different path. Only one path should remain)
-		// This does a little bit of redunant work, since the shortcuts of the same contracted node don't need to get compared
+		// remove duplicate shortcuts (shortcuts which are found from both middle nodes). However, both nodes ignore each other so there is a different path. Only one path should remain)
+		// This does a little bit of redundant work, since the shortcuts of the same contracted node don't need to get compared
 		// to avoid this, store them in separate lists (maybe TODO)
 		uniqueShortcuts := make([]Shortcut, 0, len(shortcuts))
 		for i := 0; i < len(shortcuts); i++ {
 			shortcut := shortcuts[i]
 			overwritten := false
+			skip := false
 			for j := 0; j < len(uniqueShortcuts); j++ {
-				otherShortcut := uniqueShortcuts[j]
-				if shortcut.source == otherShortcut.source && shortcut.target == otherShortcut.target {
+				uniqueShortcut := uniqueShortcuts[j]
+				if shortcut.source == uniqueShortcut.source && shortcut.target == uniqueShortcut.target {
 					//&& /*shortcut.via == otherShortcut.via &&*/
-					if shortcut.cost >= otherShortcut.cost {
-						break
+					if shortcut.cost >= uniqueShortcut.cost {
+						skip = true
 					} else {
 						uniqueShortcuts[j] = shortcut
 						overwritten = true
 					}
+					break
 				}
 			}
-			if !overwritten {
+			if !overwritten && !skip {
 				uniqueShortcuts = append(uniqueShortcuts, shortcut)
 			}
 		}
@@ -719,8 +720,6 @@ func (ch *ContractionHierarchies) contractNodes(minHeap *queue.MinHeap[*OrderIte
 			}
 		}
 
-		updateNodes := affectedNeighbors
-
 		// TODO Recalculation of shortcuts, incident edges and processed neighbors
 		// may not be necessary when updating the neighbors with every contraction
 
@@ -734,10 +733,28 @@ func (ch *ContractionHierarchies) contractNodes(minHeap *queue.MinHeap[*OrderIte
 
 		// update all nodes or neighbors (if required)
 		if oo.IsPeriodic() && level%100 == 0 {
-			ch.updateFullContractionOrder(minHeap, oo)
+			remainingNodes := func() []graph.NodeId {
+				remainingNodes := make([]graph.NodeId, minHeap.Len())
+				for i := 0; i < minHeap.Len(); i++ {
+					orderItem := minHeap.PeekAt(i)
+					nodes[i] = orderItem.nodeId
+				}
+				return remainingNodes
+			}()
+			ch.updateOrderForNodes(minHeap, remainingNodes, oo)
+			// TODO Verify if this would be more efficient
+			// heap.Init(pqOrder)
 		} else if oo.UpdateNeighbors() {
-			// TODO check for duplicates? (unnecessary work)
-			ch.updateOrderForNodes(minHeap, updateNodes, oo)
+			uniqueNeighbors := func() []graph.NodeId {
+				uniqueNodes := make([]graph.NodeId, 0)
+				for _, nodeId := range affectedNeighbors {
+					if !slice.Contains(uniqueNodes, nodeId) {
+						uniqueNodes = append(uniqueNodes, nodeId)
+					}
+				}
+				return uniqueNodes
+			}()
+			ch.updateOrderForNodes(minHeap, uniqueNeighbors, oo)
 		}
 	}
 	ch.liftUncontractedNodes()
@@ -751,18 +768,6 @@ func (ch *ContractionHierarchies) liftUncontractedNodes() {
 			ch.orderOfNode[i] = math.MaxInt
 		}
 	}
-}
-
-// update the whole node order (pqOrder) by performing a virtual contraction for each remaining node
-func (ch *ContractionHierarchies) updateFullContractionOrder(minHeap *queue.MinHeap[*OrderItem], oo OrderOptions) {
-	nodes := make([]graph.NodeId, minHeap.Len())
-	for i := 0; i < minHeap.Len(); i++ {
-		orderItem := minHeap.PeekAt(i)
-		nodes[i] = orderItem.nodeId
-	}
-	ch.updateOrderForNodes(minHeap, nodes, oo)
-	// TODO Verify if this would be more efficient
-	// heap.Init(pqOrder)
 }
 
 // Compute a (virtual) contraction for the given node. Ignore the nodes given by ignoreNodes.
@@ -921,16 +926,12 @@ func (ch *ContractionHierarchies) SetShortcuts(shortcuts []Shortcut) {
 		if sc.source >= len(ch.shortcutMap) {
 			panic("source is out of range.")
 		}
-		target := ch.shortcutMap[sc.source]
-		if target == nil {
+		sourceMap := ch.shortcutMap[sc.source]
+		if sourceMap == nil {
 			ch.shortcutMap[sc.source] = make(map[graph.NodeId]Shortcut)
 		}
-		/*
-			if via, exists := ch.shortcutMap[sc.source][sc.target]; exists {
-				// TODO Add panic for testing. But should be no problem
-				panic(fmt.Sprintf("Shortcut already exists. Old connector: %v, new connector: %v", via, sc.via))
-			}
-		*/
+		// if a shortcut already exists for this source-target pair, it gets overwritten
+		// but this only happens if the second shortcut is shorter
 		ch.shortcutMap[sc.source][sc.target] = sc
 	}
 }
@@ -956,8 +957,6 @@ func (ch *ContractionHierarchies) SetNodeOrdering(nodeOrdering [][]int) {
 
 	// initialize order of node
 	for i := range ch.orderOfNode {
-		// TODO think about setting it directly to match.MaxInt
-		// This would save a second iteration (liftUncontractedNodes)
 		ch.orderOfNode[i] = -1
 	}
 

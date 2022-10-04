@@ -334,7 +334,6 @@ func (d *UniversalDijkstra) initializeSearch(origin, destination graph.NodeId) {
 
 	if d.searchOptions.useHotStart && d.origin == origin {
 		if d.debugLevel >= 2 {
-			// TODO decide debug level
 			log.Printf("Use hot start\n")
 		}
 		return
@@ -342,7 +341,6 @@ func (d *UniversalDijkstra) initializeSearch(origin, destination graph.NodeId) {
 
 	// don't or can't use hot start
 	if d.debugLevel >= 2 {
-		// TODO decide debug level
 		log.Printf("Initialize new search, origin: %v\n", origin)
 	}
 

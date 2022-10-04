@@ -102,15 +102,13 @@ func (alg *AdjacencyListGraph) AddArc(from, to NodeId, distance int) bool {
 	for i := range arcs {
 		arc := &arcs[i]
 		if to == arc.To {
-			// TODO check if updating or ignoring edges is better. Does this break some stuff wih the shortcuts?
-			// update should be better: use new shortcut
+			// TODO check if ignoring update would be viable
 			if distance < arc.Distance {
 				// update distance
 				arc.Distance = distance
 				return true
 			} else {
 				return false
-				//panic("Why would you add an edge with bigger distance?")
 			}
 		}
 
