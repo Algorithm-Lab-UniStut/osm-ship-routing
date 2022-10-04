@@ -40,10 +40,9 @@ func NewDijkstraItem(nodeId graph.NodeId, distance int, predecessor graph.NodeId
 	return &DijkstraItem{nodeId: nodeId, distance: distance, predecessor: predecessor, index: -1, heuristic: heuristic, searchDirection: searchDirection}
 }
 
-// TODO check pointer receivers
 func (item *DijkstraItem) NodeId() graph.NodeId { return item.nodeId }
-func (item DijkstraItem) Priority() int         { return item.distance + item.heuristic }
-func (item DijkstraItem) Index() int            { return item.index }
+func (item *DijkstraItem) Priority() int        { return item.distance + item.heuristic }
+func (item *DijkstraItem) Index() int           { return item.index }
 func (item *DijkstraItem) SetIndex(index int)   { item.index = index }
 func (item *DijkstraItem) String() string {
 	return fmt.Sprintf("%v: %v, %v\n", item.index, item.nodeId, item.Priority())
