@@ -287,7 +287,7 @@ func (ch *ContractionHierarchies) GetPath(origin, destination graph.NodeId) []in
 		for nodeId := ch.forwardSearch.searchSpace[ch.connection].predecessor; nodeId != -1; nodeId = ch.forwardSearch.searchSpace[nodeId].predecessor {
 			path = append(path, nodeId)
 		}
-		slice.ReverseIntInPlace(path)
+		slice.ReverseInPlace(path)
 		path = append(path, ch.connection)
 		for nodeId := ch.backwardSearch.searchSpace[ch.connection].predecessor; nodeId != -1; nodeId = ch.backwardSearch.searchSpace[nodeId].predecessor {
 			path = append(path, nodeId)
@@ -301,7 +301,7 @@ func (ch *ContractionHierarchies) GetPath(origin, destination graph.NodeId) []in
 		target := path[i+1]
 
 		if sc, exists := ch.shortcutMap[source][target]; exists {
-			path = slice.InsertInt(path, i+1, sc.via)
+			path = slice.Insert(path, i+1, sc.via)
 			if ch.debugLevel >= 2 {
 				log.Printf("Added node %v -> %v -> %v\n", source, sc.via, target)
 			}

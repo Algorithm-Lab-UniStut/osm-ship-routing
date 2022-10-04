@@ -269,7 +269,7 @@ func (d *UniversalDijkstra) GetPath(origin, destination int) []int {
 		for nodeId := d.bidirectionalConnection.predecessor; nodeId != -1; nodeId = d.forwardSearch.searchSpace[nodeId].predecessor {
 			path = append(path, nodeId)
 		}
-		slice.ReverseIntInPlace(path)
+		slice.ReverseInPlace(path)
 		path = append(path, d.bidirectionalConnection.nodeId)
 		for nodeId := d.bidirectionalConnection.successor; nodeId != -1; nodeId = d.backwardSearch.searchSpace[nodeId].predecessor {
 			path = append(path, nodeId)
@@ -283,7 +283,7 @@ func (d *UniversalDijkstra) GetPath(origin, destination int) []int {
 			path = append(path, nodeId)
 		}
 		// reverse path (to create the correct direction)
-		slice.ReverseIntInPlace(path)
+		slice.ReverseInPlace(path)
 	}
 
 	return path
