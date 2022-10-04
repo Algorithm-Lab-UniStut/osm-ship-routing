@@ -8,9 +8,9 @@ import (
 )
 
 type AStarPriorityQueueItem struct {
-	queue.PriorityQueueItem      // "inherited" priority distinguishes the estimated distance from this node to destination
-	Distance                int  // real distance from origin to this node
-	Settled                 bool // not sure
+	queue.Item      // "inherited" priority distinguishes the estimated distance from this node to destination
+	Distance   int  // real distance from origin to this node
+	Settled    bool // not sure
 }
 
 type AStarPriorityQueue []*AStarPriorityQueueItem
@@ -56,7 +56,7 @@ func (astar *ImprovedAStar) GetPath(origin, destination int) []int {
 
 func NewAStarPriorityQueueItem(id, priority, predecessor, distance int) *AStarPriorityQueueItem {
 	//pqi := AStarPriorityQueueItem{PriorityQueueItem{ItemId: id, Priority: priority, Predecessor: predecessor, Index: index}, distance, settled}
-	pqi := AStarPriorityQueueItem{PriorityQueueItem: *queue.NewPriorityQueueItem(id, priority, predecessor) /*{ItemId: id, Priority: priority, Predecessor: predecessor, Index: index}*/, Distance: distance, Settled: false}
+	pqi := AStarPriorityQueueItem{Item: *queue.NewQueueItem(id, priority, predecessor) /*{ItemId: id, Priority: priority, Predecessor: predecessor, Index: index}*/, Distance: distance, Settled: false}
 	return &pqi
 }
 

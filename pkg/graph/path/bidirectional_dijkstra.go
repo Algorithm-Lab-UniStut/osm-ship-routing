@@ -17,19 +17,19 @@ func NewBidirectionalDijkstra(g graph.Graph) BidirectionalDijkstra {
 }
 
 func (bd BidirectionalDijkstra) GetPath(origin, destination int) ([]int, int) {
-	forwardDijkstraItems := make([]*queue.PriorityQueueItem, bd.g.NodeCount())
-	originItem := queue.NewPriorityQueueItem(origin, 0, -1) //{ItemId: origin, Priority: 0, Predecessor: -1, Index: -1}
+	forwardDijkstraItems := make([]*queue.Item, bd.g.NodeCount())
+	originItem := queue.NewQueueItem(origin, 0, -1) //{ItemId: origin, Priority: 0, Predecessor: -1, Index: -1}
 	forwardDijkstraItems[origin] = originItem
 
-	backwardDijkstraItems := make([]*queue.PriorityQueueItem, bd.g.NodeCount())
-	destinationItem := queue.NewPriorityQueueItem(destination, 0, -1) //{ItemId: destination, Priority: 0, Predecessor: -1, Index: -1}
+	backwardDijkstraItems := make([]*queue.Item, bd.g.NodeCount())
+	destinationItem := queue.NewQueueItem(destination, 0, -1) //{ItemId: destination, Priority: 0, Predecessor: -1, Index: -1}
 	backwardDijkstraItems[destination] = destinationItem
 
-	forwardPq := make(queue.PriorityQueue, 0)
+	forwardPq := make(queue.Queue, 0)
 	heap.Init(&forwardPq)
 	heap.Push(&forwardPq, forwardDijkstraItems[origin])
 
-	backwardPq := make(queue.PriorityQueue, 0)
+	backwardPq := make(queue.Queue, 0)
 	heap.Init(&backwardPq)
 	heap.Push(&backwardPq, backwardDijkstraItems[destination])
 
@@ -37,9 +37,9 @@ func (bd BidirectionalDijkstra) GetPath(origin, destination int) ([]int, int) {
 	connectionNode := 0
 
 	for len(forwardPq) > 0 && len(backwardPq) > 0 {
-		currentForwardPqItem := heap.Pop(&forwardPq).(*queue.PriorityQueueItem)
+		currentForwardPqItem := heap.Pop(&forwardPq).(*queue.Item)
 		currentForwardNodeId := currentForwardPqItem.ItemId
-		currentBackwardPqItem := heap.Pop(&backwardPq).(*queue.PriorityQueueItem)
+		currentBackwardPqItem := heap.Pop(&backwardPq).(*queue.Item)
 		currentBackwardNodeId := currentBackwardPqItem.ItemId
 
 		if forwardDijkstraItems[currentForwardNodeId].Priority+backwardDijkstraItems[currentBackwardNodeId].Priority >= distance {
@@ -51,7 +51,7 @@ func (bd BidirectionalDijkstra) GetPath(origin, destination int) ([]int, int) {
 
 			if forwardDijkstraItems[successor] == nil {
 				newPriority := forwardDijkstraItems[currentForwardNodeId].Priority + arc.Cost()
-				pqItem := queue.NewPriorityQueueItem(successor, newPriority, currentForwardNodeId) //{ItemId: successor, Priority: newPriority, Predecessor: currentForwardNodeId, Index: -1}
+				pqItem := queue.NewQueueItem(successor, newPriority, currentForwardNodeId) //{ItemId: successor, Priority: newPriority, Predecessor: currentForwardNodeId, Index: -1}
 				forwardDijkstraItems[successor] = pqItem
 				heap.Push(&forwardPq, pqItem)
 			} else {
@@ -77,7 +77,7 @@ func (bd BidirectionalDijkstra) GetPath(origin, destination int) ([]int, int) {
 
 			if backwardDijkstraItems[successor] == nil {
 				newPriority := backwardDijkstraItems[currentBackwardNodeId].Priority + arc.Cost()
-				pqItem := queue.NewPriorityQueueItem(successor, newPriority, currentBackwardNodeId) //{ItemId: successor, Priority: newPriority, Predecessor: currentBackwardNodeId, Index: -1}
+				pqItem := queue.NewQueueItem(successor, newPriority, currentBackwardNodeId) //{ItemId: successor, Priority: newPriority, Predecessor: currentBackwardNodeId, Index: -1}
 				backwardDijkstraItems[successor] = pqItem
 				heap.Push(&backwardPq, pqItem)
 			} else {
