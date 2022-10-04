@@ -8,7 +8,6 @@ import (
 	"math"
 	"math/rand"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -38,7 +37,7 @@ type ContractionHierarchies struct {
 	// decide for one, currently both are needed (but probably could get rid of the slice)
 	shortcuts      []Shortcut                                     // array which contains all shortcuts
 	shortcutMap    map[graph.NodeId]map[graph.NodeId]graph.NodeId // map of the shortcuts (from/source -> to/target -> via)
-	addedShortcuts map[int]int                                    // debug information - stores the number of how many nodes introduced the specified amount of shortcuts. Key is the number of shortcuts, value is how many introduced them
+	addedShortcuts []int                                          // debug information - stores the number of how many nodes introduced the specified amount of shortcuts. Key/Index is the number of shortcuts, value is how often they were created
 
 	debugLevel           int    // the debug level - used for printing some informaiton
 	graphFilename        string // the filename were the file gets stored
@@ -143,7 +142,7 @@ func NewContractionHierarchiesInitialized(g graph.Graph, dijkstra *UniversalDijk
 func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptions) {
 	ch.contractionProgress.initialTime = time.Now()
 
-	ch.addedShortcuts = make(map[int]int)
+	ch.addedShortcuts = make([]int, 0)
 	ch.shortcuts = make([]Shortcut, 0)
 	ch.nodeOrdering = make([][]int, ch.g.NodeCount()) // TODO this is maybe to big (when multiple nodes are on the same level)
 	ch.orderOfNode = make([]int, ch.g.NodeCount())
@@ -180,13 +179,10 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 
 	if ch.debugLevel >= 1 {
 		log.Printf("Shortcuts:\n")
-		shortcutOrder := make([]int, 0, len(ch.addedShortcuts))
-		for shortcutAmount := range ch.addedShortcuts {
-			shortcutOrder = append(shortcutOrder, shortcutAmount)
-		}
-		sort.Ints(shortcutOrder)
-		for _, amount := range shortcutOrder {
-			log.Printf("%v x %v Shortcuts\n", ch.addedShortcuts[amount], amount)
+		for i, amount := range ch.addedShortcuts {
+			if amount > 0 {
+				log.Printf("%v x %v Shortcuts\n", amount, i)
+			}
 		}
 	}
 
@@ -884,11 +880,19 @@ func (ch *ContractionHierarchies) addShortcuts(shortcuts []Shortcut) {
 			addedShortcuts++
 		}
 	}
-	_, exists := ch.addedShortcuts[addedShortcuts]
-	if !exists {
-		ch.addedShortcuts[addedShortcuts] = 1
-	} else {
+
+	// TODO addedShortcuts may get divided by 2 (to save storage space)
+	if addedShortcuts < len(ch.addedShortcuts) {
+		// addedShortcuts is in range of slice
+		// can just add them
 		ch.addedShortcuts[addedShortcuts]++
+	} else {
+		// addedShortcuts is currently out of range
+		// increase slice first and add then
+		dif := addedShortcuts - len(ch.addedShortcuts) + 1
+		missingEntries := make([]int, dif)
+		ch.addedShortcuts = append(ch.addedShortcuts, missingEntries...)
+		ch.addedShortcuts[addedShortcuts] = 1
 	}
 }
 

@@ -108,12 +108,15 @@ func TestContractGraph(t *testing.T) {
 	if len(ch.GetShortcuts())/2 != 2 {
 		t.Errorf("wrong number of nodes shortcuttet.\n")
 	}
-	zeroShortcuts, ok := ch.addedShortcuts[0]
-	if !ok || zeroShortcuts != 11 {
+	if len(ch.addedShortcuts) < 3 {
+		t.Errorf("wrong number of shortcuts.\n")
+	}
+	zeroShortcuts := ch.addedShortcuts[0]
+	if zeroShortcuts != 11 {
 		t.Errorf("wrong number of 0 shortcuts\n")
 	}
-	twoShortcuts, ok := ch.addedShortcuts[2]
-	if !ok || twoShortcuts != 2 {
+	twoShortcuts := ch.addedShortcuts[2]
+	if twoShortcuts != 2 {
 		t.Errorf("wrong number of 2 shortcuts\n")
 	}
 	if ch.g.ArcCount() != 46 {
