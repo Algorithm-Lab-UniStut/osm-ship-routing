@@ -34,10 +34,8 @@ type ContractionHierarchies struct {
 	contractionLevelLimit float64             // percentage, how many nodes should get contracted
 	contractionProgress   ContractionProgress // for some debugging
 
-	// decide for one, currently both are needed (but probably could get rid of the slice)
-	shortcuts      []Shortcut                                     // array which contains all shortcuts
-	shortcutMap    map[graph.NodeId]map[graph.NodeId]graph.NodeId // map of the shortcuts (from/source -> to/target -> via)
-	addedShortcuts []int                                          // debug information - stores the number of how many nodes introduced the specified amount of shortcuts. Key/Index is the number of shortcuts, value is how often they were created
+	shortcutMap    []map[graph.NodeId]Shortcut // slice of map of the shortcuts (from/source -> to/target -> via). Index: nodeId of source node, map key: nodeId of target node, map value: complete Shortcut description
+	addedShortcuts []int                       // debug information - stores the number of how many nodes introduced the specified amount of shortcuts. Key/Index is the number of shortcuts, value is how often they were created
 
 	debugLevel           int    // the debug level - used for printing some informaiton
 	graphFilename        string // the filename were the file gets stored
@@ -143,7 +141,6 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 	ch.contractionProgress.initialTime = time.Now()
 
 	ch.addedShortcuts = make([]int, 0)
-	ch.shortcuts = make([]Shortcut, 0)
 	ch.nodeOrdering = make([][]int, ch.g.NodeCount()) // TODO this is maybe to big (when multiple nodes are on the same level)
 	ch.orderOfNode = make([]int, ch.g.NodeCount())
 	ch.contractedNodes = make([]graph.NodeId, 0, ch.g.NodeCount()) // TODO maybe use custom struct with fixed length slice (bool) and an int, indicating how many nodes are "contracted" (true)
@@ -175,7 +172,7 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 	if ch.debugLevel >= 1 {
 		log.Printf("Contract Nodes\n")
 	}
-	ch.contractNodes(oo, givenNodeOrder != nil)
+	shortcuts := ch.contractNodes(oo, givenNodeOrder != nil)
 
 	if ch.debugLevel >= 1 {
 		log.Printf("Shortcuts:\n")
@@ -187,7 +184,7 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 	}
 
 	// store the computed shortcuts in the map
-	ch.SetShortcuts(ch.shortcuts)
+	ch.SetShortcuts(shortcuts)
 	// match arcs with node order
 	ch.matchArcsWithNodeOrder()
 
@@ -303,25 +300,13 @@ func (ch *ContractionHierarchies) GetPath(origin, destination graph.NodeId) []in
 		source := path[i]
 		target := path[i+1]
 
-		if via, exists := ch.shortcutMap[source][target]; exists {
-			path = slice.InsertInt(path, i+1, via)
+		if sc, exists := ch.shortcutMap[source][target]; exists {
+			path = slice.InsertInt(path, i+1, sc.via)
 			if ch.debugLevel >= 2 {
-				log.Printf("Added node %v -> %v -> %v\n", source, via, target)
+				log.Printf("Added node %v -> %v -> %v\n", source, sc.via, target)
 			}
 			i-- // reevaluate, if the source has a shortcut to the currently added node
 		}
-		/*
-			for _, sc := range ch.shortcuts {
-				if sc.source == source && sc.target == target {
-					path = slice.InsertInt(path, i+1, sc.via)
-					if ch.debugLevel == 1 {
-						log.Printf("Added node %v -> %v -> %v\n", source, sc.via, target)
-					}
-					i-- // reevaluate, if the source has a shortcut to the currently added node
-				}
-			}
-		*/
-
 	}
 	return path
 }
@@ -593,7 +578,7 @@ func (ch *ContractionHierarchies) computeNodeContractionParallel(nodes []graph.N
 
 // Contract the nodes based on the given order.
 // The OrderOptions oo define, if and how the nodeOrder can get updated dynamically.
-func (ch *ContractionHierarchies) contractNodes(oo OrderOptions, fixedOrder bool) {
+func (ch *ContractionHierarchies) contractNodes(oo OrderOptions, fixedOrder bool) []Shortcut {
 	if ch.pqOrder.Len() != ch.g.NodeCount() {
 		// this is a rudimentary test, if the ordering could be valid.
 		// However, it misses to test if every id appears exactly once
@@ -658,6 +643,7 @@ func (ch *ContractionHierarchies) contractNodes(oo OrderOptions, fixedOrder bool
 		ch.storeContractionProgressInfo(time.Since(ch.contractionProgress.initialTime), 0, 0)
 	}
 
+	shortcuts := make([]Shortcut, 0)
 	for ch.pqOrder.Len() > 0 && contractionLevel() <= ch.contractionLevelLimit {
 		nodes := getTargetNodes()
 
@@ -729,7 +715,7 @@ func (ch *ContractionHierarchies) contractNodes(oo OrderOptions, fixedOrder bool
 		}
 
 		finalShortcuts := findUniqueShortcuts(collectedShortcuts)
-		ch.addShortcuts(finalShortcuts)
+		ch.addShortcuts(finalShortcuts, &shortcuts)
 		newShortcuts += len(finalShortcuts)
 
 		if len(deniedContractionItems) > 0 {
@@ -762,6 +748,7 @@ func (ch *ContractionHierarchies) contractNodes(oo OrderOptions, fixedOrder bool
 		}
 	}
 	ch.liftUncontractedNodes()
+	return shortcuts
 }
 
 // Set all uncontracted nodes to highest level
@@ -872,10 +859,10 @@ func (ch *ContractionHierarchies) computeNodeContraction(nodeId graph.NodeId, ig
 }
 
 // Add the shortcuts to the graph (by adding new arcs)
-func (ch *ContractionHierarchies) addShortcuts(shortcuts []Shortcut) {
+func (ch *ContractionHierarchies) addShortcuts(shortcuts []Shortcut, storage *[]Shortcut) {
 	addedShortcuts := 0
 	for _, sc := range shortcuts {
-		added := ch.addShortcut(sc)
+		added := ch.addShortcut(sc, storage)
 		if added {
 			addedShortcuts++
 		}
@@ -898,7 +885,7 @@ func (ch *ContractionHierarchies) addShortcuts(shortcuts []Shortcut) {
 
 // Adds a shortcut to the graph from source to target with length cost which is spanned over node defined by via.
 // This adds a new arc in the graph.
-func (ch *ContractionHierarchies) addShortcut(shortcut Shortcut) bool {
+func (ch *ContractionHierarchies) addShortcut(shortcut Shortcut, shortcuts *[]Shortcut) bool {
 	if ch.debugLevel >= 3 {
 		log.Printf("Add shortcut %v %v %v %v\n", shortcut.source, shortcut.target, shortcut.via, shortcut.cost)
 	}
@@ -907,16 +894,9 @@ func (ch *ContractionHierarchies) addShortcut(shortcut Shortcut) bool {
 	}
 	added := ch.dg.AddArc(shortcut.source, shortcut.target, shortcut.cost)
 	if added {
-		ch.shortcuts = append(ch.shortcuts, shortcut)
+		*shortcuts = append(*shortcuts, shortcut)
 		return true
 	}
-	// maybe this map is not so a good idea
-	/*
-		if ch.shortcutMap[source] == nil {
-			ch.shortcutMap[source] = make(map[graph.NodeId]graph.NodeId)
-		}
-		ch.shortcutMap[source][target] = nodeId
-	*/
 	return false
 }
 
@@ -942,14 +922,15 @@ func (ch *ContractionHierarchies) isNodeContracted(node graph.NodeId) bool {
 // Set the shortcuts by an already available list.
 // This is used when one has already a contracted graph and one need to define which arcs are shortcuts.
 func (ch *ContractionHierarchies) SetShortcuts(shortcuts []Shortcut) {
-	ch.shortcuts = shortcuts
-
-	// map: source -> target -> via
-	ch.shortcutMap = make(map[graph.NodeId]map[graph.NodeId]graph.NodeId)
-	for _, sc := range ch.shortcuts {
-		// TODO maybe check if it is nil, instead of exists
-		if _, exists := ch.shortcutMap[sc.source]; !exists {
-			ch.shortcutMap[sc.source] = make(map[graph.NodeId]graph.NodeId)
+	// structure: idx: source -> key: target -> value: (complete) Shortcut
+	ch.shortcutMap = make([]map[graph.NodeId]Shortcut, ch.g.NodeCount())
+	for _, sc := range shortcuts {
+		if sc.source >= len(ch.shortcutMap) {
+			panic("source is out of range.")
+		}
+		target := ch.shortcutMap[sc.source]
+		if target == nil {
+			ch.shortcutMap[sc.source] = make(map[graph.NodeId]Shortcut)
 		}
 		/*
 			if via, exists := ch.shortcutMap[sc.source][sc.target]; exists {
@@ -957,22 +938,21 @@ func (ch *ContractionHierarchies) SetShortcuts(shortcuts []Shortcut) {
 				panic(fmt.Sprintf("Shortcut already exists. Old connector: %v, new connector: %v", via, sc.via))
 			}
 		*/
-		ch.shortcutMap[sc.source][sc.target] = sc.via
+		ch.shortcutMap[sc.source][sc.target] = sc
 	}
 }
 
 // Get the calculated shortcuts.
 func (ch *ContractionHierarchies) GetShortcuts() []Shortcut {
-	return ch.shortcuts
-	/*
-		sc := make([]Shortcut, 0)
-		for source, shortcuts := range ch.shortcutMap {
-			for target, via := range shortcuts {
-				sc = append(sc, Shortcut{source: source, target: target, via: via})
-			}
+	shortcuts := make([]Shortcut, 0)
+
+	for _, scMap := range ch.shortcutMap {
+		for _, sc := range scMap {
+			shortcuts = append(shortcuts, sc)
 		}
-		return sc
-	*/
+	}
+
+	return shortcuts
 }
 
 // Set the node ordering by an already available list.
@@ -1055,7 +1035,8 @@ func (ch *ContractionHierarchies) WriteShortcuts() {
 
 	var sb strings.Builder
 
-	for _, v := range ch.GetShortcuts() {
+	shortcuts := ch.GetShortcuts()
+	for _, v := range shortcuts {
 		shortcut := fmt.Sprintf("%v %v %v\n", v.source, v.target, v.via)
 		sb.WriteString(shortcut)
 	}

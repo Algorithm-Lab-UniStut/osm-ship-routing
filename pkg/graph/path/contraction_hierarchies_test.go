@@ -155,7 +155,7 @@ func TestPathFinding(t *testing.T) {
 	}
 	path = ch.GetPath(source, target)
 	if len(p) != len(path) || p[0] != path[0] || p[len(p)-1] != path[len(path)-1] {
-		t.Errorf("computed SP do not match. Shortcuts: %v", ch.shortcuts)
+		t.Errorf("computed SP do not match. Shortcuts: %v", ch.GetShortcuts())
 	}
 }
 
@@ -210,7 +210,7 @@ func TestRandomContraction(t *testing.T) {
 		}
 		path := ch.GetPath(source, target)
 		if len(p) != len(path) || p[0] != path[0] || p[len(p)-1] != path[len(path)-1] {
-			t.Errorf("computed SP do not match. Shortcuts: %v", ch.shortcuts)
+			t.Errorf("computed SP do not match. Shortcuts: %v", ch.GetShortcuts())
 		}
 	}
 }
