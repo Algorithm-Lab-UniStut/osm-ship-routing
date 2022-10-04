@@ -23,6 +23,7 @@ func (d Direction) String() string {
 	return "INVALID"
 }
 
+// implements queue.Priorizable
 type DijkstraItem struct {
 	NodeId          graph.NodeId // node id of this item in the graph
 	distance        int          // distance to origin of this node

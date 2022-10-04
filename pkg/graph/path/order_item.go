@@ -6,6 +6,7 @@ import (
 	"github.com/natevvv/osm-ship-routing/pkg/graph"
 )
 
+// implement queue.Priorizable
 type OrderItem struct {
 	nodeId             graph.NodeId
 	edgeDifference     int
