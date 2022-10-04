@@ -17,9 +17,6 @@ import (
 	"github.com/natevvv/osm-ship-routing/pkg/grid"
 )
 
-const density = 710 // parameter for SimpleSphereGrid
-const nTarget = 1e6 // parameter for EquiSphereGrid
-
 func main() {
 	buildGridGraph := flag.String("gridgraph", "", "Build grid graph")
 	contractGraph := flag.String("contract", "", "Contract the given graph")
