@@ -152,14 +152,14 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 		currentNode := d.minHeap.Pop()
 		d.searchKPIs.pqPops++
 		if d.debugLevel >= 2 {
-			log.Printf("Settling node %v, direction: %v, distance %v\n", currentNode.NodeId, currentNode.searchDirection, currentNode.distance)
+			log.Printf("Settling node %v, direction: %v, distance %v\n", currentNode.nodeId, currentNode.searchDirection, currentNode.distance)
 		}
 
 		d.settleNode(currentNode)
 
 		stalledNodes, _ := alignWithSearchDirection(currentNode.searchDirection, d.forwardSearch.stalledNodes, d.backwardSearch.stalledNodes)
 
-		if d.searchOptions.stallOnDemand >= 2 && stalledNodes[currentNode.NodeId] {
+		if d.searchOptions.stallOnDemand >= 2 && stalledNodes[currentNode.nodeId] {
 			// this is a stalled node -> nothing to do
 			continue
 		}
@@ -175,7 +175,7 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 			return -1
 		}
 
-		if !d.searchOptions.considerArcFlags && d.bidirectionalConnection.nodeId != -1 && d.isFullySettled(currentNode.NodeId) {
+		if !d.searchOptions.considerArcFlags && d.bidirectionalConnection.nodeId != -1 && d.isFullySettled(currentNode.nodeId) {
 			// check if the node was already settled in both directions, this is a connection
 			// the connection item contains the information, which one is the real connection (this has not to be the current one)
 			if d.debugLevel >= 1 {
@@ -200,12 +200,12 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 			continue
 		}
 
-		if currentNode.searchDirection == FORWARD && currentNode.NodeId == destination {
+		if currentNode.searchDirection == FORWARD && currentNode.nodeId == destination {
 			if d.debugLevel >= 1 {
 				log.Printf("Found path %v -> %v with distance %v\n", origin, destination, d.forwardSearch.searchSpace[destination].distance)
 			}
 			return d.forwardSearch.searchSpace[destination].distance
-		} else if currentNode.searchDirection == BACKWARD && currentNode.NodeId == origin {
+		} else if currentNode.searchDirection == BACKWARD && currentNode.nodeId == origin {
 			if d.bidirectionalConnection.nodeId == -1 {
 				// TODO Verify if this can happen
 				panic("connection should not be nil")
@@ -375,8 +375,8 @@ func (d *UniversalDijkstra) settleNode(node *DijkstraItem) {
 	searchSpace := searchStat.searchSpace
 	visitedNodes := searchStat.visitedNodes
 	d.searchKPIs.numSettledNodes++
-	searchSpace[node.NodeId] = node
-	visitedNodes[node.NodeId] = true
+	searchSpace[node.nodeId] = node
+	visitedNodes[node.nodeId] = true
 }
 
 // Check whether the given node item is settled in both search directions
@@ -388,14 +388,14 @@ func (d *UniversalDijkstra) isFullySettled(nodeId graph.NodeId) bool {
 
 // Relax the Edges for the given node item and add the new nodes to the MinPath priority queue
 func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
-	for _, arc := range d.g.GetArcsFrom(node.NodeId) {
+	for _, arc := range d.g.GetArcsFrom(node.nodeId) {
 		d.searchKPIs.relaxationAttempts++
 		successor := arc.Destination()
 
 		if d.searchOptions.ignoreNodes[successor] {
 			// ignore this node
 			if d.debugLevel >= 3 {
-				log.Printf("Ignore Edge %v -> %v, because target is in ignore list\n", node.NodeId, successor)
+				log.Printf("Ignore Edge %v -> %v, because target is in ignore list\n", node.nodeId, successor)
 			}
 			continue
 		}
@@ -408,7 +408,7 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 		if d.searchOptions.considerArcFlags && !arc.ArcFlag() {
 			// ignore this arc
 			if d.debugLevel >= 3 {
-				log.Printf("Ignore Edge %v -> %v\n", node.NodeId, successor)
+				log.Printf("Ignore Edge %v -> %v\n", node.nodeId, successor)
 			}
 
 			if d.searchOptions.sortedArcs {
@@ -434,7 +434,7 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 		}
 
 		if d.debugLevel >= 3 {
-			log.Printf("Relax Edge %v -> %v\n", node.NodeId, arc.Destination())
+			log.Printf("Relax Edge %v -> %v\n", node.nodeId, arc.Destination())
 		}
 
 		if d.searchOptions.bidirectional && inverseSearchSpace[successor] != nil {
@@ -443,11 +443,11 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 			connection := inverseSearchSpace[successor]
 			// Default direction is forward
 			// if it is backward, switch successor and predecessor
-			connectionPredecessor, connectionSuccessor := alignWithSearchDirection(node.searchDirection, node.NodeId, connection.predecessor)
+			connectionPredecessor, connectionSuccessor := alignWithSearchDirection(node.searchDirection, node.nodeId, connection.predecessor)
 
 			connectionDistance := node.distance + arc.Cost() + connection.distance
 			if d.bidirectionalConnection.nodeId == -1 || connectionDistance < d.bidirectionalConnection.distance {
-				d.bidirectionalConnection.nodeId = connection.NodeId
+				d.bidirectionalConnection.nodeId = connection.nodeId
 				d.bidirectionalConnection.distance = connectionDistance
 				d.bidirectionalConnection.predecessor = connectionPredecessor
 				d.bidirectionalConnection.successor = connectionSuccessor
@@ -457,7 +457,7 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 		if searchSpace[successor] == nil {
 			cost := node.distance + arc.Cost()
 			heuristic := heuristicValue(d.searchOptions.useHeuristic, d.g, successor, d.destination)
-			nextNode := NewDijkstraItem(successor, cost, node.NodeId, heuristic, node.searchDirection)
+			nextNode := NewDijkstraItem(successor, cost, node.nodeId, heuristic, node.searchDirection)
 			searchSpace[successor] = nextNode
 			d.minHeap.Push(nextNode)
 			d.searchKPIs.pqUpdates++
@@ -469,7 +469,7 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 				d.minHeap.Update(searchSpace[successor])
 				d.searchKPIs.pqUpdates++
 			}
-			searchSpace[successor].predecessor = node.NodeId
+			searchSpace[successor].predecessor = node.nodeId
 		}
 		d.searchKPIs.relaxedEdges++
 	}
@@ -482,8 +482,8 @@ func (d *UniversalDijkstra) stallNode(node *DijkstraItem, stallingDistance int) 
 	stalledNodes := searchStat.stalledNodes
 	stallingDistances := searchStat.stallingDistance
 
-	stalledNodes[node.NodeId] = true
-	stallingDistances[node.NodeId] = stallingDistance
+	stalledNodes[node.nodeId] = true
+	stallingDistances[node.nodeId] = stallingDistance
 
 	if node.index >= 0 {
 		d.minHeap.Remove(node.index)
@@ -494,11 +494,11 @@ func (d *UniversalDijkstra) stallNode(node *DijkstraItem, stallingDistance int) 
 	if d.searchOptions.stallOnDemand >= 3 {
 		d.stallWorker.SetConsiderArcFlags(true)
 		d.stallWorker.SetMaxNumSettledNodes(10)
-		d.stallWorker.ComputeShortestPath(node.NodeId, -1)
+		d.stallWorker.ComputeShortestPath(node.nodeId, -1)
 		for _, v := range d.stallWorker.GetSearchSpace() {
-			if v != nil && v.Priority() > 0 && searchSpace[v.NodeId] != nil && stallingDistance+v.distance < searchSpace[v.NodeId].distance {
-				stalledNodes[v.NodeId] = true
-				stallingDistances[v.NodeId] = stallingDistance + v.distance
+			if v != nil && v.Priority() > 0 && searchSpace[v.nodeId] != nil && stallingDistance+v.distance < searchSpace[v.nodeId].distance {
+				stalledNodes[v.nodeId] = true
+				stallingDistances[v.nodeId] = stallingDistance + v.distance
 
 				if v.index >= 0 {
 					d.minHeap.Remove(v.index)
@@ -511,7 +511,7 @@ func (d *UniversalDijkstra) stallNode(node *DijkstraItem, stallingDistance int) 
 // Unstall the given node and update the given distance
 func (d *UniversalDijkstra) unstallNode(node *DijkstraItem, distance int) {
 	stalledNodes, _ := alignWithSearchDirection(node.searchDirection, d.forwardSearch.stalledNodes, d.backwardSearch.stalledNodes)
-	stalledNodes[node.NodeId] = false
+	stalledNodes[node.nodeId] = false
 	if node.index < 0 {
 		node.distance = distance
 		d.minHeap.Push(node)
