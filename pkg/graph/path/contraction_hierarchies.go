@@ -2,7 +2,6 @@ package path
 
 import (
 	"bufio"
-	"container/heap"
 	"fmt"
 	"log"
 	"math"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	"github.com/natevvv/osm-ship-routing/pkg/graph"
+	"github.com/natevvv/osm-ship-routing/pkg/queue"
 	"github.com/natevvv/osm-ship-routing/pkg/slice"
 )
 
@@ -160,16 +160,16 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 	if ch.debugLevel >= 1 {
 		log.Printf("Compute Node Ordering\n")
 	}
-	pqOrder, orderItems := ch.computeInitialNodeOrder(givenNodeOrder, oo)
+	minHeap := ch.computeInitialNodeOrder(givenNodeOrder, oo)
 
 	if ch.debugLevel >= 3 {
-		log.Printf("Initial computed order:\n%v\n", pqOrder)
+		log.Printf("Initial computed order:\n%v\n", minHeap)
 	}
 
 	if ch.debugLevel >= 1 {
 		log.Printf("Contract Nodes\n")
 	}
-	shortcuts := ch.contractNodes(pqOrder, orderItems, oo, givenNodeOrder != nil)
+	shortcuts := ch.contractNodes(minHeap, oo, givenNodeOrder != nil)
 
 	if ch.debugLevel >= 1 {
 		log.Printf("Shortcuts:\n")
@@ -371,12 +371,11 @@ func (ch *ContractionHierarchies) GetGraph() graph.Graph {
 // givenNodeOrder predefines the order of the nodes.
 // oo defines how the node ordering will be calculated.
 // It returns the calculated node order in a priority queue
-func (ch *ContractionHierarchies) computeInitialNodeOrder(givenNodeOrder []int, oo OrderOptions) (*NodeOrder, []*OrderItem) {
-	var pq *NodeOrder
+func (ch *ContractionHierarchies) computeInitialNodeOrder(givenNodeOrder []int, oo OrderOptions) *queue.MinHeap[*OrderItem] {
 	orderItems := make([]*OrderItem, ch.g.NodeCount())
 
 	if givenNodeOrder != nil {
-		order := make(NodeOrder, ch.g.NodeCount())
+		order := make([]*OrderItem, ch.g.NodeCount())
 
 		for i := 0; i < ch.g.NodeCount(); i++ {
 			orderItem := NewOrderItem(givenNodeOrder[i])
@@ -385,8 +384,6 @@ func (ch *ContractionHierarchies) computeInitialNodeOrder(givenNodeOrder []int, 
 			order[i] = orderItem
 			orderItems[orderItem.nodeId] = orderItem
 		}
-
-		pq = &order
 	} else if oo.IsRandom() {
 		nodeOrdering := make([]int, ch.g.NodeCount())
 
@@ -397,7 +394,7 @@ func (ch *ContractionHierarchies) computeInitialNodeOrder(givenNodeOrder []int, 
 		rand.Seed(time.Now().UnixNano()) // completely random
 		rand.Shuffle(len(nodeOrdering), func(i, j int) { nodeOrdering[i], nodeOrdering[j] = nodeOrdering[j], nodeOrdering[i] })
 
-		order := make(NodeOrder, ch.g.NodeCount())
+		order := make([]*OrderItem, ch.g.NodeCount())
 
 		for i := 0; i < ch.g.NodeCount(); i++ {
 			orderItem := NewOrderItem(nodeOrdering[i])
@@ -405,10 +402,8 @@ func (ch *ContractionHierarchies) computeInitialNodeOrder(givenNodeOrder []int, 
 			order[i] = orderItem
 			orderItems[orderItem.nodeId] = orderItem
 		}
-
-		pq = &order
 	} else {
-		order := make(NodeOrder, ch.g.NodeCount())
+		order := make([]*OrderItem, ch.g.NodeCount())
 
 		nodes := make([]graph.NodeId, ch.g.NodeCount())
 		for i := range nodes {
@@ -441,16 +436,15 @@ func (ch *ContractionHierarchies) computeInitialNodeOrder(givenNodeOrder []int, 
 			order[i] = item
 			orderItems[nodeId] = item
 		}
-		pq = &order
 	}
 
-	heap.Init(pq)
-	return pq, orderItems
+	minHeap := queue.NewMinHeap(orderItems)
+	return minHeap
 }
 
 // compute an independent set from the node order (pqOrder).
-func (ch *ContractionHierarchies) computeIndependentSet(pqOrder *NodeOrder, ignorePriority bool) []graph.NodeId {
-	priority := pqOrder.Peek().(*OrderItem).Priority()
+func (ch *ContractionHierarchies) computeIndependentSet(minHeap *queue.MinHeap[*OrderItem], ignorePriority bool) []graph.NodeId {
+	priority := minHeap.Peek().Priority()
 
 	if ignorePriority {
 		priority = math.MaxInt
@@ -462,8 +456,8 @@ func (ch *ContractionHierarchies) computeIndependentSet(pqOrder *NodeOrder, igno
 	increasedPriority := false
 	ignoredNode := false
 
-	for i := 0; i < pqOrder.Len(); i++ {
-		item := pqOrder.PeekAt(i).(*OrderItem)
+	for i := 0; i < minHeap.Len(); i++ {
+		item := minHeap.PeekAt(i)
 		if forbiddenNodes[item.nodeId] {
 			ignoredNode = true
 			continue
@@ -485,7 +479,7 @@ func (ch *ContractionHierarchies) computeIndependentSet(pqOrder *NodeOrder, igno
 }
 
 // update the node order for the given nodes by computing a virtual contraction for each given node
-func (ch *ContractionHierarchies) updateOrderForNodes(orderItems []*OrderItem, pqOrder *NodeOrder, nodes []graph.NodeId, oo OrderOptions) {
+func (ch *ContractionHierarchies) updateOrderForNodes(minHeap *queue.MinHeap[*OrderItem], nodes []graph.NodeId, oo OrderOptions) {
 	// add "current node" to the ignore list, because it is not contracted, yet (what is the basis for the ignore list)
 	contractionResult := ch.computeNodeContractionParallel(nodes, nil, true)
 	for _, result := range contractionResult {
@@ -501,11 +495,13 @@ func (ch *ContractionHierarchies) updateOrderForNodes(orderItems []*OrderItem, p
 			contractedNeighbors = 0
 		}
 
-		item := orderItems[nodeId]
+		item := minHeap.Storage[nodeId]
 		oldPrio := item.Priority()
 		oldPos := item.index
 
-		pqOrder.update(item, edgeDifference, contractedNeighbors)
+		item.edgeDifference = edgeDifference
+		item.processedNeighbors = contractedNeighbors
+		minHeap.Update(item)
 
 		newPrio := item.Priority()
 		newPos := item.index
@@ -575,8 +571,8 @@ func (ch *ContractionHierarchies) computeNodeContractionParallel(nodes []graph.N
 
 // Contract the nodes based on the given order.
 // The OrderOptions oo define, if and how the nodeOrder can get updated dynamically.
-func (ch *ContractionHierarchies) contractNodes(pqOrder *NodeOrder, orderItems []*OrderItem, oo OrderOptions, fixedOrder bool) []Shortcut {
-	if pqOrder.Len() != ch.g.NodeCount() {
+func (ch *ContractionHierarchies) contractNodes(minHeap *queue.MinHeap[*OrderItem], oo OrderOptions, fixedOrder bool) []Shortcut {
+	if minHeap.Len() != ch.g.NodeCount() {
 		// this is a rudimentary test, if the ordering could be valid.
 		// However, it misses to test if every id appears exactly once
 		panic("Node ordering not valid")
@@ -594,16 +590,16 @@ func (ch *ContractionHierarchies) contractNodes(pqOrder *NodeOrder, orderItems [
 		if fixedOrder {
 			// stick to initial order
 			// only contract one by one
-			return []graph.NodeId{pqOrder.Peek().(*OrderItem).nodeId}
+			return []graph.NodeId{minHeap.Peek().nodeId}
 		} else {
-			return ch.computeIndependentSet(pqOrder, false) // TODO check for which order option this cat get true
+			return ch.computeIndependentSet(minHeap, false) // TODO check for which order option this cat get true
 		}
 	}
 	getMaxPriority := func(cr []*ContractionResult) int {
 		prio := math.MinInt
 		for _, result := range cr {
-			if orderItems[result.nodeId].Priority() > prio {
-				prio = orderItems[result.nodeId].Priority()
+			if minHeap.Storage[result.nodeId].Priority() > prio {
+				prio = minHeap.Storage[result.nodeId].Priority()
 			}
 		}
 		return prio
@@ -641,7 +637,7 @@ func (ch *ContractionHierarchies) contractNodes(pqOrder *NodeOrder, orderItems [
 	}
 
 	shortcuts := make([]Shortcut, 0)
-	for pqOrder.Len() > 0 && contractionLevel() <= ch.contractionLevelLimit {
+	for minHeap.Len() > 0 && contractionLevel() <= ch.contractionLevelLimit {
 		nodes := getTargetNodes()
 
 		contractionResults := ch.computeNodeContractionParallel(nodes, nodes, true) // Ignore nodes for current level (they are not contracted, yet)
@@ -654,12 +650,12 @@ func (ch *ContractionHierarchies) contractNodes(pqOrder *NodeOrder, orderItems [
 		priorityThreshold := getMaxPriority(contractionResults) // only necessary for lazy update
 
 		for _, result := range contractionResults {
-			item := orderItems[result.nodeId]
+			item := minHeap.Storage[result.nodeId]
 
 			if ch.debugLevel >= 3 {
 				log.Printf("Test contraction of Node %v\n", item.nodeId)
 			}
-			heap.Remove(pqOrder, item.index)
+			minHeap.Remove(item.index)
 
 			if oo.IsLazyUpdate() {
 
@@ -671,7 +667,7 @@ func (ch *ContractionHierarchies) contractNodes(pqOrder *NodeOrder, orderItems [
 					item.processedNeighbors = result.contractedNeighbors
 				}
 
-				if pqOrder.Len() == 0 || item.Priority() <= priorityThreshold {
+				if minHeap.Len() == 0 || item.Priority() <= priorityThreshold {
 					// always stick to initially computed order or this is still the smallest edge difference
 					if ch.orderOfNode[item.nodeId] >= 0 {
 						panic("Node was already ordered?")
@@ -719,7 +715,7 @@ func (ch *ContractionHierarchies) contractNodes(pqOrder *NodeOrder, orderItems [
 			intermediateUpdates++
 			for _, item := range deniedContractionItems {
 				// re-add the items which were not contracted
-				heap.Push(pqOrder, item)
+				minHeap.Push(item)
 			}
 		}
 
@@ -738,10 +734,10 @@ func (ch *ContractionHierarchies) contractNodes(pqOrder *NodeOrder, orderItems [
 
 		// update all nodes or neighbors (if required)
 		if oo.IsPeriodic() && level%100 == 0 {
-			ch.updateFullContractionOrder(pqOrder, orderItems, oo)
+			ch.updateFullContractionOrder(minHeap, oo)
 		} else if oo.UpdateNeighbors() {
 			// TODO check for duplicates? (unnecessary work)
-			ch.updateOrderForNodes(orderItems, pqOrder, updateNodes, oo)
+			ch.updateOrderForNodes(minHeap, updateNodes, oo)
 		}
 	}
 	ch.liftUncontractedNodes()
@@ -758,13 +754,13 @@ func (ch *ContractionHierarchies) liftUncontractedNodes() {
 }
 
 // update the whole node order (pqOrder) by performing a virtual contraction for each remaining node
-func (ch *ContractionHierarchies) updateFullContractionOrder(pqOrder *NodeOrder, orderItems []*OrderItem, oo OrderOptions) {
-	nodes := make([]graph.NodeId, pqOrder.Len())
-	for i := 0; i < pqOrder.Len(); i++ {
-		orderItem := pqOrder.PeekAt(i).(*OrderItem)
+func (ch *ContractionHierarchies) updateFullContractionOrder(minHeap *queue.MinHeap[*OrderItem], oo OrderOptions) {
+	nodes := make([]graph.NodeId, minHeap.Len())
+	for i := 0; i < minHeap.Len(); i++ {
+		orderItem := minHeap.PeekAt(i)
 		nodes[i] = orderItem.nodeId
 	}
-	ch.updateOrderForNodes(orderItems, pqOrder, nodes, oo)
+	ch.updateOrderForNodes(minHeap, nodes, oo)
 	// TODO Verify if this would be more efficient
 	// heap.Init(pqOrder)
 }

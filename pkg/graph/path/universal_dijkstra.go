@@ -1,11 +1,11 @@
 package path
 
 import (
-	"container/heap"
 	"log"
 	"math"
 
 	"github.com/natevvv/osm-ship-routing/pkg/graph"
+	"github.com/natevvv/osm-ship-routing/pkg/queue"
 	"github.com/natevvv/osm-ship-routing/pkg/slice"
 )
 
@@ -57,8 +57,8 @@ type SearchOptions struct {
 // it can be used for plain Dijsktra, Bidirectional search, A* (and maybe more will come).
 // Implements the Navigator Interface.
 type UniversalDijkstra struct {
-	g  graph.Graph
-	pq *MinPath // priority queue to find the shortest path
+	g       graph.Graph
+	minHeap *queue.MinHeap[*DijkstraItem] // priority queue to find the shortest path
 
 	origin      graph.NodeId // the origin of the current search
 	destination graph.NodeId // the distination of the current search
@@ -148,8 +148,8 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 
 	d.initializeSearch(origin, destination)
 
-	for d.pq.Len() > 0 {
-		currentNode := heap.Pop(d.pq).(*DijkstraItem)
+	for d.minHeap.Len() > 0 {
+		currentNode := d.minHeap.Pop()
 		d.searchKPIs.pqPops++
 		if d.debugLevel >= 2 {
 			log.Printf("Settling node %v, direction: %v, distance %v\n", currentNode.NodeId, currentNode.searchDirection, currentNode.distance)
@@ -357,13 +357,14 @@ func (d *UniversalDijkstra) initializeSearch(origin, destination graph.NodeId) {
 	// Initialize priority queue
 	heuristic := heuristicValue(d.searchOptions.useHeuristic, d.g, d.origin, d.destination)
 	originItem := NewDijkstraItem(d.origin, 0, -1, heuristic, FORWARD)
-	d.pq = NewMinPath(originItem)
+	d.minHeap = queue.NewMinHeap[*DijkstraItem](nil)
+	d.minHeap.Push(originItem)
 	d.settleNode(originItem)
 
 	// for bidirectional algorithm
 	if d.searchOptions.bidirectional {
 		destinationItem := NewDijkstraItem(d.destination, 0, -1, 0, BACKWARD)
-		heap.Push(d.pq, destinationItem)
+		d.minHeap.Push(destinationItem)
 		d.settleNode(destinationItem)
 	}
 }
@@ -458,13 +459,14 @@ func (d *UniversalDijkstra) relaxEdges(node *DijkstraItem) {
 			heuristic := heuristicValue(d.searchOptions.useHeuristic, d.g, successor, d.destination)
 			nextNode := NewDijkstraItem(successor, cost, node.NodeId, heuristic, node.searchDirection)
 			searchSpace[successor] = nextNode
-			heap.Push(d.pq, nextNode)
+			d.minHeap.Push(nextNode)
 			d.searchKPIs.pqUpdates++
 		} else if updatedPriority := node.distance + arc.Cost() + searchSpace[successor].heuristic; updatedPriority < searchSpace[successor].Priority() {
 			if d.searchOptions.stallOnDemand >= 1 && stalledNodes[successor] && node.distance+arc.Cost() <= stallingDistance[successor] {
 				d.unstallNode(searchSpace[successor], node.distance+arc.Cost())
 			} else {
-				d.pq.update(searchSpace[successor], node.distance+arc.Cost())
+				searchSpace[successor].distance = node.distance + arc.Cost()
+				d.minHeap.Update(searchSpace[successor])
 				d.searchKPIs.pqUpdates++
 			}
 			searchSpace[successor].predecessor = node.NodeId
@@ -484,7 +486,7 @@ func (d *UniversalDijkstra) stallNode(node *DijkstraItem, stallingDistance int) 
 	stallingDistances[node.NodeId] = stallingDistance
 
 	if node.index >= 0 {
-		heap.Remove(d.pq, node.index)
+		d.minHeap.Remove(node.index)
 	}
 
 	// stall recursively
@@ -499,7 +501,7 @@ func (d *UniversalDijkstra) stallNode(node *DijkstraItem, stallingDistance int) 
 				stallingDistances[v.NodeId] = stallingDistance + v.distance
 
 				if v.index >= 0 {
-					heap.Remove(d.pq, v.index)
+					d.minHeap.Remove(v.index)
 				}
 			}
 		}
@@ -512,9 +514,10 @@ func (d *UniversalDijkstra) unstallNode(node *DijkstraItem, distance int) {
 	stalledNodes[node.NodeId] = false
 	if node.index < 0 {
 		node.distance = distance
-		heap.Push(d.pq, node)
+		d.minHeap.Push(node)
 	} else {
-		d.pq.update(node, distance)
+		node.distance = distance
+		d.minHeap.Update(node)
 	}
 	d.searchKPIs.pqUpdates++
 }
