@@ -102,7 +102,8 @@ func (alg *AdjacencyListGraph) AddArc(from, to NodeId, distance int) bool {
 	for i := range arcs {
 		arc := &arcs[i]
 		if to == arc.To {
-			// TODO check if ignoring update would be viable
+			// Update edge if a better one is found
+			// caller is resposible to correctly store the new edge/shortcut (remember which is the connection node)
 			if distance < arc.Distance {
 				// update distance
 				arc.Distance = distance
