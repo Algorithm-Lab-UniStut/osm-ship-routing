@@ -140,7 +140,7 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 	ch.addedShortcuts = make([]int, 0)
 	ch.nodeOrdering = make([][]int, 0)
 	ch.orderOfNode = make([]int, ch.g.NodeCount())
-	ch.contractedNodes = make([]graph.NodeId, 0, ch.g.NodeCount()) // TODO maybe use custom struct with fixed length slice (bool) and an int, indicating how many nodes are "contracted" (true)
+	ch.contractedNodes = make([]graph.NodeId, 0, ch.g.NodeCount())
 	for i := range ch.orderOfNode {
 		ch.orderOfNode[i] = -1
 	}
@@ -173,9 +173,9 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 
 	if ch.debugLevel >= 1 {
 		log.Printf("Shortcuts:\n")
-		for i, amount := range ch.addedShortcuts {
-			if amount > 0 {
-				log.Printf("%v x %v Shortcuts\n", amount, i)
+		for amount, frequency := range ch.addedShortcuts {
+			if frequency > 0 {
+				log.Printf("%v x %v Shortcuts\n", frequency, 2*amount)
 			}
 		}
 	}
@@ -450,7 +450,7 @@ func (ch *ContractionHierarchies) computeIndependentSet(minHeap *queue.MinHeap[*
 	}
 
 	independentSet := make([]graph.NodeId, 0)
-	forbiddenNodes := make([]bool, ch.g.NodeCount()) // TODO use nodeId and check witch slice.Contains()?
+	forbiddenNodes := make([]bool, ch.g.NodeCount())
 
 	increasedPriority := false
 	ignoredNode := false
@@ -869,7 +869,11 @@ func (ch *ContractionHierarchies) addShortcuts(shortcuts []Shortcut, storage *[]
 		}
 	}
 
-	// TODO addedShortcuts may get divided by 2 (to save storage space)
+	if addedShortcuts%2 == 1 {
+		panic("shortcuts are odd. They should only be added pairwise")
+	}
+	addedShortcuts /= 2 // divide by 2 (to save storage space)
+
 	if addedShortcuts < len(ch.addedShortcuts) {
 		// addedShortcuts is in range of slice
 		// can just add them
