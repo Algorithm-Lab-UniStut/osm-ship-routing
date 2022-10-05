@@ -130,6 +130,10 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 		panic("Origin invalid.")
 	}
 
+	if d.debugLevel >= 1 {
+		log.Printf("New search: %v -> %v\n", origin, destination)
+	}
+
 	if d.searchOptions.useHotStart && d.origin == origin && d.forwardSearch.visitedNodes[destination] {
 		// hot start, already found the node in a previous search
 		// just load the distance
@@ -165,7 +169,7 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 		if currentNode.Priority() > d.searchOptions.costUpperBound || d.searchKPIs.numSettledNodes > d.searchOptions.maxNumSettledNodes {
 			// Each following node exeeds the max allowed cost or the number of allowed nodes is reached
 			// Stop search
-			if d.debugLevel >= 2 {
+			if d.debugLevel >= 1 {
 				log.Printf("Exceeded limits - cost upper bound: %v, current cost: %v, max settled nodes: %v, current settled nodes: %v\n", d.searchOptions.costUpperBound, currentNode.Priority(), d.searchOptions.maxNumSettledNodes, d.searchKPIs.numSettledNodes)
 			}
 			return -1
@@ -175,7 +179,7 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 			// check if the node was already settled in both directions, this is a connection
 			// the connection item contains the information, which one is the real connection (this has not to be the current one)
 			if d.debugLevel >= 1 {
-				log.Printf("Finished search\n")
+				log.Printf("Finished search, distance: %v\n", d.bidirectionalConnection.distance)
 			}
 			return d.bidirectionalConnection.distance
 		}
@@ -186,7 +190,7 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 			// for normal Dijkstra, this would force that the search space is in the bidirectional search as big as unidirecitonal search
 			// check if the current visited node has already a higher priority (distance) than the connection. If this is the case, no lower connection can get found
 			if d.debugLevel >= 1 {
-				log.Printf("Finished search\n")
+				log.Printf("Finished search, distance: %v\n", d.bidirectionalConnection.distance)
 			}
 			return d.bidirectionalConnection.distance
 		}
@@ -206,7 +210,7 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 				panic("connection should not be nil.")
 			}
 			if d.debugLevel >= 1 {
-				log.Printf("Finished search\n")
+				log.Printf("Finished search, distance: %v\n", d.bidirectionalConnection.distance)
 			}
 			return d.bidirectionalConnection.distance
 		}
@@ -215,19 +219,22 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 
 	if destination == -1 {
 		if d.debugLevel >= 1 {
-			log.Printf("Finished search\n")
+			log.Printf("Finished search, distance: 0\n")
 		}
 		// calculated every distance from source to each possible target
 		return 0
 	}
 
 	if d.searchOptions.bidirectional {
-		if d.debugLevel >= 1 {
-			log.Printf("Finished search\n")
-		}
 		if d.bidirectionalConnection.nodeId == -1 {
 			// no valid path found
+			if d.debugLevel >= 1 {
+				log.Printf("Finished search, no path found\n")
+			}
 			return -1
+		}
+		if d.debugLevel >= 1 {
+			log.Printf("Finished search, distance: %v\n", d.bidirectionalConnection.distance)
 		}
 		return d.bidirectionalConnection.distance
 	}
@@ -235,7 +242,7 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 	if d.forwardSearch.searchSpace[destination] == nil {
 		// no valid path found
 		if d.debugLevel >= 1 {
-			log.Printf("No path found\n")
+			log.Printf("Finished search, no path found\n")
 		}
 		return -1
 	}
@@ -325,6 +332,8 @@ func (d *UniversalDijkstra) initializeSearch(origin, destination graph.NodeId) {
 		log.Printf("visited nodes: %v\n", visitedNodes)
 	}
 
+	d.destination = destination
+
 	if d.searchOptions.useHotStart && d.origin == origin {
 		if d.debugLevel >= 2 {
 			log.Printf("Use hot start\n")
@@ -338,7 +347,6 @@ func (d *UniversalDijkstra) initializeSearch(origin, destination graph.NodeId) {
 	}
 
 	d.origin = origin
-	d.destination = destination
 
 	d.forwardSearch.Reset(d.g.NodeCount(), d.searchOptions.stallOnDemand)
 	d.backwardSearch.Reset(d.g.NodeCount(), d.searchOptions.stallOnDemand)
