@@ -138,7 +138,7 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 	ch.contractionProgress.initialTime = time.Now()
 
 	ch.addedShortcuts = make([]int, 0)
-	ch.nodeOrdering = make([][]int, ch.g.NodeCount()) // TODO this is maybe to big (when multiple nodes are on the same level)
+	ch.nodeOrdering = make([][]int, 0)
 	ch.orderOfNode = make([]int, ch.g.NodeCount())
 	ch.contractedNodes = make([]graph.NodeId, 0, ch.g.NodeCount()) // TODO maybe use custom struct with fixed length slice (bool) and an int, indicating how many nodes are "contracted" (true)
 	for i := range ch.orderOfNode {
@@ -692,7 +692,10 @@ func (ch *ContractionHierarchies) contractNodes(minHeap *queue.MinHeap[*OrderIte
 		}
 
 		if len(contractedNodes) > 0 {
-			ch.nodeOrdering[level] = contractedNodes
+			if level != len(ch.nodeOrdering) {
+				panic("Something went wrong with level assignment.")
+			}
+			ch.nodeOrdering = append(ch.nodeOrdering, contractedNodes)
 			for _, nodeId := range contractedNodes {
 				ch.orderOfNode[nodeId] = level
 				// collect all nodes which have to get updates
