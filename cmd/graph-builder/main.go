@@ -121,6 +121,7 @@ func createContractedGraph(graphFile string, oo p.OrderOptions, options p.Contra
 	ch.SetPrecomputationMilestones([]float64{0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 99.99})
 	log.Printf("Initialized Contraction Hierarchies, start precomputation\n")
 	ch.Precompute(nil, oo)
+	log.Printf("Finished computation\n")
 	ch.WriteContractionResult()
 	log.Printf("Finished Contraction\n")
 }

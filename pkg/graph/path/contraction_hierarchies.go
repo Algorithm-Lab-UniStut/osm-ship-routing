@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/natevvv/osm-ship-routing/pkg/graph"
@@ -1084,9 +1085,21 @@ func (ch *ContractionHierarchies) WriteNodeOrdering() {
 
 // Write the contraciotn resutl (graph, shortcuts, node ordering) to a file
 func (ch *ContractionHierarchies) WriteContractionResult() {
-	ch.WriteGraph()
-	ch.WriteShortcuts()
-	ch.WriteNodeOrdering()
+	var wg sync.WaitGroup
+	wg.Add(3)
+	go func() {
+		ch.WriteGraph()
+		wg.Done()
+	}()
+	go func() {
+		ch.WriteShortcuts()
+		wg.Done()
+	}()
+	go func() {
+		ch.WriteNodeOrdering()
+		wg.Done()
+	}()
+	wg.Wait()
 }
 
 // Read a shortcuts file and return the list of shortcuts
