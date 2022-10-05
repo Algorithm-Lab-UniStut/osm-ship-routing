@@ -701,7 +701,7 @@ func (ch *ContractionHierarchies) contractNodes(minHeap *queue.MinHeap[*OrderIte
 				}
 			} else {
 				// no lazy update
-				contractNodes = targetNodes
+				contractNodes = append(contractNodes, item.nodeId)
 				collectedShortcuts = append(collectedShortcuts, result.shortcuts...)
 			}
 		}
