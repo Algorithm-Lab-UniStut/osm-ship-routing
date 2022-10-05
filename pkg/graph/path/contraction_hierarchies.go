@@ -546,21 +546,16 @@ func (ch *ContractionHierarchies) computeNodeContractionParallel(nodes []graph.N
 					continue
 				}
 
-				var ignoreNodes []graph.NodeId
+				// make a "hard" copy to handle different cases in the different goroutines
+				ignoreNodes := make([]graph.NodeId, len(ch.contractedNodes))
+				copy(ignoreNodes, ch.contractedNodes)
 
-				if len(ignoreList) > 0 || ignoreCurrentNode {
-					// make a "hard" copy to handle different cases in the different goroutines
-					ignoreNodes = make([]graph.NodeId, len(ch.contractedNodes))
-					copy(ignoreNodes, ch.contractedNodes)
-					if len(ignoreList) > 0 {
-						ignoreNodes = append(ignoreNodes, ignoreList...)
-					}
-					if ignoreCurrentNode {
-						ignoreNodes = append(ignoreNodes, nodeId)
-					}
-				} else {
-					// just use the same (unchanged) slice for all goroutines
-					ignoreNodes = ch.contractedNodes
+				if len(ignoreList) > 0 {
+					ignoreNodes = append(ignoreNodes, ignoreList...)
+				}
+
+				if ignoreCurrentNode {
+					ignoreNodes = append(ignoreNodes, nodeId)
 				}
 
 				// Recalculate shortcuts, incident edges and processed neighbors
