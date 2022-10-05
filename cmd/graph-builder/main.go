@@ -40,6 +40,10 @@ func main() {
 	noProcessedNeighbors := flag.Bool("no-processed-neighbors", false, "Disable processed neighbors for ch")
 	periodic := flag.Bool("periodic", false, "recompute contraction priority periodically for ch")
 	updateNeighbors := flag.Bool("update-neighbors", false, "update neighbors (priority) of contracted nodes for ch")
+	// CH logging options
+	dijkstraDebugLevel := flag.Int("dijkstra-debug", 0, "Set the debug level for dijkstra")
+	chDebugLevel := flag.Int("ch-debug", 2, "Set the debug level for ch")
+
 	flag.Parse()
 
 	if *buildGridGraph != "" {
@@ -59,8 +63,12 @@ func main() {
 
 		oo := p.MakeOrderOptions().SetLazyUpdate(!*noLazyUpdate).SetEdgeDifference(!*noEdgeDifference).SetProcessedNeighbors(!*noProcessedNeighbors).SetPeriodic(*periodic).SetUpdateNeighbors(*updateNeighbors)
 		options := p.ContractionOptions{Bidirectional: *bidirectional, UseHeuristic: *useHeuristic, HotStart: !*coldStart, MaxNumSettledNodes: *maxNumSettledNodes, ContractionLimit: *contractionLimit, ContractionWorkers: *contractionWorkers, UseCache: *useCache}
+		debugOptions := struct {
+			dijkstra int
+			ch       int
+		}{dijkstra: *dijkstraDebugLevel, ch: *chDebugLevel}
 
-		createContractedGraph(graphFile, oo, options)
+		createContractedGraph(graphFile, oo, options, debugOptions)
 	}
 }
 
@@ -111,13 +119,17 @@ func loadPolyJsonPolygons(file string) []geometry.Polygon {
 	return polygons
 }
 
-func createContractedGraph(graphFile string, oo p.OrderOptions, options p.ContractionOptions) {
+func createContractedGraph(graphFile string, oo p.OrderOptions, options p.ContractionOptions, debugOptions struct {
+	dijkstra int
+	ch       int
+}) {
 	log.Printf("Read graph file\n")
 	alg := graph.NewAdjacencyListFromFmiFile(graphFile)
 	dijkstra := p.NewUniversalDijkstra(alg)
+	dijkstra.SetDebugLevel(debugOptions.dijkstra)
 	log.Printf("Initialize Contraction Hierarchies\n")
 	ch := p.NewContractionHierarchies(alg, dijkstra, options)
-	ch.SetDebugLevel(2)
+	ch.SetDebugLevel(debugOptions.ch)
 	ch.SetPrecomputationMilestones([]float64{0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 99.99})
 	log.Printf("Initialized Contraction Hierarchies, start precomputation\n")
 	ch.Precompute(nil, oo)
