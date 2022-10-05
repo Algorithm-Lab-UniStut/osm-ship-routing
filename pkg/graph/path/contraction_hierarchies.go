@@ -409,6 +409,7 @@ func (ch *ContractionHierarchies) computeInitialNodeOrder(givenNodeOrder []int, 
 
 		for i := 0; i < ch.g.NodeCount(); i++ {
 			orderItem := NewOrderItem(nodeOrdering[i])
+			orderItem.edgeDifference = i // set edge difference for maintaining different priority
 			orderItem.index = i
 			order[i] = orderItem
 			orderItems[orderItem.nodeId] = orderItem
