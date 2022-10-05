@@ -28,8 +28,9 @@ type ContractionHierarchies struct {
 	orderOfNode     []int            // the order of the node ("reverse" node ordering). At which position the specified node was contracted
 	contractedNodes []graph.NodeId   // contains the IDs of the contracted nodes
 
-	contractionLevelLimit float64             // percentage, how many nodes should get contracted
-	contractionProgress   ContractionProgress // for some debugging
+	contractionLevelLimit float64              // percentage, how many nodes should get contracted
+	contractionProgress   ContractionProgress  // for some debugging
+	precomputedResults    []*ContractionResult // contains the Results from "previous" runs which are still valid
 
 	shortcutMap    []map[graph.NodeId]Shortcut // slice of map of the shortcuts (from/source -> to/target -> via). Index: nodeId of source node, map key: nodeId of target node, map value: complete Shortcut description
 	addedShortcuts []int                       // debug information - stores the number of how many nodes introduced the specified amount of shortcuts. Key/Index is the number of shortcuts, value is how often they were created
@@ -89,11 +90,12 @@ type ContractionOptions struct {
 	MaxNumSettledNodes int
 	ContractionLimit   float64
 	ContractionWorkers int
+	UseCache           bool
 }
 
 func MakeDefaultContractionOptions() ContractionOptions {
 	// TODO test bidirectional=true, useHeuristic=true, maxNumSettledNodes=60 (or something else)
-	return ContractionOptions{Bidirectional: false, UseHeuristic: false, HotStart: true, MaxNumSettledNodes: math.MaxInt, ContractionLimit: 100, ContractionWorkers: 1}
+	return ContractionOptions{Bidirectional: false, UseHeuristic: false, HotStart: true, MaxNumSettledNodes: math.MaxInt, ContractionLimit: 100, ContractionWorkers: 1, UseCache: false}
 }
 
 func MakeDefaultPathFindingOptions() PathFindingOptions {
@@ -114,6 +116,9 @@ func NewContractionHierarchies(g graph.Graph, dijkstra *UniversalDijkstra, optio
 	}
 
 	ch := &ContractionHierarchies{g: g, dijkstra: dijkstra, contractionWorkers: cw, contractionLevelLimit: options.ContractionLimit, graphFilename: "contracted_graph.fmi", shortcutsFilename: "shortcuts.txt", nodeOrderingFilename: "node_ordering.txt"}
+	if options.UseCache {
+		ch.precomputedResults = make([]*ContractionResult, ch.g.NodeCount())
+	}
 	ch.contractionProgress.milestoneFilename = "milestones.txt"
 	return ch
 }
@@ -144,6 +149,12 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 	for i := range ch.orderOfNode {
 		ch.orderOfNode[i] = -1
 	}
+
+	if ch.precomputedResults != nil {
+		// Reset cache
+		ch.precomputedResults = make([]*ContractionResult, ch.g.NodeCount())
+	}
+
 	if givenNodeOrder == nil && !oo.IsValid() {
 		panic("Order Options are not valid")
 	}
@@ -527,6 +538,12 @@ func (ch *ContractionHierarchies) computeNodeContractionParallel(nodes []graph.N
 					log.Printf("Contract Node %7v\n", nodeId)
 				}
 
+				if ch.precomputedResults != nil && ch.precomputedResults[nodeId] != nil {
+					// use cached result
+					results <- ch.precomputedResults[nodeId]
+					continue
+				}
+
 				var ignoreNodes []graph.NodeId
 
 				if len(ignoreList) > 0 || ignoreCurrentNode {
@@ -545,7 +562,6 @@ func (ch *ContractionHierarchies) computeNodeContractionParallel(nodes []graph.N
 				}
 
 				// Recalculate shortcuts, incident edges and processed neighbors
-				// TODO may not be necessary when updating the neighbors with every contraction -> shortcuts need to get cached (maybe bad for RAM?)
 				cr := ch.computeNodeContraction(nodeId, ignoreNodes, worker)
 
 				results <- cr
@@ -562,7 +578,11 @@ func (ch *ContractionHierarchies) computeNodeContractionParallel(nodes []graph.N
 
 	contractionResults := make([]*ContractionResult, numJobs)
 	for i := 0; i < numJobs; i++ {
-		contractionResults[i] = <-results
+		result := <-results
+		contractionResults[i] = result
+		if ch.precomputedResults != nil {
+			ch.precomputedResults[result.nodeId] = result
+		}
 	}
 
 	return contractionResults
@@ -605,8 +625,6 @@ func (ch *ContractionHierarchies) contractNodes(minHeap *queue.MinHeap[*OrderIte
 	}
 	findUniqueShortcuts := func(shortcuts []Shortcut) []Shortcut {
 		// remove duplicate shortcuts (shortcuts which are found from both middle nodes). However, both nodes ignore each other so there is a different path. Only one path should remain)
-		// This does a little bit of redundant work, since the shortcuts of the same contracted node don't need to get compared
-		// to avoid this, store them in separate lists (maybe TODO)
 		uniqueShortcuts := make([]Shortcut, 0, len(shortcuts))
 		for i := 0; i < len(shortcuts); i++ {
 			shortcut := shortcuts[i]
@@ -639,10 +657,10 @@ func (ch *ContractionHierarchies) contractNodes(minHeap *queue.MinHeap[*OrderIte
 
 	shortcuts := make([]Shortcut, 0)
 	for minHeap.Len() > 0 && contractionLevel() <= ch.contractionLevelLimit {
-		nodes := getTargetNodes()
+		targetNodes := getTargetNodes()
 
-		contractionResults := ch.computeNodeContractionParallel(nodes, nodes, true) // Ignore nodes for current level (they are not contracted, yet)
-		contractedNodes := make([]graph.NodeId, 0, len(nodes))
+		contractionResults := ch.computeNodeContractionParallel(targetNodes, targetNodes, true) // Ignore nodes for current level (they are not contracted, yet)
+		contractNodes := make([]graph.NodeId, 0, len(targetNodes))
 		deniedContractionItems := make([]*OrderItem, 0, len(contractionResults)) // only necessary for lazy update
 
 		affectedNeighbors := make([]graph.NodeId, 0)
@@ -673,7 +691,7 @@ func (ch *ContractionHierarchies) contractNodes(minHeap *queue.MinHeap[*OrderIte
 					if ch.orderOfNode[item.nodeId] >= 0 {
 						panic("Node was already ordered?")
 					}
-					contractedNodes = append(contractedNodes, item.nodeId)
+					contractNodes = append(contractNodes, item.nodeId)
 					if ch.debugLevel >= 3 {
 						log.Printf("Contract node %v\n", item.nodeId)
 					}
@@ -686,27 +704,30 @@ func (ch *ContractionHierarchies) contractNodes(minHeap *queue.MinHeap[*OrderIte
 				}
 			} else {
 				// no lazy update
-				contractedNodes = nodes
+				contractNodes = targetNodes
 				collectedShortcuts = append(collectedShortcuts, result.shortcuts...)
 			}
 		}
 
-		if len(contractedNodes) > 0 {
+		if len(contractNodes) > 0 {
 			if level != len(ch.nodeOrdering) {
 				panic("Something went wrong with level assignment.")
 			}
-			ch.nodeOrdering = append(ch.nodeOrdering, contractedNodes)
-			for _, nodeId := range contractedNodes {
+			ch.nodeOrdering = append(ch.nodeOrdering, contractNodes)
+			for _, nodeId := range contractNodes {
 				ch.orderOfNode[nodeId] = level
 				// collect all nodes which have to get updates
 				for _, arc := range ch.g.GetArcsFrom(nodeId) {
 					destination := arc.To
+					if ch.precomputedResults != nil {
+						ch.precomputedResults[destination] = nil
+					}
 					if !ch.isNodeContracted(destination) {
 						affectedNeighbors = append(affectedNeighbors, destination)
 					}
 				}
 			}
-			ch.contractedNodes = append(ch.contractedNodes, contractedNodes...)
+			ch.contractedNodes = append(ch.contractedNodes, contractNodes...)
 			level++
 			intermediateUpdates = 0
 		}
@@ -723,9 +744,6 @@ func (ch *ContractionHierarchies) contractNodes(minHeap *queue.MinHeap[*OrderIte
 			}
 		}
 
-		// TODO Recalculation of shortcuts, incident edges and processed neighbors
-		// may not be necessary when updating the neighbors with every contraction
-
 		nextMilestoneIndex := len(ch.contractionProgress.achievedMilestones)
 		shortcutCounter += newShortcuts
 		contractionProgress := float64(len(ch.contractedNodes)) / float64(len(ch.orderOfNode))
@@ -740,7 +758,7 @@ func (ch *ContractionHierarchies) contractNodes(minHeap *queue.MinHeap[*OrderIte
 				remainingNodes := make([]graph.NodeId, minHeap.Len())
 				for i := 0; i < minHeap.Len(); i++ {
 					orderItem := minHeap.PeekAt(i)
-					nodes[i] = orderItem.nodeId
+					targetNodes[i] = orderItem.nodeId
 				}
 				return remainingNodes
 			}()

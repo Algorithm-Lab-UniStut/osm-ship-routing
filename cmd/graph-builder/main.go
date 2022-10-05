@@ -31,6 +31,7 @@ func main() {
 	contractionWorkers := flag.Int("contraction-workers", 6, "Set the number of contraction workers")
 	bidirectional := flag.Bool("bidirectional", false, "Compute the contraction bidirectional")
 	useHeuristic := flag.Bool("use-heuristic", false, "Use A* search for contraction")
+	useCache := flag.Bool("use-cache", false, "Cache the contraction results")
 	coldStart := flag.Bool("cold-start", false, "explicitely do a cold start (not hot start) when computing contraction")
 	maxNumSettledNodes := flag.Int("max-settled-nodes", math.MaxInt, "Set the number of max allowed settled nodes for each contraction")
 	// CH order options
@@ -57,7 +58,7 @@ func main() {
 		graphFile := path.Join(directory, "..", "..", "graphs", *contractGraph)
 
 		oo := p.MakeOrderOptions().SetLazyUpdate(!*noLazyUpdate).SetEdgeDifference(!*noEdgeDifference).SetProcessedNeighbors(!*noProcessedNeighbors).SetPeriodic(*periodic).SetUpdateNeighbors(*updateNeighbors)
-		options := p.ContractionOptions{Bidirectional: *bidirectional, UseHeuristic: *useHeuristic, HotStart: !*coldStart, MaxNumSettledNodes: *maxNumSettledNodes, ContractionLimit: *contractionLimit, ContractionWorkers: *contractionWorkers}
+		options := p.ContractionOptions{Bidirectional: *bidirectional, UseHeuristic: *useHeuristic, HotStart: !*coldStart, MaxNumSettledNodes: *maxNumSettledNodes, ContractionLimit: *contractionLimit, ContractionWorkers: *contractionWorkers, UseCache: *useCache}
 
 		createContractedGraph(graphFile, oo, options)
 	}
