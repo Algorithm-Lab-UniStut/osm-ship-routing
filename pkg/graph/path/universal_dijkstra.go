@@ -122,10 +122,6 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 	if d.searchOptions.bidirectional && destination < 0 {
 		panic("Can't use bidirectional search with no specified destination.")
 	}
-	if d.searchOptions.useHotStart && destination < 0 {
-		// TODO is this necessary
-		panic("Can't use Hot start when calculating path to everywhere.")
-	}
 	if d.searchOptions.stallOnDemand > 0 && !d.searchOptions.considerArcFlags {
 		panic("stall on demand works only on directed graph.")
 	}
@@ -207,8 +203,7 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 			return d.forwardSearch.searchSpace[destination].distance
 		} else if currentNode.searchDirection == BACKWARD && currentNode.nodeId == origin {
 			if d.bidirectionalConnection.nodeId == -1 {
-				// TODO Verify if this can happen
-				panic("connection should not be nil")
+				panic("connection should not be nil.")
 			}
 			if d.debugLevel >= 1 {
 				log.Printf("Finished search\n")
@@ -218,7 +213,6 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 
 	}
 
-	// TODO check termination process
 	if destination == -1 {
 		if d.debugLevel >= 1 {
 			log.Printf("Finished search\n")
@@ -235,7 +229,6 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 			// no valid path found
 			return -1
 		}
-		// TODO check why this can happen
 		return d.bidirectionalConnection.distance
 	}
 
