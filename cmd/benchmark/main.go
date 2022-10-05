@@ -240,7 +240,7 @@ func benchmark(navigator p.Navigator, targets [][4]int, referenceDijkstra *p.Dij
 		path := navigator.GetPath(origin, destination)
 		elapsedPath := time.Since(start)
 
-		fmt.Printf("[%3v TIME-Navigate, TIME-Path, PQ Pops, PQ Updates, relaxed Edges, relax attepmts] = %12s, %12s, %7d, %7d, %7d, %7d\n", i, elapsed, elapsedPath, navigator.GetPqPops(), navigator.GetPqUpdates(), navigator.GetEdgeRelaxations(), navigator.GetRelaxationAttempts())
+		fmt.Printf("[%3v TIME-Navigate, TIME-Path, PQ Pops, PQ Updates, relaxed Edges, relax attempts] = %12s, %12s, %7d, %7d, %7d, %7d\n", i, elapsed, elapsedPath, navigator.GetPqPops(), navigator.GetPqUpdates(), navigator.GetEdgeRelaxations(), navigator.GetRelaxationAttempts())
 
 		if length != referenceLength {
 			invalidLengths = append(invalidLengths, [2]int{i, length - referenceLength})
