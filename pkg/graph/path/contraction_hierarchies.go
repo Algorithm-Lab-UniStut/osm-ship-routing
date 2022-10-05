@@ -656,6 +656,10 @@ func (ch *ContractionHierarchies) contractNodes(minHeap *queue.MinHeap[*OrderIte
 	for minHeap.Len() > 0 && contractionLevel() <= ch.contractionLevelLimit {
 		targetNodes := getTargetNodes()
 
+		if ch.debugLevel >= 2 {
+			log.Printf("Compute contraction for nodes: %v\n", targetNodes)
+		}
+
 		contractionResults := ch.computeNodeContractionParallel(targetNodes, targetNodes, true) // Ignore nodes for current level (they are not contracted, yet)
 		contractNodes := make([]graph.NodeId, 0, len(targetNodes))
 		deniedContractionItems := make([]*OrderItem, 0, len(contractionResults)) // only necessary for lazy update
@@ -689,9 +693,11 @@ func (ch *ContractionHierarchies) contractNodes(minHeap *queue.MinHeap[*OrderIte
 						panic("Node was already ordered?")
 					}
 					contractNodes = append(contractNodes, item.nodeId)
+
 					if ch.debugLevel >= 3 {
-						log.Printf("Contract node %v\n", item.nodeId)
+						log.Printf("Add node %v to contracted nodes\n", item.nodeId)
 					}
+
 					collectedShortcuts = append(collectedShortcuts, result.shortcuts...)
 				} else {
 					if ch.debugLevel >= 3 {
@@ -712,6 +718,11 @@ func (ch *ContractionHierarchies) contractNodes(minHeap *queue.MinHeap[*OrderIte
 			}
 			ch.nodeOrdering = append(ch.nodeOrdering, contractNodes)
 			for _, nodeId := range contractNodes {
+
+				if ch.debugLevel >= 3 {
+					log.Printf("Finally contract node: %v\n", nodeId)
+				}
+
 				ch.orderOfNode[nodeId] = level
 				// collect all nodes which have to get updates
 				for _, arc := range ch.g.GetArcsFrom(nodeId) {
@@ -906,7 +917,7 @@ func (ch *ContractionHierarchies) addShortcuts(shortcuts []Shortcut, storage *[]
 // This adds a new arc in the graph.
 func (ch *ContractionHierarchies) addShortcut(shortcut Shortcut, shortcuts *[]Shortcut) bool {
 	if ch.debugLevel >= 3 {
-		log.Printf("Add shortcut %v %v %v %v\n", shortcut.source, shortcut.target, shortcut.via, shortcut.cost)
+		log.Printf("Add shortcut %+v\n", shortcut)
 	}
 	if ch.orderOfNode[shortcut.source] != -1 || ch.orderOfNode[shortcut.target] != -1 {
 		panic("Edge Node already contracted")
