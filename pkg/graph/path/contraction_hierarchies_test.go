@@ -192,16 +192,17 @@ func TestContractionHierarchies(t *testing.T) {
 }
 
 func TestRandomContraction(t *testing.T) {
-	alg := graph.NewAdjacencyListFromFmiString(cuttableGraph)
-	dijkstra := NewUniversalDijkstra(alg)
+	referenceAlg := graph.NewAdjacencyListFromFmiString(cuttableGraph)
+	referenceDijkstra := NewUniversalDijkstra(referenceAlg)
 	source, target := 0, 12
-	l := dijkstra.ComputeShortestPath(source, target)
-	p := dijkstra.GetPath(source, target)
+	l := referenceDijkstra.ComputeShortestPath(source, target)
+	p := referenceDijkstra.GetPath(source, target)
 	for i := 0; i < 100; i++ {
-		alg = graph.NewAdjacencyListFromFmiString(cuttableGraph)
-		dijkstra = NewUniversalDijkstra(alg)
+		alg := graph.NewAdjacencyListFromFmiString(cuttableGraph)
+		dijkstra := NewUniversalDijkstra(alg)
+		dijkstra.SetDebugLevel(3)
 		ch := NewContractionHierarchies(alg, dijkstra, MakeDefaultContractionOptions())
-		//ch.SetDebugLevel(2)
+		ch.SetDebugLevel(3)
 		ch.Precompute(nil, MakeOrderOptions().SetLazyUpdate(false).SetRandom(true))
 		ch.ShortestPathSetup(MakeDefaultPathFindingOptions())
 		length := ch.ComputeShortestPath(source, target)
