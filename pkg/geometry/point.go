@@ -22,9 +22,6 @@ func NewPointFromBearing(initialPoint *Point, bearing float64, distance float64)
 	return NewPoint(Rad2Deg(phi), Rad2Deg(lambda))
 }
 
-// TODO Testing:  For the Cartesian Coordinates (1, 2, 3), the Spherical-Equivalent Coordinates are (√(14), 36.7°, 63.4°).
-// TODO: Avoid spherical trigonometrical computaitons by first checking the bounding box (cf. some algorithms for polygon on a sphere)
-
 // latitude in degree
 func (p *Point) Lat() float64 {
 	return p[0]
