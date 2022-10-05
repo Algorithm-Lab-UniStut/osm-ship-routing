@@ -591,7 +591,7 @@ func (ch *ContractionHierarchies) contractNodes(minHeap *queue.MinHeap[*OrderIte
 			// only contract one by one
 			return []graph.NodeId{minHeap.Peek().nodeId}
 		} else {
-			return ch.computeIndependentSet(minHeap, false) // TODO check for which order option this cat get true
+			return ch.computeIndependentSet(minHeap, false)
 		}
 	}
 	getMaxPriority := func(cr []*ContractionResult) int {
@@ -745,8 +745,6 @@ func (ch *ContractionHierarchies) contractNodes(minHeap *queue.MinHeap[*OrderIte
 				return remainingNodes
 			}()
 			ch.updateOrderForNodes(minHeap, remainingNodes, oo)
-			// TODO Verify if this would be more efficient
-			// heap.Init(pqOrder)
 		} else if oo.UpdateNeighbors() {
 			uniqueNeighbors := func() []graph.NodeId {
 				uniqueNodes := make([]graph.NodeId, 0)
