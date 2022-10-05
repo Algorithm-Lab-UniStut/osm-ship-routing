@@ -721,6 +721,7 @@ func (ch *ContractionHierarchies) contractNodes(minHeap *queue.MinHeap[*OrderIte
 				for _, arc := range ch.g.GetArcsFrom(nodeId) {
 					destination := arc.To
 					if ch.precomputedResults != nil {
+						// invalidate precomputed contraction
 						ch.precomputedResults[destination] = nil
 					}
 					if !ch.isNodeContracted(destination) {

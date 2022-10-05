@@ -162,7 +162,7 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 
 		d.relaxEdges(currentNode) // edges need to get relaxed before checking for termination to guarantee that hot start works. if peeking is used, this may get done a bit differently
 
-		if d.searchOptions.costUpperBound < currentNode.Priority() || d.searchOptions.maxNumSettledNodes < d.searchKPIs.numSettledNodes {
+		if currentNode.Priority() > d.searchOptions.costUpperBound || d.searchKPIs.numSettledNodes > d.searchOptions.maxNumSettledNodes {
 			// Each following node exeeds the max allowed cost or the number of allowed nodes is reached
 			// Stop search
 			if d.debugLevel >= 2 {
