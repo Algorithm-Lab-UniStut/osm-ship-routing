@@ -200,9 +200,9 @@ func TestRandomContraction(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		alg := graph.NewAdjacencyListFromFmiString(cuttableGraph)
 		dijkstra := NewUniversalDijkstra(alg)
-		dijkstra.SetDebugLevel(3)
+		//dijkstra.SetDebugLevel(3)
 		ch := NewContractionHierarchies(alg, dijkstra, MakeDefaultContractionOptions())
-		ch.SetDebugLevel(3)
+		//ch.SetDebugLevel(3)
 		ch.Precompute(nil, MakeOrderOptions().SetLazyUpdate(false).SetRandom(true))
 		ch.ShortestPathSetup(MakeDefaultPathFindingOptions())
 		length := ch.ComputeShortestPath(source, target)
