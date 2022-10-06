@@ -16,6 +16,7 @@ import (
 
 	"github.com/natevvv/osm-ship-routing/pkg/graph"
 	p "github.com/natevvv/osm-ship-routing/pkg/graph/path"
+	"github.com/natevvv/osm-ship-routing/pkg/slice"
 )
 
 func main() {
@@ -99,7 +100,7 @@ func getNavigator(algorithm, graphDirectory string, chPathFindingOptions p.PathF
 		wg.Done()
 	}()
 
-	if algorithm == "default" {
+	if slice.Contains([]string{"default", "dijsktra"}, algorithm) {
 		wg.Wait()
 		return p.NewUniversalDijkstra(aag), referenceDijkstra
 	} else if algorithm == "dijkstra" {
@@ -113,9 +114,11 @@ func getNavigator(algorithm, graphDirectory string, chPathFindingOptions p.PathF
 		astar := p.NewUniversalDijkstra(aag)
 		astar.SetUseHeuristic(true)
 		return astar, referenceDijkstra
-	} else if algorithm == "bidijkstra" {
+	} else if algorithm == "bidirectional" {
 		wg.Wait()
 		bid := p.NewUniversalDijkstra(aag)
+		//bid.SetHotStart(true)
+		bid.SetDebugLevel(1)
 		bid.SetBidirectional(true)
 		return bid, referenceDijkstra
 	} else if algorithm == "ch" {
@@ -218,7 +221,7 @@ func benchmark(navigator p.Navigator, targets [][4]int, referenceDijkstra *p.Dij
 	edgeRelaxations := 0
 	relaxationAttempts := 0
 
-	invalidLengths := make([][2]int, 0)
+	invalidLengths := make([][3]int, 0)
 	invalidResults := make([]int, 0)
 	invalidHops := make([][3]int, 0)
 
@@ -243,7 +246,7 @@ func benchmark(navigator p.Navigator, targets [][4]int, referenceDijkstra *p.Dij
 		fmt.Printf("[%3v TIME-Navigate, TIME-Path, PQ Pops, PQ Updates, relaxed Edges, relax attempts] = %12s, %12s, %7d, %7d, %7d, %7d\n", i, elapsed, elapsedPath, navigator.GetPqPops(), navigator.GetPqUpdates(), navigator.GetEdgeRelaxations(), navigator.GetRelaxationAttempts())
 
 		if length != referenceLength {
-			invalidLengths = append(invalidLengths, [2]int{i, length - referenceLength})
+			invalidLengths = append(invalidLengths, [3]int{i, length, referenceLength})
 		}
 		if length > -1 && (path[0] != origin || path[len(path)-1] != destination) {
 			invalidResults = append(invalidResults, i)
@@ -262,14 +265,20 @@ func benchmark(navigator p.Navigator, targets [][4]int, referenceDijkstra *p.Dij
 	fmt.Printf("Average pq updates: %d\n", pqUpdates/len(targets))
 	fmt.Printf("Average relaxations attempts: %d\n", relaxationAttempts/len(targets))
 	fmt.Printf("Average edge relaxations: %d\n", edgeRelaxations/len(targets))
-	fmt.Printf("%v/%v invalid path lengths.\n", len(invalidLengths), len(targets))
-	for i, testCase := range invalidLengths {
-		fmt.Printf("%v: Case %v (%v -> %v) has invalid length. Difference: %v\n", i, testCase[0], targets[testCase[0]][0], targets[testCase[0]][1], testCase[1])
-	}
+
 	fmt.Printf("%v/%v invalid Result (source/target).\n", len(invalidResults), len(targets))
 	for i, result := range invalidResults {
 		fmt.Printf("%v: Case %v (%v -> %v) has invalid result\n", i, result, targets[result][0], targets[result][1])
 	}
+
+	fmt.Printf("%v/%v invalid path lengths.\n", len(invalidLengths), len(targets))
+	for i, lengths := range invalidLengths {
+		testcase := lengths[0]
+		actualLength := lengths[1]
+		referenceLength := lengths[2]
+		fmt.Printf("%v: Case %v (%v -> %v) has invalid length. Has: %v, Reference: %v, Difference: %v\n", i, testcase, targets[testcase][0], targets[testcase][1], actualLength, referenceLength, actualLength-referenceLength)
+	}
+
 	fmt.Printf("%v/%v invalid hops number.\n", len(invalidHops), len(targets))
 	for i, hops := range invalidHops {
 		testcase := hops[0]
