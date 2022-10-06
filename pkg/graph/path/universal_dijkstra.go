@@ -257,6 +257,11 @@ func (d *UniversalDijkstra) GetPath(origin, destination int) []int {
 		// return nothing
 		return make([]int, 0)
 	}
+	if origin == destination {
+		// origin and destination is the same -> path with one node is the result
+		// this is a workaround, since for bidirecitonal search, the connection is not found
+		return []int{origin}
+	}
 	path := make([]int, 0)
 	if d.searchOptions.bidirectional {
 		if d.bidirectionalConnection.nodeId == -1 {
