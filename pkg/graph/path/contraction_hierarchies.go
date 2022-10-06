@@ -743,7 +743,7 @@ func (ch *ContractionHierarchies) contractNodes(minHeap *queue.MinHeap[*OrderIte
 
 		finalShortcuts := findUniqueShortcuts(collectedShortcuts)
 		ch.addShortcuts(finalShortcuts, &shortcuts)
-		newShortcuts += len(finalShortcuts)
+		newShortcuts = len(finalShortcuts)
 
 		if len(deniedContractionItems) > 0 {
 			intermediateUpdates++
