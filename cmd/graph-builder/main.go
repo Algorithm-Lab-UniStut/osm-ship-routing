@@ -42,7 +42,7 @@ func main() {
 	updateNeighbors := flag.Bool("update-neighbors", false, "update neighbors (priority) of contracted nodes for ch")
 	// CH logging options
 	dijkstraDebugLevel := flag.Int("dijkstra-debug", 0, "Set the debug level for dijkstra")
-	chDebugLevel := flag.Int("ch-debug", 2, "Set the debug level for ch")
+	chDebugLevel := flag.Int("ch-debug", 1, "Set the debug level for ch")
 
 	flag.Parse()
 
