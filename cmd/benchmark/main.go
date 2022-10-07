@@ -118,7 +118,6 @@ func getNavigator(algorithm, graphDirectory string, chPathFindingOptions p.PathF
 		wg.Wait()
 		bid := p.NewUniversalDijkstra(aag)
 		//bid.SetHotStart(true)
-		bid.SetDebugLevel(1)
 		bid.SetBidirectional(true)
 		return bid, referenceDijkstra
 	} else if algorithm == "ch" {
