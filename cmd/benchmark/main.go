@@ -228,6 +228,7 @@ func benchmark(navigator p.Navigator, targets [][4]int, referenceDijkstra *p.Dij
 	invalidResults := make([]int, 0)
 	invalidHops := make([][3]int, 0)
 
+	// get the active arcs from the graph
 	activeArcsCount := func(g graph.Graph) int {
 		counter := 0
 		for i := range g.GetNodes() {
