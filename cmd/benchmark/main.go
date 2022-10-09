@@ -102,7 +102,9 @@ func getNavigator(algorithm, graphDirectory string, chPathFindingOptions p.PathF
 
 	if slice.Contains([]string{"default", "dijsktra"}, algorithm) {
 		wg.Wait()
-		return p.NewUniversalDijkstra(aag), referenceDijkstra
+		d := p.NewUniversalDijkstra(aag)
+		//d.SetHotStart(true)
+		return d, referenceDijkstra
 	} else if algorithm == "dijkstra" {
 		wg.Wait()
 		return p.NewUniversalDijkstra(aag), referenceDijkstra
@@ -226,6 +228,26 @@ func benchmark(navigator p.Navigator, targets [][4]int, referenceDijkstra *p.Dij
 	invalidResults := make([]int, 0)
 	invalidHops := make([][3]int, 0)
 
+	activeArcsCount := func(g graph.Graph) int {
+		counter := 0
+		for i := range g.GetNodes() {
+			arcs := g.GetArcsFrom(i)
+			for j := range arcs {
+				arc := &arcs[j]
+				if arc.ArcFlag() {
+					counter++
+				}
+			}
+		}
+		return counter
+	}
+
+	activeArcs := activeArcsCount(navigator.GetGraph())
+	activeArcsReference := activeArcsCount(referenceDijkstra.GetGraph())
+	if activeArcsReference != referenceDijkstra.GetGraph().ArcCount() {
+		panic("Active reference arcs are weird")
+	}
+
 	for i, target := range targets {
 		origin := target[0]
 		destination := target[1]
@@ -270,6 +292,7 @@ func benchmark(navigator p.Navigator, targets [][4]int, referenceDijkstra *p.Dij
 	fmt.Printf("Average unstalled nodes: %d\n", unstalledNodes/len(targets))
 	fmt.Printf("Average relaxations attempts: %d\n", relaxationAttempts/len(targets))
 	fmt.Printf("Average edge relaxations: %d\n", edgeRelaxations/len(targets))
+	fmt.Printf("Active arcs: %v, Active arcs (reference): %v\n", activeArcs, activeArcsReference)
 
 	fmt.Printf("%v/%v invalid Result (source/target).\n", len(invalidResults), len(targets))
 	for i, result := range invalidResults {
