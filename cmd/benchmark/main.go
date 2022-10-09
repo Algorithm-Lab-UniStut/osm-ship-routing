@@ -7,11 +7,13 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"os/signal"
 	"path"
 	"runtime"
 	"runtime/pprof"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/natevvv/osm-ship-routing/pkg/graph"
@@ -216,6 +218,7 @@ func writeTargets(targets [][4]int, targetFile string) {
 func benchmark(navigator p.Navigator, targets [][4]int, referenceDijkstra *p.Dijkstra) {
 	var runtime time.Duration = 0
 	var runtimeWithPathExtraction time.Duration = 0
+	completed := 0
 
 	pqPops := 0
 	pqUpdates := 0
@@ -245,6 +248,48 @@ func benchmark(navigator p.Navigator, targets [][4]int, referenceDijkstra *p.Dij
 
 	activeArcs := activeArcsCount(navigator.GetGraph())
 	activeArcsReference := activeArcsCount(referenceDijkstra.GetGraph())
+
+	showResults := func() {
+		fmt.Printf("Average runtime: %.3fms, %.3fms\n", float64(int(runtime.Nanoseconds())/completed)/1000000, float64(int(runtimeWithPathExtraction.Nanoseconds())/completed)/1000000)
+		fmt.Printf("Average pq pops: %d\n", pqPops/completed)
+		fmt.Printf("Average pq updates: %d\n", pqUpdates/completed)
+		fmt.Printf("Average stalled nodes: %d\n", stalledNodes/completed)
+		fmt.Printf("Average unstalled nodes: %d\n", unstalledNodes/completed)
+		fmt.Printf("Average relaxations attempts: %d\n", relaxationAttempts/completed)
+		fmt.Printf("Average edge relaxations: %d\n", edgeRelaxations/completed)
+		fmt.Printf("Active arcs: %v, Active arcs (reference): %v\n", activeArcs, activeArcsReference)
+
+		fmt.Printf("%v/%v invalid Result (source/target).\n", len(invalidResults), completed)
+		for i, result := range invalidResults {
+			fmt.Printf("%v: Case %v (%v -> %v) has invalid result\n", i, result, targets[result][0], targets[result][1])
+		}
+
+		fmt.Printf("%v/%v invalid path lengths.\n", len(invalidLengths), completed)
+		for i, lengths := range invalidLengths {
+			testcase := lengths[0]
+			actualLength := lengths[1]
+			referenceLength := lengths[2]
+			fmt.Printf("%v: Case %v (%v -> %v) has invalid length. Has: %v, Reference: %v, Difference: %v\n", i, testcase, targets[testcase][0], targets[testcase][1], actualLength, referenceLength, actualLength-referenceLength)
+		}
+
+		fmt.Printf("%v/%v invalid hops number.\n", len(invalidHops), completed)
+		for i, hops := range invalidHops {
+			testcase := hops[0]
+			actualHops := hops[1]
+			referenceHops := hops[2]
+			fmt.Printf("%v: Case %v (%v -> %v) has invalid #hops. Has: %v, reference: %v, difference: %v\n", i, testcase, targets[testcase][0], targets[testcase][1], actualHops, referenceHops, actualHops-referenceHops)
+		}
+	}
+
+	// catch interrupt to still show already calculated results
+	c := make(chan os.Signal)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-c
+		showResults()
+		os.Exit(0)
+	}()
+
 	if activeArcsReference != referenceDijkstra.GetGraph().ArcCount() {
 		panic("Active reference arcs are weird")
 	}
@@ -284,35 +329,8 @@ func benchmark(navigator p.Navigator, targets [][4]int, referenceDijkstra *p.Dij
 
 		runtime += elapsed
 		runtimeWithPathExtraction += elapsedPath
+		completed++
 	}
-
-	fmt.Printf("Average runtime: %.3fms, %.3fms\n", float64(int(runtime.Nanoseconds())/len(targets))/1000000, float64(int(runtimeWithPathExtraction.Nanoseconds())/len(targets))/1000000)
-	fmt.Printf("Average pq pops: %d\n", pqPops/len(targets))
-	fmt.Printf("Average pq updates: %d\n", pqUpdates/len(targets))
-	fmt.Printf("Average stalled nodes: %d\n", stalledNodes/len(targets))
-	fmt.Printf("Average unstalled nodes: %d\n", unstalledNodes/len(targets))
-	fmt.Printf("Average relaxations attempts: %d\n", relaxationAttempts/len(targets))
-	fmt.Printf("Average edge relaxations: %d\n", edgeRelaxations/len(targets))
-	fmt.Printf("Active arcs: %v, Active arcs (reference): %v\n", activeArcs, activeArcsReference)
-
-	fmt.Printf("%v/%v invalid Result (source/target).\n", len(invalidResults), len(targets))
-	for i, result := range invalidResults {
-		fmt.Printf("%v: Case %v (%v -> %v) has invalid result\n", i, result, targets[result][0], targets[result][1])
-	}
-
-	fmt.Printf("%v/%v invalid path lengths.\n", len(invalidLengths), len(targets))
-	for i, lengths := range invalidLengths {
-		testcase := lengths[0]
-		actualLength := lengths[1]
-		referenceLength := lengths[2]
-		fmt.Printf("%v: Case %v (%v -> %v) has invalid length. Has: %v, Reference: %v, Difference: %v\n", i, testcase, targets[testcase][0], targets[testcase][1], actualLength, referenceLength, actualLength-referenceLength)
-	}
-
-	fmt.Printf("%v/%v invalid hops number.\n", len(invalidHops), len(targets))
-	for i, hops := range invalidHops {
-		testcase := hops[0]
-		actualHops := hops[1]
-		referenceHops := hops[2]
-		fmt.Printf("%v: Case %v (%v -> %v) has invalid #hops. Has: %v, reference: %v, difference: %v\n", i, testcase, targets[testcase][0], targets[testcase][1], actualHops, referenceHops, actualHops-referenceHops)
-	}
+	// normal termination, show results
+	showResults()
 }
