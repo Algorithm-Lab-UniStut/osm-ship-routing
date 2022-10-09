@@ -249,6 +249,10 @@ func benchmark(navigator p.Navigator, targets [][4]int, referenceDijkstra *p.Dij
 	activeArcs := activeArcsCount(navigator.GetGraph())
 	activeArcsReference := activeArcsCount(referenceDijkstra.GetGraph())
 
+	if activeArcsReference != referenceDijkstra.GetGraph().ArcCount() {
+		panic("Active reference arcs are weird")
+	}
+
 	showResults := func() {
 		fmt.Printf("Average runtime: %.3fms, %.3fms\n", float64(int(runtime.Nanoseconds())/completed)/1000000, float64(int(runtimeWithPathExtraction.Nanoseconds())/completed)/1000000)
 		fmt.Printf("Average pq pops: %d\n", pqPops/completed)
@@ -289,10 +293,6 @@ func benchmark(navigator p.Navigator, targets [][4]int, referenceDijkstra *p.Dij
 		showResults()
 		os.Exit(0)
 	}()
-
-	if activeArcsReference != referenceDijkstra.GetGraph().ArcCount() {
-		panic("Active reference arcs are weird")
-	}
 
 	for i, target := range targets {
 		origin := target[0]
