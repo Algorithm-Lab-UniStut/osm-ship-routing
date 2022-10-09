@@ -31,6 +31,8 @@ type SearchKPIs struct {
 	relaxationAttempts int // store the attempt for relaxed edges
 	relaxedEdges       int // number of relaxed edges
 	numSettledNodes    int // number of settled nodes
+	stalledNodes       int // number of stalled nodes (invocations)
+	unstalledNodes     int // number of unstalled nodes (invocations)
 }
 
 func (kpi *SearchKPIs) Reset() {
@@ -491,22 +493,74 @@ func (d *UniversalDijkstra) stallNode(node *DijkstraItem, stallingDistance int) 
 
 	if node.index >= 0 {
 		d.minHeap.Remove(node.index)
+		d.searchKPIs.stalledNodes++
+	}
+
+	bfs := func(nodeId graph.NodeId, initialDistance int, searchSpace []*DijkstraItem, stalledNodes []bool, stallingDistances []int, maxHops int) []graph.NodeId {
+		queue := []graph.NodeId{nodeId}
+		stallingDistances[nodeId] = initialDistance
+		stallNodes := []graph.NodeId{nodeId}
+
+		hops := 0
+		for len(queue) > 0 {
+			nodeId := queue[0]
+			queue = queue[1:]
+			hops++
+			if hops > maxHops {
+				break
+			}
+
+			arcs := d.g.GetArcsFrom(nodeId)
+
+			for i := range arcs {
+				arc := &arcs[i]
+				if !arc.ArcFlag() {
+					// this arc is deactivated
+					continue
+				}
+
+				destination := arc.Destination()
+				cost := arc.Cost()
+
+				if stalledNodes[destination] {
+					// already stalled
+					continue
+				}
+				if searchSpace[destination] == nil {
+					// node not even considered in real search
+					continue
+				}
+				if tentativeDistance := searchSpace[destination].distance; tentativeDistance <= stallingDistances[nodeId]+cost {
+					// this node won't be stalled, since its tentative distance is smaller than the stalling distance
+					continue
+				}
+
+				if stallingDistances[destination] != 0 && stallingDistances[destination] <= stallingDistances[nodeId]+cost {
+					// already lower stalling distance available
+					continue
+				}
+
+				// add node to queue
+				stallingDistances[destination] = stallingDistances[nodeId] + cost
+				queue = append(queue, destination)
+				stallNodes = append(stallNodes, nodeId)
+			}
+
+		}
+
+		return stallNodes
 	}
 
 	// stall recursively
-	// however, this takes very long time (even for only 1 level)
+	// however, this takes very long time (even for very few hops)
 	if d.searchOptions.stallOnDemand >= 3 {
-		d.stallWorker.SetConsiderArcFlags(true)
-		d.stallWorker.SetMaxNumSettledNodes(10)
-		d.stallWorker.ComputeShortestPath(node.nodeId, -1)
-		for _, v := range d.stallWorker.GetSearchSpace() {
-			if v != nil && v.Priority() > 0 && searchSpace[v.nodeId] != nil && stallingDistance+v.distance < searchSpace[v.nodeId].distance {
-				stalledNodes[v.nodeId] = true
-				stallingDistances[v.nodeId] = stallingDistance + v.distance
+		stallNodes := bfs(node.NodeId(), stallingDistance, searchSpace, stalledNodes, stallingDistances, math.MaxInt)
+		for _, nodeId := range stallNodes {
+			stalledNodes[nodeId] = true
 
-				if v.index >= 0 {
-					d.minHeap.Remove(v.index)
-				}
+			if searchSpace[nodeId].index >= 0 {
+				d.minHeap.Remove(searchSpace[nodeId].index)
+				d.searchKPIs.stalledNodes++
 			}
 		}
 	}
@@ -514,8 +568,13 @@ func (d *UniversalDijkstra) stallNode(node *DijkstraItem, stallingDistance int) 
 
 // Unstall the given node and update the given distance
 func (d *UniversalDijkstra) unstallNode(node *DijkstraItem, distance int) {
-	stalledNodes, _ := alignWithSearchDirection(node.searchDirection, d.forwardSearch.stalledNodes, d.backwardSearch.stalledNodes)
+	searchStats, _ := alignWithSearchDirection(node.searchDirection, d.forwardSearch, d.backwardSearch)
+	stalledNodes := searchStats.stalledNodes
+	stallingDistance := searchStats.stallingDistance
 	stalledNodes[node.nodeId] = false
+	stallingDistance[node.nodeId] = 0
+	d.searchKPIs.unstalledNodes++
+
 	if node.index < 0 {
 		node.distance = distance
 		d.minHeap.Push(node)
@@ -523,7 +582,6 @@ func (d *UniversalDijkstra) unstallNode(node *DijkstraItem, distance int) {
 		node.distance = distance
 		d.minHeap.Update(node)
 	}
-	d.searchKPIs.pqUpdates++
 }
 
 // Specify whether a heuristic for path finding (AStar) should be used
@@ -593,6 +651,12 @@ func (d *UniversalDijkstra) GetRelaxationAttempts() int { return d.searchKPIs.re
 
 // Get the number of pq updates
 func (d *UniversalDijkstra) GetPqUpdates() int { return d.searchKPIs.pqUpdates }
+
+// Get the number of stalling invocations
+func (d *UniversalDijkstra) GetStalledNodesCount() int { return d.searchKPIs.stalledNodes }
+
+// Get the number of unstall invocations
+func (d *UniversalDijkstra) GetUnstalledNodesCount() int { return d.searchKPIs.unstalledNodes }
 
 // Get the used graph
 func (d *UniversalDijkstra) GetGraph() graph.Graph { return d.g }

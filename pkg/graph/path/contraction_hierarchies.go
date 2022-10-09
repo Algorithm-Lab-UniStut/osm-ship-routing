@@ -253,6 +253,8 @@ func (ch *ContractionHierarchies) ComputeShortestPath(origin, destination graph.
 	ch.forwardSearch.searchSpace = ch.dijkstra.forwardSearch.searchSpace
 	ch.searchKPIs.pqPops = ch.dijkstra.GetPqPops()
 	ch.searchKPIs.pqUpdates = ch.dijkstra.GetPqUpdates()
+	ch.searchKPIs.stalledNodes = ch.dijkstra.GetStalledNodesCount()
+	ch.searchKPIs.unstalledNodes = ch.dijkstra.GetUnstalledNodesCount()
 	ch.searchKPIs.relaxedEdges = ch.dijkstra.GetEdgeRelaxations()
 	ch.searchKPIs.relaxationAttempts = ch.dijkstra.GetRelaxationAttempts()
 
@@ -261,6 +263,8 @@ func (ch *ContractionHierarchies) ComputeShortestPath(origin, destination graph.
 	ch.backwardSearch.searchSpace = ch.dijkstra.forwardSearch.searchSpace
 	ch.searchKPIs.pqPops += ch.dijkstra.GetPqPops()
 	ch.searchKPIs.pqUpdates += ch.dijkstra.GetPqUpdates()
+	ch.searchKPIs.stalledNodes += ch.dijkstra.GetStalledNodesCount()
+	ch.searchKPIs.unstalledNodes += ch.dijkstra.GetUnstalledNodesCount()
 	ch.searchKPIs.relaxedEdges += ch.dijkstra.GetEdgeRelaxations()
 	ch.searchKPIs.relaxationAttempts += ch.dijkstra.GetRelaxationAttempts()
 	ch.connection = -1
@@ -353,6 +357,22 @@ func (ch *ContractionHierarchies) GetPqUpdates() int {
 	}
 	// use manual computed pq updates when calculated the path manually
 	return ch.searchKPIs.pqUpdates
+}
+
+// Get the number of stalled nodes (invocations)
+func (ch *ContractionHierarchies) GetStalledNodesCount() int {
+	if ch.dijkstra.searchOptions.bidirectional {
+		return ch.dijkstra.GetStalledNodesCount()
+	}
+	return ch.searchKPIs.stalledNodes
+}
+
+// Get the number of unstalled nodes (invocations)
+func (ch *ContractionHierarchies) GetUnstalledNodesCount() int {
+	if ch.dijkstra.searchOptions.bidirectional {
+		return ch.dijkstra.GetUnstalledNodesCount()
+	}
+	return ch.searchKPIs.unstalledNodes
 }
 
 // Get the number of relaxed edges

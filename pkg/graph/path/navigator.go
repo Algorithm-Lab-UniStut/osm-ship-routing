@@ -11,4 +11,6 @@ type Navigator interface {
 	GetEdgeRelaxations() int                         // Get the number of relaxed edges
 	GetRelaxationAttempts() int                      // Get the number of attempted edge relaxations (some may early terminated)
 	GetGraph() graph.Graph                           // Get the used graph
+	GetStalledNodesCount() int                       // Get the number of stalled nodes (invocations)
+	GetUnstalledNodesCount() int                     // Get the number of unstalled nodes (invocations)
 }

@@ -217,6 +217,8 @@ func benchmark(navigator p.Navigator, targets [][4]int, referenceDijkstra *p.Dij
 
 	pqPops := 0
 	pqUpdates := 0
+	stalledNodes := 0
+	unstalledNodes := 0
 	edgeRelaxations := 0
 	relaxationAttempts := 0
 
@@ -236,6 +238,8 @@ func benchmark(navigator p.Navigator, targets [][4]int, referenceDijkstra *p.Dij
 
 		pqPops += navigator.GetPqPops()
 		pqUpdates += navigator.GetPqUpdates()
+		stalledNodes += navigator.GetStalledNodesCount()
+		unstalledNodes += navigator.GetUnstalledNodesCount()
 		edgeRelaxations += navigator.GetEdgeRelaxations()
 		relaxationAttempts += navigator.GetRelaxationAttempts()
 
@@ -262,6 +266,8 @@ func benchmark(navigator p.Navigator, targets [][4]int, referenceDijkstra *p.Dij
 	fmt.Printf("Average runtime: %.3fms, %.3fms\n", float64(int(runtime.Nanoseconds())/len(targets))/1000000, float64(int(runtimeWithPathExtraction.Nanoseconds())/len(targets))/1000000)
 	fmt.Printf("Average pq pops: %d\n", pqPops/len(targets))
 	fmt.Printf("Average pq updates: %d\n", pqUpdates/len(targets))
+	fmt.Printf("Average stalled nodes: %d\n", stalledNodes/len(targets))
+	fmt.Printf("Average unstalled nodes: %d\n", unstalledNodes/len(targets))
 	fmt.Printf("Average relaxations attempts: %d\n", relaxationAttempts/len(targets))
 	fmt.Printf("Average edge relaxations: %d\n", edgeRelaxations/len(targets))
 
