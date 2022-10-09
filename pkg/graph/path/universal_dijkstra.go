@@ -118,11 +118,11 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 	if d.searchOptions.useHeuristic && d.searchOptions.bidirectional {
 		panic("AStar doesn't work bidirectional so far.")
 	}
-	if d.searchOptions.useHotStart && d.searchOptions.bidirectional {
-		panic("Can't use Hot start for bidirectional search.")
-	}
 	if d.searchOptions.bidirectional && destination < 0 {
 		panic("Can't use bidirectional search with no specified destination.")
+	}
+	if d.searchOptions.bidirectional && d.searchOptions.useHotStart && d.searchOptions.considerArcFlags {
+		panic("Can't use hot start with bidirecitonal search in directed graph")
 	}
 	if d.searchOptions.stallOnDemand > 0 && !d.searchOptions.considerArcFlags {
 		panic("stall on demand works only on directed graph.")
@@ -136,16 +136,42 @@ func (d *UniversalDijkstra) ComputeShortestPath(origin, destination graph.NodeId
 		log.Printf("New search: %v -> %v\n", origin, destination)
 	}
 
-	if d.searchOptions.useHotStart && d.origin == origin && d.forwardSearch.visitedNodes[destination] {
-		// hot start, already found the node in a previous search
-		// just load the distance
-		if d.debugLevel >= 1 {
-			log.Printf("Using hot start - loading %v -> %v, distance is %v\n", origin, destination, d.forwardSearch.searchSpace[destination].distance)
+	adaptConnection := func(connectionNodeId, predecessor, successor graph.NodeId, distance int) {
+		d.bidirectionalConnection.nodeId = connectionNodeId
+		d.bidirectionalConnection.distance = distance
+		d.bidirectionalConnection.predecessor = predecessor
+		d.bidirectionalConnection.successor = successor
+	}
+
+	if d.searchOptions.useHotStart {
+		// These conditions don't work for directed graphs, yet
+		if d.origin == origin && destination > 0 && d.forwardSearch.visitedNodes[destination] {
+			// hot start, already found the node in a previous search
+			// just load the distance
+			if d.debugLevel >= 1 {
+				log.Printf("Using hot start, forward direction - loading %v -> %v, distance is %v\n", origin, destination, d.forwardSearch.searchSpace[destination].distance)
+			}
+			numSettledNodes := d.searchKPIs.numSettledNodes
+			d.searchKPIs.Reset()
+			d.searchKPIs.numSettledNodes = numSettledNodes
+
+			adaptConnection(destination, d.forwardSearch.searchSpace[destination].predecessor, -1, d.forwardSearch.searchSpace[destination].distance)
+			d.destination = destination
+			return d.forwardSearch.searchSpace[destination].distance
 		}
-		numSettledNodes := d.searchKPIs.numSettledNodes
-		d.searchKPIs.Reset()
-		d.searchKPIs.numSettledNodes = numSettledNodes
-		return d.forwardSearch.searchSpace[destination].distance
+		if d.searchOptions.bidirectional && d.destination == destination && d.backwardSearch.visitedNodes[origin] {
+			if d.debugLevel >= 1 {
+				log.Printf("Using hot start, backward direction - loading %v -> %v, distance: %v\n", origin, destination, d.backwardSearch.searchSpace[origin].distance)
+			}
+
+			numSettledNodes := d.searchKPIs.numSettledNodes
+			d.searchKPIs.Reset()
+			d.searchKPIs.numSettledNodes = numSettledNodes
+
+			adaptConnection(origin, -1, d.backwardSearch.searchSpace[origin].predecessor, d.backwardSearch.searchSpace[origin].distance)
+			d.origin = origin
+			return d.backwardSearch.searchSpace[origin].distance
+		}
 	}
 
 	d.initializeSearch(origin, destination)
@@ -339,13 +365,54 @@ func (d *UniversalDijkstra) initializeSearch(origin, destination graph.NodeId) {
 		log.Printf("visited nodes: %v\n", visitedNodes)
 	}
 
-	d.destination = destination
-
-	if d.searchOptions.useHotStart && d.origin == origin {
-		if d.debugLevel >= 2 {
-			log.Printf("Use hot start\n")
+	if d.searchOptions.useHotStart {
+		if d.origin == origin && d.destination == destination {
+			// everything the same, nothing to do
+			return
 		}
-		return
+
+		d.bidirectionalConnection.Reset()
+
+		// function to restore the heap.
+		// remove all items which don't match for the hot start (because of chenged origin/destination) and add a new initial item
+		restoreHeap := func(source graph.NodeId, searchStats *SearchStats, heuristic int, searchDirection Direction) {
+			// clean heap
+			for _, item := range searchStats.searchSpace {
+				// remove old items from the heap
+				if item != nil && item.index > -1 {
+					d.minHeap.Remove(item.index)
+				}
+			}
+			searchStats.Reset(d.g.NodeCount(), d.searchOptions.stallOnDemand)
+			targetItem := NewDijkstraItem(source, 0, -1, heuristic, searchDirection)
+			d.minHeap.Push(targetItem)
+			d.settleNode(targetItem)
+		}
+
+		if d.origin == origin {
+			if d.debugLevel >= 1 {
+				log.Printf("Use hot start, changed destination\n")
+			}
+
+			d.destination = destination
+
+			if d.searchOptions.bidirectional {
+				restoreHeap(d.destination, &d.backwardSearch, 0, BACKWARD)
+			}
+
+			return
+		}
+
+		if d.searchOptions.bidirectional && d.destination == destination {
+			if d.debugLevel >= 1 {
+				log.Printf("Use hot start, changed origin\n")
+			}
+
+			d.origin = origin
+
+			restoreHeap(d.origin, &d.forwardSearch, 0, FORWARD)
+			return
+		}
 	}
 
 	// don't or can't use hot start
@@ -354,6 +421,7 @@ func (d *UniversalDijkstra) initializeSearch(origin, destination graph.NodeId) {
 	}
 
 	d.origin = origin
+	d.destination = destination
 
 	d.forwardSearch.Reset(d.g.NodeCount(), d.searchOptions.stallOnDemand)
 	d.backwardSearch.Reset(d.g.NodeCount(), d.searchOptions.stallOnDemand)
@@ -618,6 +686,7 @@ func (d *UniversalDijkstra) SetIgnoreNodes(nodes []graph.NodeId) {
 	}
 	// invalidate previously calculated results
 	d.origin = -1
+	d.destination = -1
 }
 
 // Use a hot start
