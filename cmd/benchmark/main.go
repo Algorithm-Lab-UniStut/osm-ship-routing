@@ -102,51 +102,54 @@ func getNavigator(algorithm, graphDirectory string, chPathFindingOptions p.PathF
 		wg.Done()
 	}()
 
-	if slice.Contains([]string{"default", "dijsktra"}, algorithm) {
-		wg.Wait()
-		d := p.NewUniversalDijkstra(aag)
-		//d.SetHotStart(true)
-		return d, referenceDijkstra
-	} else if algorithm == "reference" {
-		wg.Wait()
-		return p.NewDijkstra(aag), referenceDijkstra
-	} else if algorithm == "astar" {
-		wg.Wait()
-		astar := p.NewUniversalDijkstra(aag)
-		astar.SetUseHeuristic(true)
-		return astar, referenceDijkstra
-	} else if algorithm == "bidirectional" {
-		wg.Wait()
-		bid := p.NewUniversalDijkstra(aag)
-		//bid.SetHotStart(true)
-		bid.SetBidirectional(true)
-		return bid, referenceDijkstra
-	} else if algorithm == "ch" {
-		var contractedGraph graph.Graph
-		var shortcuts []p.Shortcut
-		var nodeOrdering [][]graph.NodeId
+	targetNavigator := func() p.Navigator {
+		if slice.Contains([]string{"default", "dijsktra"}, algorithm) {
+			wg.Wait()
+			d := p.NewUniversalDijkstra(aag)
+			//d.SetHotStart(true)
+			return d
+		} else if algorithm == "reference" {
+			wg.Wait()
+			return p.NewDijkstra(aag)
+		} else if algorithm == "astar" {
+			wg.Wait()
+			astar := p.NewUniversalDijkstra(aag)
+			astar.SetUseHeuristic(true)
+			return astar
+		} else if algorithm == "bidirectional" {
+			wg.Wait()
+			bid := p.NewUniversalDijkstra(aag)
+			//bid.SetHotStart(true)
+			bid.SetBidirectional(true)
+			return bid
+		} else if algorithm == "ch" {
+			var contractedGraph graph.Graph
+			var shortcuts []p.Shortcut
+			var nodeOrdering [][]graph.NodeId
 
-		wg.Add(3)
-		go func() {
-			contractedGraph = graph.NewAdjacencyArrayFromFmiFile(contractedGraphFile)
-			wg.Done()
-		}()
-		go func() {
-			shortcuts = p.ReadShortcutFile(shortcutFile)
-			wg.Done()
-		}()
-		go func() {
-			nodeOrdering = p.ReadNodeOrderingFile(nodeOrderingFile)
-			wg.Done()
-		}()
-		wg.Wait()
+			wg.Add(3)
+			go func() {
+				contractedGraph = graph.NewAdjacencyArrayFromFmiFile(contractedGraphFile)
+				wg.Done()
+			}()
+			go func() {
+				shortcuts = p.ReadShortcutFile(shortcutFile)
+				wg.Done()
+			}()
+			go func() {
+				nodeOrdering = p.ReadNodeOrderingFile(nodeOrderingFile)
+				wg.Done()
+			}()
+			wg.Wait()
 
-		dijkstra := p.NewUniversalDijkstra(contractedGraph)
-		ch := p.NewContractionHierarchiesInitialized(contractedGraph, dijkstra, shortcuts, nodeOrdering, chPathFindingOptions)
-		return ch, referenceDijkstra
-	}
+			dijkstra := p.NewUniversalDijkstra(contractedGraph)
+			ch := p.NewContractionHierarchiesInitialized(contractedGraph, dijkstra, shortcuts, nodeOrdering, chPathFindingOptions)
+			return ch
+		}
+		return nil
+	}()
 
-	return nil, referenceDijkstra
+	return targetNavigator, referenceDijkstra
 }
 
 func readTargets(filename string) [][4]int {
