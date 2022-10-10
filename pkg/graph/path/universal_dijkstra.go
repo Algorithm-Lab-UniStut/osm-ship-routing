@@ -552,16 +552,9 @@ func (d *UniversalDijkstra) stallNode(node *DijkstraItem, stallingDistance int) 
 	stalledNodes := searchStat.stalledNodes
 	stallingDistances := searchStat.stallingDistance
 
-	stalledNodes[node.nodeId] = true
-	stallingDistances[node.nodeId] = stallingDistance
-
-	if node.index >= 0 {
-		d.minHeap.Remove(node.index)
-		d.searchKPIs.stalledNodes++
-	}
-
 	// helper function to perform a breadth-first search for stalling additional nodes
 	// the search stops at nodes which are already stalled or not going to be stalled or if maxHops is reached
+	// this also sets the stalling distance for the stalled node
 	bfs := func(nodeId graph.NodeId, initialDistance int, searchSpace []*DijkstraItem, stalledNodes []bool, stallingDistances []int, maxHops int) []graph.NodeId {
 		queue := []graph.NodeId{nodeId}
 		stallingDistances[nodeId] = initialDistance
@@ -618,17 +611,21 @@ func (d *UniversalDijkstra) stallNode(node *DijkstraItem, stallingDistance int) 
 		return stallNodes
 	}
 
-	// stall recursively
-	// however, this takes very long time (even for very few hops)
-	if d.searchOptions.stallOnDemand >= 3 {
-		stallNodes := bfs(node.NodeId(), stallingDistance, searchSpace, stalledNodes, stallingDistances, math.MaxInt)
-		for _, nodeId := range stallNodes {
-			stalledNodes[nodeId] = true
+	var stallNodes []graph.NodeId
+	if d.searchOptions.stallOnDemand <= 2 {
+		// just stall the current node
+		stallNodes = bfs(node.NodeId(), stallingDistance, searchSpace, stalledNodes, stallingDistances, 1)
+	} else if d.searchOptions.stallOnDemand >= 3 {
+		// stall recursively
+		// however, this takes very long time (even for very few hops)
+		stallNodes = bfs(node.NodeId(), stallingDistance, searchSpace, stalledNodes, stallingDistances, math.MaxInt)
+	}
+	for _, nodeId := range stallNodes {
+		stalledNodes[nodeId] = true
+		d.searchKPIs.stalledNodes++
 
-			if searchSpace[nodeId].index >= 0 {
-				d.minHeap.Remove(searchSpace[nodeId].index)
-				d.searchKPIs.stalledNodes++
-			}
+		if searchSpace[nodeId].index >= 0 {
+			d.minHeap.Remove(searchSpace[nodeId].index)
 		}
 	}
 }
