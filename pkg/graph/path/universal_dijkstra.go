@@ -670,10 +670,11 @@ func (d *UniversalDijkstra) SetMaxNumSettledNodes(maxNumSettledNodes int) {
 }
 
 // Set the nodes which are ignored in the search
-func (d *UniversalDijkstra) SetIgnoreNodes(nodes []graph.NodeId) {
-	d.searchOptions.ignoreNodes = make([]bool, d.g.NodeCount())
-	for _, node := range nodes {
-		d.searchOptions.ignoreNodes[node] = true
+func (d *UniversalDijkstra) SetIgnoreNodes(nodes []bool) {
+	if nodes == nil {
+		d.searchOptions.ignoreNodes = make([]bool, d.g.NodeCount())
+	} else {
+		d.searchOptions.ignoreNodes = nodes
 	}
 	// invalidate previously calculated results
 	d.origin = -1
