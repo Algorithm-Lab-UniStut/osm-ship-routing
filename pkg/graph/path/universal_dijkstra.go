@@ -43,6 +43,8 @@ func (kpi *SearchKPIs) Reset() {
 	kpi.relaxationAttempts = 0
 	kpi.relaxedEdges = 0
 	kpi.numSettledNodes = 0
+	kpi.stalledNodes = 0
+	kpi.unstalledNodes = 0
 }
 
 type SearchOptions struct {

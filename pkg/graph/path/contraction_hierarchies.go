@@ -48,16 +48,18 @@ type ContractionHierarchies struct {
 	searchKPIs     SearchKPIs
 }
 
+// Contains the contraction progress information
 type ContractionProgress struct {
-	initialTime        time.Time
-	milestones         []float64
-	achievedMilestones []AchievedMilestone
-	milestoneFilename  string
+	initialTime        time.Time   // store the initial time
+	milestones         []float64   // storage for the target milestones
+	achievedMilestones []Milestone // storage for the achieved milestones
+	milestoneFilename  string      // filename where to store the milestones
 }
 
-type AchievedMilestone struct {
-	runtime   time.Duration
-	shortcuts int
+// Contains information for a milestone. Helpful for debugging/storing progress
+type Milestone struct {
+	runtime   time.Duration // time needed until this milestone is reached
+	shortcuts int           // shortcuts which were introduced until this milestone
 }
 
 // Describes a shortcut.
@@ -77,28 +79,34 @@ type ContractionResult struct {
 	contractedNeighbors int          // number of contracted neighbors
 }
 
+// Collection/Options how to search for the path.
+// Can be used as tuning parameters
 type PathFindingOptions struct {
-	Manual        bool
-	UseHeuristic  bool
-	StallOnDemand int
-	SortArcs      bool
+	Manual        bool // do an independent forward and backward search and check the connection manually
+	UseHeuristic  bool // TODO use astar
+	StallOnDemand int  // define the level for stall on demand (See UniversalDijkstra for more information)
+	SortArcs      bool // sort the arcs to only consider the active edges
 }
 
+// Colleciton/Options how to contract the nodes.
+// can be used as tuning options
 type ContractionOptions struct {
-	Bidirectional      bool
-	UseHeuristic       bool
-	HotStart           bool
-	MaxNumSettledNodes int
-	ContractionLimit   float64
-	ContractionWorkers int
-	UseCache           bool
+	Bidirectional      bool    // use bidirectional search
+	UseHeuristic       bool    // use astar
+	HotStart           bool    // use hot start
+	MaxNumSettledNodes int     // limit the number of settled nodes. If this is reached a shortcut is added
+	ContractionLimit   float64 // upper bound (in %) until which limit the nodes are contracted. If this is 99, only the contraction from level 0 to 99 is calculated
+	ContractionWorkers int     // set the number of contraction workers who parallely compute the contraction
+	UseCache           bool    // use a cache to store already known shortcuts for uncontracted nodes
 }
 
+// Make default contraction options
 func MakeDefaultContractionOptions() ContractionOptions {
 	// TODO test bidirectional=true, useHeuristic=true, maxNumSettledNodes=60 (or something else)
 	return ContractionOptions{Bidirectional: false, UseHeuristic: false, HotStart: true, MaxNumSettledNodes: math.MaxInt, ContractionLimit: 100, ContractionWorkers: 1, UseCache: false}
 }
 
+// Make default path finding options
 func MakeDefaultPathFindingOptions() PathFindingOptions {
 	return PathFindingOptions{Manual: false, UseHeuristic: false, StallOnDemand: 2, SortArcs: false}
 }
@@ -130,7 +138,6 @@ func NewContractionHierarchiesInitialized(g graph.Graph, dijkstra *UniversalDijk
 	ch := NewContractionHierarchies(g, dijkstra, MakeDefaultContractionOptions()) // use default contraction options (they are not used anyway)
 	ch.SetShortcuts(shortcuts)
 	ch.SetNodeOrdering(nodeOrdering)
-	ch.matchArcsWithNodeOrder()
 	ch.ShortestPathSetup(pathFindingOptions)
 	return ch
 }
@@ -172,6 +179,7 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 	if ch.debugLevel >= 1 {
 		log.Printf("Compute Node Ordering\n")
 	}
+
 	minHeap := ch.computeInitialNodeOrder(givenNodeOrder, oo)
 
 	if ch.debugLevel >= 3 {
@@ -181,6 +189,7 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 	if ch.debugLevel >= 1 {
 		log.Printf("Contract Nodes\n")
 	}
+
 	shortcuts := ch.contractNodes(minHeap, oo, givenNodeOrder != nil)
 
 	if ch.debugLevel >= 1 {
@@ -194,8 +203,6 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 
 	// store the computed shortcuts in the map
 	ch.SetShortcuts(shortcuts)
-	// match arcs with node order
-	ch.matchArcsWithNodeOrder()
 
 	if ch.debugLevel >= 1 {
 		for i := range ch.contractionProgress.achievedMilestones {
@@ -217,6 +224,8 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 
 // Setup ch to compute the shortest path
 func (ch *ContractionHierarchies) ShortestPathSetup(options PathFindingOptions) {
+	// match arcs with node order
+	ch.matchArcsWithNodeOrder()
 	// set fix options for CH search
 	ch.dijkstra.SetCostUpperBound(math.MaxInt)
 	ch.dijkstra.SetMaxNumSettledNodes(math.MaxInt)
@@ -248,25 +257,24 @@ func (ch *ContractionHierarchies) ComputeShortestPath(origin, destination graph.
 	}
 	// if path should not get calculated bidirectional, the following will get executed
 	// compute shortest path manually since two unidirectinoal dijkstras were used
-	ch.dijkstra.ComputeShortestPath(origin, -1)
-	ch.forwardSearch.visitedNodes = ch.dijkstra.forwardSearch.visitedNodes
-	ch.forwardSearch.searchSpace = ch.dijkstra.forwardSearch.searchSpace
-	ch.searchKPIs.pqPops = ch.dijkstra.GetPqPops()
-	ch.searchKPIs.pqUpdates = ch.dijkstra.GetPqUpdates()
-	ch.searchKPIs.stalledNodes = ch.dijkstra.GetStalledNodesCount()
-	ch.searchKPIs.unstalledNodes = ch.dijkstra.GetUnstalledNodesCount()
-	ch.searchKPIs.relaxedEdges = ch.dijkstra.GetEdgeRelaxations()
-	ch.searchKPIs.relaxationAttempts = ch.dijkstra.GetRelaxationAttempts()
+	ch.searchKPIs.Reset()
+	// hepler function to compute path from source to possible destinations and store searchKPIs
+	oneToManySearch := func(source graph.NodeId, searchStats *SearchStats, dijkstraSearchStats *SearchStats) {
+		ch.dijkstra.ComputeShortestPath(source, -1)
+		searchStats.visitedNodes = dijkstraSearchStats.visitedNodes
+		searchStats.searchSpace = dijkstraSearchStats.searchSpace
+		ch.searchKPIs.pqPops += ch.dijkstra.GetPqPops()
+		ch.searchKPIs.pqUpdates += ch.dijkstra.GetPqUpdates()
+		ch.searchKPIs.stalledNodes += ch.dijkstra.GetStalledNodesCount()
+		ch.searchKPIs.unstalledNodes += ch.dijkstra.GetUnstalledNodesCount()
+		ch.searchKPIs.relaxedEdges += ch.dijkstra.GetEdgeRelaxations()
+		ch.searchKPIs.relaxationAttempts += ch.dijkstra.GetRelaxationAttempts()
+	}
 
-	ch.dijkstra.ComputeShortestPath(destination, -1)
-	ch.backwardSearch.visitedNodes = ch.dijkstra.forwardSearch.visitedNodes
-	ch.backwardSearch.searchSpace = ch.dijkstra.forwardSearch.searchSpace
-	ch.searchKPIs.pqPops += ch.dijkstra.GetPqPops()
-	ch.searchKPIs.pqUpdates += ch.dijkstra.GetPqUpdates()
-	ch.searchKPIs.stalledNodes += ch.dijkstra.GetStalledNodesCount()
-	ch.searchKPIs.unstalledNodes += ch.dijkstra.GetUnstalledNodesCount()
-	ch.searchKPIs.relaxedEdges += ch.dijkstra.GetEdgeRelaxations()
-	ch.searchKPIs.relaxationAttempts += ch.dijkstra.GetRelaxationAttempts()
+	oneToManySearch(origin, &ch.forwardSearch, &ch.dijkstra.forwardSearch)
+	oneToManySearch(destination, &ch.backwardSearch, &ch.dijkstra.backwardSearch)
+
+	// Find the best connection
 	ch.connection = -1
 	shortestLength := math.MaxInt
 	for nodeId := 0; nodeId < ch.g.NodeCount(); nodeId++ {
@@ -291,6 +299,12 @@ func (ch *ContractionHierarchies) GetPath(origin, destination graph.NodeId) []in
 	if ch.connection == -1 {
 		return make([]int, 0)
 	}
+	if origin == destination {
+		// origin and destination is the same -> path with one node is the result
+		// this is a workaround
+		return []int{origin}
+	}
+
 	path := make([]int, 0)
 	if ch.dijkstra.searchOptions.bidirectional {
 		path = ch.dijkstra.GetPath(origin, destination)
@@ -406,41 +420,28 @@ func (ch *ContractionHierarchies) computeInitialNodeOrder(givenNodeOrder []int, 
 	orderItems := make([]*OrderItem, ch.g.NodeCount())
 
 	if givenNodeOrder != nil {
-		order := make([]*OrderItem, ch.g.NodeCount())
-
 		for i := 0; i < ch.g.NodeCount(); i++ {
 			orderItem := NewOrderItem(givenNodeOrder[i])
 			orderItem.edgeDifference = i // set edge difference for maintaining different priority
 			orderItem.index = i
-			order[i] = orderItem
 			orderItems[orderItem.nodeId] = orderItem
 		}
 	} else if oo.IsRandom() {
-		nodeOrdering := make([]int, ch.g.NodeCount())
-
-		for i := range nodeOrdering {
-			nodeOrdering[i] = i
-		}
-
-		rand.Seed(time.Now().UnixNano()) // completely random
-		rand.Shuffle(len(nodeOrdering), func(i, j int) { nodeOrdering[i], nodeOrdering[j] = nodeOrdering[j], nodeOrdering[i] })
-
-		order := make([]*OrderItem, ch.g.NodeCount())
+		rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+		nodeOrdering := rng.Perm(ch.g.NodeCount())
 
 		for i := 0; i < ch.g.NodeCount(); i++ {
 			orderItem := NewOrderItem(nodeOrdering[i])
 			orderItem.edgeDifference = i // set edge difference for maintaining different priority
 			orderItem.index = i
-			order[i] = orderItem
 			orderItems[orderItem.nodeId] = orderItem
 		}
 	} else {
-		order := make([]*OrderItem, ch.g.NodeCount())
-
 		nodes := make([]graph.NodeId, ch.g.NodeCount())
 		for i := range nodes {
 			nodes[i] = i
 		}
+
 		contractionResults := ch.computeNodeContractionParallel(nodes, nil, true)
 
 		for i, result := range contractionResults {
@@ -465,7 +466,6 @@ func (ch *ContractionHierarchies) computeInitialNodeOrder(givenNodeOrder []int, 
 				log.Printf("Add node %6v, edge difference: %3v, processed neighbors: %3v\n", nodeId, edgeDifference, contractedNeighbors)
 			}
 
-			order[i] = item
 			orderItems[nodeId] = item
 		}
 	}
@@ -619,9 +619,11 @@ func (ch *ContractionHierarchies) contractNodes(minHeap *queue.MinHeap[*OrderIte
 	shortcutCounter := 0
 	newShortcuts := 0
 
+	// helper function to get the current contraction level (in %)
 	contractionLevel := func() float64 {
 		return (float64(len(ch.contractedNodes)) / float64(ch.g.NodeCount())) * 100
 	}
+	// helper function to get the target nodes which should get contracted
 	getTargetNodes := func() []graph.NodeId {
 		if fixedOrder {
 			// stick to initial order
@@ -631,6 +633,7 @@ func (ch *ContractionHierarchies) contractNodes(minHeap *queue.MinHeap[*OrderIte
 			return ch.computeIndependentSet(minHeap, false)
 		}
 	}
+	// helper function to get the maximum priority of the given contraction results
 	getMaxPriority := func(cr []*ContractionResult) int {
 		prio := math.MinInt
 		for _, result := range cr {
@@ -640,6 +643,7 @@ func (ch *ContractionHierarchies) contractNodes(minHeap *queue.MinHeap[*OrderIte
 		}
 		return prio
 	}
+	// helper function to find the unique shortuts from the given list. This only keeps the best shourtcuts, if multiple shortcuts for the same arc exist.
 	findUniqueShortcuts := func(shortcuts []Shortcut) []Shortcut {
 		// remove duplicate shortcuts (shortcuts which are found from both middle nodes). However, both nodes ignore each other so there is a different path. Only one path should remain)
 		uniqueShortcuts := make([]Shortcut, 0, len(shortcuts))
@@ -681,8 +685,8 @@ func (ch *ContractionHierarchies) contractNodes(minHeap *queue.MinHeap[*OrderIte
 		}
 
 		contractionResults := ch.computeNodeContractionParallel(targetNodes, targetNodes, true) // Ignore nodes for current level (they are not contracted, yet)
-		contractNodes := make([]graph.NodeId, 0, len(targetNodes))
-		deniedContractionItems := make([]*OrderItem, 0, len(contractionResults)) // only necessary for lazy update
+		contractNodes := make([]graph.NodeId, 0, len(targetNodes))                              // store all nodes which will get contracted
+		deniedContractionItems := make([]*OrderItem, 0, len(contractionResults))                // only necessary for lazy update
 
 		affectedNeighbors := make([]graph.NodeId, 0)
 		collectedShortcuts := make([]Shortcut, 0)
@@ -698,7 +702,6 @@ func (ch *ContractionHierarchies) contractNodes(minHeap *queue.MinHeap[*OrderIte
 			minHeap.Remove(item.index)
 
 			if oo.IsLazyUpdate() {
-
 				if oo.ConsiderEdgeDifference() {
 					item.edgeDifference = len(result.shortcuts) - result.incidentEdges
 				}
@@ -708,17 +711,16 @@ func (ch *ContractionHierarchies) contractNodes(minHeap *queue.MinHeap[*OrderIte
 				}
 
 				if minHeap.Len() == 0 || item.Priority() <= priorityThreshold {
-					// always stick to initially computed order or this is still the smallest edge difference
+					// this is still one of the smallest priorities
 					if ch.orderOfNode[item.nodeId] >= 0 {
 						panic("Node was already ordered?")
 					}
 					contractNodes = append(contractNodes, item.nodeId)
+					collectedShortcuts = append(collectedShortcuts, result.shortcuts...)
 
 					if ch.debugLevel >= 3 {
 						log.Printf("Add node %v to contracted nodes\n", item.nodeId)
 					}
-
-					collectedShortcuts = append(collectedShortcuts, result.shortcuts...)
 				} else {
 					if ch.debugLevel >= 3 {
 						log.Printf("Denied contraction for node %v. Update order\n", item.nodeId)
@@ -1038,11 +1040,11 @@ func (ch *ContractionHierarchies) SetDebugLevel(level int) {
 // Set the precomputation milestones (which are worth a log message)
 func (ch *ContractionHierarchies) SetPrecomputationMilestones(milestones []float64) {
 	ch.contractionProgress.milestones = milestones
-	ch.contractionProgress.achievedMilestones = make([]AchievedMilestone, 0, len(milestones))
+	ch.contractionProgress.achievedMilestones = make([]Milestone, 0, len(milestones))
 }
 
 func (ch *ContractionHierarchies) storeContractionProgressInfo(runtime time.Duration, milestone float64, shortcuts int) {
-	ch.contractionProgress.achievedMilestones = append(ch.contractionProgress.achievedMilestones, AchievedMilestone{runtime, shortcuts})
+	ch.contractionProgress.achievedMilestones = append(ch.contractionProgress.achievedMilestones, Milestone{runtime, shortcuts})
 
 	f, err := os.OpenFile(ch.contractionProgress.milestoneFilename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
