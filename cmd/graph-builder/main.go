@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"path"
 	"runtime"
@@ -16,18 +17,39 @@ import (
 	"github.com/natevvv/osm-ship-routing/pkg/grid"
 )
 
-const density = 710 // parameter for SimpleSphereGrid
-const nTarget = 1e6 // parameter for EquiSphereGrid
-
 func main() {
-	buildGridGraph := flag.Bool("gridgraph", false, "Build grid graph")
+	buildGridGraph := flag.String("gridgraph", "", "Build grid graph")
 	contractGraph := flag.String("contract", "", "Contract the given graph")
+
+	// Grid graph options
+	gridType := flag.String("grid-type", "equi-sphere", "Define the type of the grid")
+	nTargets := flag.Int("nTarget", 1e6, "Define the density/number of targets for the grid. Typical values: 1e6 (equi-sphere), 710 (simple-sphere)")
+	neighbors := flag.Int("neighbors", 4, "Define the number of neighbors on the grid (only equi-sphere)")
+
+	// CH contraction options
 	contractionLimit := flag.Float64("contraction-limit", 100, "Limit the level of contractions")
 	contractionWorkers := flag.Int("contraction-workers", 6, "Set the number of contraction workers")
+	bidirectional := flag.Bool("bidirectional", false, "Compute the contraction bidirectional")
+	useHeuristic := flag.Bool("use-heuristic", false, "Use A* search for contraction")
+	useCache := flag.Bool("use-cache", false, "Cache the contraction results")
+	coldStart := flag.Bool("cold-start", false, "explicitely do a cold start (not hot start) when computing contraction")
+	maxNumSettledNodes := flag.Int("max-settled-nodes", math.MaxInt, "Set the number of max allowed settled nodes for each contraction")
+	// CH order options
+	noLazyUpdate := flag.Bool("no-lazy-update", false, "Disable lazy update for ch")
+	noEdgeDifference := flag.Bool("no-edge-difference", false, "Disable edge difference for ch")
+	noProcessedNeighbors := flag.Bool("no-processed-neighbors", false, "Disable processed neighbors for ch")
+	periodic := flag.Bool("periodic", false, "recompute contraction priority periodically for ch")
+	updateNeighbors := flag.Bool("update-neighbors", false, "update neighbors (priority) of contracted nodes for ch")
+	// CH logging options
+	dijkstraDebugLevel := flag.Int("dijkstra-debug", 0, "Set the debug level for dijkstra")
+	chDebugLevel := flag.Int("ch-debug", 1, "Set the debug level for ch")
+
 	flag.Parse()
 
-	if *buildGridGraph {
-		createGridGraph()
+	if *buildGridGraph != "" {
+		// possible graphFile: "antarctica.poly.json", "planet-coastlines.poly.json"
+		graphFile := *buildGridGraph
+		createGridGraph(graphFile, *gridType, *nTargets, *neighbors)
 	}
 
 	if *contractGraph != "" {
@@ -39,18 +61,29 @@ func main() {
 		directory := path.Dir(filename)
 		graphFile := path.Join(directory, "..", "..", "graphs", *contractGraph)
 
-		createContractedGraph(graphFile, *contractionLimit, *contractionWorkers)
+		oo := p.MakeOrderOptions().SetLazyUpdate(!*noLazyUpdate).SetEdgeDifference(!*noEdgeDifference).SetProcessedNeighbors(!*noProcessedNeighbors).SetPeriodic(*periodic).SetUpdateNeighbors(*updateNeighbors)
+		options := p.ContractionOptions{Bidirectional: *bidirectional, UseHeuristic: *useHeuristic, HotStart: !*coldStart, MaxNumSettledNodes: *maxNumSettledNodes, ContractionLimit: *contractionLimit, ContractionWorkers: *contractionWorkers, UseCache: *useCache}
+		debugOptions := struct {
+			dijkstra int
+			ch       int
+		}{dijkstra: *dijkstraDebugLevel, ch: *chDebugLevel}
+
+		createContractedGraph(graphFile, oo, options, debugOptions)
 	}
 }
 
-func createGridGraph() {
-	//arg := loadPolyJsonPolygons("antarctica.poly.json")
-	arg := loadPolyJsonPolygons("planet-coastlines.poly.json")
+func createGridGraph(graphFile, gridType string, nTargets int, meshType int) {
+	arg := loadPolyJsonPolygons(graphFile)
 
-	//grid := grid.NewSimpleSphereGrid(2*density, density, arg)
-	grid := grid.NewEquiSphereGrid(nTarget, grid.SIX_NEIGHBORS, arg)
+	gridGraph := func() graph.Graph {
+		if gridType == "equi-sphere" {
+			return grid.NewEquiSphereGrid(nTargets, meshType, arg).ToGraph()
+		} else if gridType == "simple-sphere" {
+			return grid.NewSimpleSphereGrid(2*nTargets, nTargets, arg).ToGraph()
+		}
+		panic("grid-type not supported")
+	}()
 
-	gridGraph := grid.ToGraph()
 	jsonObj, err := json.Marshal(gridGraph)
 	if err != nil {
 		panic(err)
@@ -86,18 +119,21 @@ func loadPolyJsonPolygons(file string) []geometry.Polygon {
 	return polygons
 }
 
-func createContractedGraph(graphFile string, contractionLimit float64, contractionWorkers int) {
+func createContractedGraph(graphFile string, oo p.OrderOptions, options p.ContractionOptions, debugOptions struct {
+	dijkstra int
+	ch       int
+}) {
 	log.Printf("Read graph file\n")
 	alg := graph.NewAdjacencyListFromFmiFile(graphFile)
 	dijkstra := p.NewUniversalDijkstra(alg)
+	dijkstra.SetDebugLevel(debugOptions.dijkstra)
 	log.Printf("Initialize Contraction Hierarchies\n")
-	ch := p.NewContractionHierarchies(alg, dijkstra)
-	ch.SetDebugLevel(2)
+	ch := p.NewContractionHierarchies(alg, dijkstra, options)
+	ch.SetDebugLevel(debugOptions.ch)
 	ch.SetPrecomputationMilestones([]float64{0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 99.99})
 	log.Printf("Initialized Contraction Hierarchies, start precomputation\n")
-	ch.SetContractionWorkers(contractionWorkers)
-	ch.SetContractionLevelLimit(contractionLimit)
-	ch.Precompute(nil, p.MakeOrderOptions().SetLazyUpdate(true).SetEdgeDifference(true).SetProcessedNeighbors(true).SetPeriodic(false).SetUpdateNeighbors(false))
+	ch.Precompute(nil, oo)
+	log.Printf("Finished computation\n")
 	ch.WriteContractionResult()
 	log.Printf("Finished Contraction\n")
 }

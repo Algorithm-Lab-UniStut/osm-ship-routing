@@ -9,7 +9,7 @@ import (
 
 type Dijkstra struct {
 	g                  graph.Graph
-	dijkstraItems      []*queue.PriorityQueueItem
+	dijkstraItems      []*queue.Item
 	pqPops             int
 	pqUpdates          int
 	relaxationAttempts int
@@ -21,11 +21,11 @@ func NewDijkstra(g graph.Graph) *Dijkstra {
 }
 
 func (d *Dijkstra) ComputeShortestPath(origin, destination int) int {
-	d.dijkstraItems = make([]*queue.PriorityQueueItem, d.g.NodeCount(), d.g.NodeCount())
-	originItem := queue.NewPriorityQueueItem(origin, 0, -1) //{ItemId: origin, Priority: 0, Predecessor: -1, Index: -1}
+	d.dijkstraItems = make([]*queue.Item, d.g.NodeCount())
+	originItem := queue.NewQueueItem(origin, 0, -1) //{ItemId: origin, Priority: 0, Predecessor: -1, Index: -1}
 	d.dijkstraItems[origin] = originItem
 
-	pq := make(queue.PriorityQueue, 0)
+	pq := make(queue.Queue, 0)
 	heap.Init(&pq)
 	heap.Push(&pq, d.dijkstraItems[origin])
 
@@ -35,7 +35,7 @@ func (d *Dijkstra) ComputeShortestPath(origin, destination int) int {
 	d.relaxedEdges = 0
 
 	for len(pq) > 0 {
-		currentPqItem := heap.Pop(&pq).(*queue.PriorityQueueItem)
+		currentPqItem := heap.Pop(&pq).(*queue.Item)
 		currentNodeId := currentPqItem.ItemId
 		d.pqPops++
 
@@ -45,7 +45,7 @@ func (d *Dijkstra) ComputeShortestPath(origin, destination int) int {
 
 			if d.dijkstraItems[successor] == nil {
 				newPriority := d.dijkstraItems[currentNodeId].Priority + arc.Cost()
-				pqItem := queue.NewPriorityQueueItem(successor, newPriority, currentNodeId) //{ItemId: successor, Priority: newPriority, Predecessor: currentNodeId, Index: -1}
+				pqItem := queue.NewQueueItem(successor, newPriority, currentNodeId) //{ItemId: successor, Priority: newPriority, Predecessor: currentNodeId, Index: -1}
 				d.dijkstraItems[successor] = pqItem
 				heap.Push(&pq, pqItem)
 				d.pqUpdates++
@@ -86,4 +86,6 @@ func (d *Dijkstra) GetPqPops() int                  { return d.pqPops }
 func (d *Dijkstra) GetPqUpdates() int               { return d.pqUpdates }
 func (d *Dijkstra) GetEdgeRelaxations() int         { return d.relaxedEdges }
 func (d *Dijkstra) GetRelaxationAttempts() int      { return d.relaxationAttempts }
+func (d *Dijkstra) GetStalledNodesCount() int       { return 0 }
+func (d *Dijkstra) GetUnstalledNodesCount() int     { return 0 }
 func (d *Dijkstra) GetGraph() graph.Graph           { return d.g }

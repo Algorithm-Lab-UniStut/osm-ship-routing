@@ -1,12 +1,12 @@
 package slice
 
-func ReverseIntInPlace(s []int) {
+func ReverseInPlace[T any](s []T) {
 	for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
 		s[i], s[j] = s[j], s[i]
 	}
 }
 
-func Contains(s []int, value int) bool {
+func Contains[T comparable](s []T, value T) bool {
 	for _, a := range s {
 		if a == value {
 			return true
@@ -15,13 +15,13 @@ func Contains(s []int, value int) bool {
 	return false
 }
 
-func InsertInt(s []int, index, value int) []int {
+func Insert[T any](s []T, index int, value T) []T {
 	s = append(s[:index+1], s[index:]...)
 	s[index] = value
 	return s
 }
 
-func CompareInt(s1 []int, s2 []int) int {
+func Compare[T comparable](s1 []T, s2 []T) int {
 	if len(s1) != len(s2) {
 		return -1
 	}

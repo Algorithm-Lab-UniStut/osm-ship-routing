@@ -7,30 +7,28 @@ import (
 	geo "github.com/natevvv/osm-ship-routing/pkg/geometry"
 )
 
-// TODO: Maybe add a graph class for "planar" geometry (not spherical)
-
 // Implementation for dynamic graphs
 type AdjacencyListGraph struct {
-	Nodes     []Node   // The nodes of the graph
-	Edges     [][]*Arc // The Arcs of the graph. The first slice specifies to which the arc belongs
-	edgeCount int      // the number of edges/arcs in the graph
+	Nodes    []geo.Point // The nodes of the graph
+	Edges    [][]Arc     // The Arcs of the graph. The first slice specifies to which the arc belongs
+	arcCount int         // the number of arcs in the graph
 }
 
-// Retrurn the node for the given id
-func (alg *AdjacencyListGraph) GetNode(id NodeId) Node {
+// Return the node for the given id
+func (alg *AdjacencyListGraph) GetNode(id NodeId) *geo.Point {
 	if id < 0 || id >= alg.NodeCount() {
 		panic(id)
 	}
-	return alg.Nodes[id]
+	return &alg.Nodes[id]
 }
 
 // Return all nodes of the graph
-func (alg *AdjacencyListGraph) GetNodes() []Node {
+func (alg *AdjacencyListGraph) GetNodes() []geo.Point {
 	return alg.Nodes
 }
 
 // Get the arcs for the given node
-func (alg *AdjacencyListGraph) GetArcsFrom(id NodeId) []*Arc {
+func (alg *AdjacencyListGraph) GetArcsFrom(id NodeId) []Arc {
 	if id < 0 || id >= alg.NodeCount() {
 		panic(id)
 	}
@@ -58,15 +56,9 @@ func (alg *AdjacencyListGraph) NodeCount() int {
 	return len(alg.Nodes)
 }
 
-/*
-func (alg *AdjacencyListGraph) EdgeCount() int {
-	return alg.edgeCount
-}
-*/
-
 // Return the numebr of total arcs
 func (alg *AdjacencyListGraph) ArcCount() int {
-	return alg.edgeCount
+	return alg.arcCount
 }
 
 // Return a human readable string of the graph
@@ -77,14 +69,14 @@ func (alg *AdjacencyListGraph) AsString() string {
 	sb.WriteString(fmt.Sprintf("%v\n", alg.NodeCount()))
 	sb.WriteString(fmt.Sprintf("%v\n", alg.ArcCount()))
 
-	sb.WriteString(fmt.Sprintf("#Nodes\n"))
+	sb.WriteString("#Nodes\n")
 	// list all nodes structured as "id lat lon"
 	for i := 0; i < alg.NodeCount(); i++ {
 		node := alg.GetNode(i)
-		sb.WriteString(fmt.Sprintf("%v %v %v\n", i, node.Lat, node.Lon))
+		sb.WriteString(fmt.Sprintf("%v %v %v\n", i, node.Lat(), node.Lon()))
 	}
 
-	sb.WriteString(fmt.Sprintf("#Edges\n"))
+	sb.WriteString("#Edges\n")
 	// list all edges structured as "fromId targetId distance"
 	for i := 0; i < alg.NodeCount(); i++ {
 		for _, arc := range alg.GetArcsFrom(i) {
@@ -95,26 +87,9 @@ func (alg *AdjacencyListGraph) AsString() string {
 }
 
 // Add a node to the graph
-func (alg *AdjacencyListGraph) AddNode(n Node) {
+func (alg *AdjacencyListGraph) AddNode(n geo.Point) {
 	alg.Nodes = append(alg.Nodes, n)
-	alg.Edges = append(alg.Edges, make([]*Arc, 0))
-}
-
-// Add an Edge to the graph
-func (alg *AdjacencyListGraph) AddEdge(e Edge) bool {
-	// Check if both source and target node exit
-	if e.From >= alg.NodeCount() || e.To >= alg.NodeCount() {
-		panic(fmt.Sprintf("Edge out of range %v", e))
-	}
-	// Check for duplicates
-	for _, arc := range alg.Edges[e.From] {
-		if e.To == arc.To {
-			return false // ignore duplicate edges
-		}
-	}
-	alg.Edges[e.From] = append(alg.Edges[e.From], e.toArc())
-	alg.edgeCount++
-	return true
+	alg.Edges = append(alg.Edges, make([]Arc, 0))
 }
 
 // Add an arc to the graph, going from source to target with the given distance
@@ -123,64 +98,32 @@ func (alg *AdjacencyListGraph) AddArc(from, to NodeId, distance int) bool {
 		panic(fmt.Sprintf("Arc out of range %v -> %v", from, to))
 	}
 	// Check for duplicates
-	for _, arc := range alg.Edges[from] {
+	arcs := alg.Edges[from]
+	for i := range arcs {
+		arc := &arcs[i]
 		if to == arc.To {
-			// TODO check if updating or ignoring edges is better. Does this break some stuff wih the shortcuts?
-			// update should be better: use new shortcut
+			// Update edge if a better one is found
+			// caller is resposible to correctly store the new edge/shortcut (remember which is the connection node)
 			if distance < arc.Distance {
 				// update distance
 				arc.Distance = distance
 				return true
 			} else {
 				return false
-				//panic("Why would you add an edge with bigger distance?")
 			}
 		}
 
 	}
-	alg.Edges[from] = append(alg.Edges[from], NewArc(to, distance, true))
-	alg.edgeCount++
+	alg.Edges[from] = append(alg.Edges[from], MakeArc(to, distance, true))
+	alg.arcCount++
 	return true
-}
-
-// Estimate the distance between the given nodes
-// This calculates the direct distance (air line, bird path length) between the nodes
-func (alg *AdjacencyListGraph) EstimateDistance(source, target NodeId) int {
-	origin := alg.GetNode(source)
-	destination := alg.GetNode(target)
-	originPoint := geo.NewPoint(origin.Lat, origin.Lon)
-	destinationPoint := geo.NewPoint(destination.Lat, destination.Lon)
-	return int(0.99 * float64(originPoint.IntHaversine(destinationPoint)))
 }
 
 // Set the arc flags for all arcs of the given node
 func (alg *AdjacencyListGraph) SetArcFlags(id NodeId, flag bool) {
 	// set the arc flags for the outgoing edges
-	for _, arc := range alg.GetArcsFrom(id) {
-		arc.SetArcFlag(flag)
-	}
-	// TODO maybe an improvement (Usefull when removing the pointer from the arcs)
-	/*
-		for i := range alg.Edges[id] {
-			alg.Edges[id][i].SetArcFlag(flag)
-		}
-	*/
-}
-
-// Set the arc flag for the given arc
-func (alg *AdjacencyListGraph) SetArcFlag(id NodeId, arcIndex int, flag bool) {
-	if id < 0 || id >= alg.NodeCount() {
-		panic("Node does not exist")
-	}
-	if arcIndex >= len(alg.Edges[id]) {
-		panic("Edge does not exist")
-	}
-	alg.Edges[id][arcIndex].SetArcFlag(flag)
-}
-
-// Enable all arcs in the graph
-func (alg *AdjacencyListGraph) EnableAllArcs() {
-	for i := range alg.GetNodes() {
-		alg.SetArcFlags(i, true)
+	arcs := alg.GetArcsFrom(id)
+	for i := range arcs {
+		arcs[i].SetArcFlag(flag)
 	}
 }

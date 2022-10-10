@@ -3,35 +3,26 @@ package graph
 import (
 	"fmt"
 	"strings"
+
+	geo "github.com/natevvv/osm-ship-routing/pkg/geometry"
 )
 
 type NodeId = int
 
 type Graph interface {
-	GetNode(id NodeId) Node
-	GetNodes() []Node
-	GetArcsFrom(id NodeId) []*Arc
+	GetNode(id NodeId) *geo.Point
+	GetNodes() []geo.Point
+	GetArcsFrom(id NodeId) []Arc
 	NodeCount() int
 	ArcCount() int
 	AsString() string
-	EstimateDistance(source, target NodeId) int
-	SetArcFlags(nodeId NodeId, flag bool)
-	EnableAllArcs()
 	SortArcs()
 }
 
 type DynamicGraph interface {
 	Graph
-	AddNode(n Node)
-	AddEdge(edge Edge) bool
+	AddNode(n geo.Point)
 	AddArc(from, to NodeId, distance int) bool
-}
-
-type Node struct {
-	Lon float64
-	Lat float64
-	// TODO: id?
-	// TODO: Point attribute/ implement Point type
 }
 
 type Edge struct {
@@ -48,10 +39,6 @@ type Arc struct {
 }
 
 type Arcs = []Arc
-
-func NewNode(lon float64, lat float64) *Node {
-	return &Node{Lon: lon, Lat: lat}
-}
 
 func NewEdge(to, from NodeId, distance int, arcFlag bool) *Edge {
 	return &Edge{To: to, From: from, Distance: distance, arcFlag: arcFlag}
@@ -80,20 +67,12 @@ func (e Edge) Invert() Edge {
 	return Edge{From: e.To, To: e.From, Distance: e.Distance}
 }
 
-func (e Edge) toArc() *Arc {
-	return NewArc(e.To, e.Distance, e.ArcFlag())
-}
-
 func (e Edge) ArcFlag() bool {
 	return e.arcFlag
 }
 
 func (e *Edge) SetArcFlag(flag bool) {
 	e.arcFlag = flag
-}
-
-func (a Arc) toEdge(from NodeId) *Edge {
-	return NewEdge(from, a.To, a.Distance, a.ArcFlag())
 }
 
 func (a Arc) Destination() NodeId {
@@ -118,7 +97,7 @@ func GraphAsString(g Graph) string {
 	// list all nodes structured as "id lat lon"
 	for i := 0; i < g.NodeCount(); i++ {
 		node := g.GetNode(i)
-		sb.WriteString(fmt.Sprintf("%v %v %v\n", i, node.Lat, node.Lon))
+		sb.WriteString(fmt.Sprintf("%v %v %v\n", i, node.Lat(), node.Lon()))
 	}
 
 	// list all edges structured as "fromId targetId distance"

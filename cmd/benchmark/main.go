@@ -7,14 +7,18 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"os/signal"
 	"path"
 	"runtime"
 	"runtime/pprof"
 	"strings"
+	"sync"
+	"syscall"
 	"time"
 
 	"github.com/natevvv/osm-ship-routing/pkg/graph"
 	p "github.com/natevvv/osm-ship-routing/pkg/graph/path"
+	"github.com/natevvv/osm-ship-routing/pkg/slice"
 )
 
 func main() {
@@ -24,6 +28,11 @@ func main() {
 	algorithm := flag.String("search", "default", "Select the search algorithm")
 	cpuProfile := flag.String("cpu", "", "write cpu profile to file")
 	targetGraph := flag.String("graph", "big_lazy", "Select the graph to work with")
+	// CH options
+	stallOnDemand := flag.Int("ch-stall-on-demand", 2, "Set the stall on demand level")
+	useHeuristic := flag.Bool("ch-heuristic", false, "use astar search in ch")
+	manual := flag.Bool("ch-manual", false, "Use manual (not bidirectional) search of dijkstra")
+	sortArcs := flag.Bool("ch-sort-arcs", false, "Sort the arcs according if they are active or not for each node")
 	flag.Parse()
 
 	_, filename, _, ok := runtime.Caller(0)
@@ -40,9 +49,11 @@ func main() {
 		fmt.Printf("Using graph directory: %v\n", graphDirectory)
 	}
 
+	chPathFindingOptions := p.PathFindingOptions{Manual: *manual, UseHeuristic: *useHeuristic, StallOnDemand: *stallOnDemand, SortArcs: *sortArcs}
+
 	start := time.Now()
 
-	navigator, referenceDijkstra := getNavigator(*algorithm, graphDirectory)
+	navigator, referenceDijkstra := getNavigator(*algorithm, graphDirectory, chPathFindingOptions)
 	if navigator == nil {
 		log.Fatal("Navigator not supported")
 	}
@@ -75,38 +86,66 @@ func main() {
 	benchmark(navigator, targets, referenceDijkstra)
 }
 
-func getNavigator(algorithm, graphDirectory string) (p.Navigator, *p.Dijkstra) {
+func getNavigator(algorithm, graphDirectory string, chPathFindingOptions p.PathFindingOptions) (p.Navigator, *p.Dijkstra) {
 	plainGraphFile := path.Join(graphDirectory, "plain_graph.fmi")
 	contractedGraphFile := path.Join(graphDirectory, "contracted_graph.fmi")
 	shortcutFile := path.Join(graphDirectory, "shortcuts.txt")
 	nodeOrderingFile := path.Join(graphDirectory, "node_ordering.txt")
 
-	aag := graph.NewAdjacencyArrayFromFmiFile(plainGraphFile)
-	referenceDijkstra := p.NewDijkstra(aag)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	var aag graph.Graph
+	var referenceDijkstra *p.Dijkstra
+	go func() {
+		aag = graph.NewAdjacencyArrayFromFmiFile(plainGraphFile)
+		referenceDijkstra = p.NewDijkstra(aag)
+		wg.Done()
+	}()
 
-	if algorithm == "default" {
-		return p.NewUniversalDijkstra(aag), referenceDijkstra
+	if slice.Contains([]string{"default", "dijsktra"}, algorithm) {
+		wg.Wait()
+		d := p.NewUniversalDijkstra(aag)
+		//d.SetHotStart(true)
+		return d, referenceDijkstra
 	} else if algorithm == "dijkstra" {
+		wg.Wait()
 		return p.NewUniversalDijkstra(aag), referenceDijkstra
 	} else if algorithm == "reference_dijkstra" {
+		wg.Wait()
 		return p.NewDijkstra(aag), referenceDijkstra
 	} else if algorithm == "astar" {
+		wg.Wait()
 		astar := p.NewUniversalDijkstra(aag)
 		astar.SetUseHeuristic(true)
 		return astar, referenceDijkstra
-	} else if algorithm == "bidijkstra" {
+	} else if algorithm == "bidirectional" {
+		wg.Wait()
 		bid := p.NewUniversalDijkstra(aag)
+		//bid.SetHotStart(true)
 		bid.SetBidirectional(true)
 		return bid, referenceDijkstra
 	} else if algorithm == "ch" {
-		contractedAag := graph.NewAdjacencyArrayFromFmiFile(contractedGraphFile)
-		shortcuts := p.ReadShortcutFile(shortcutFile)
-		nodeOrdering := p.ReadNodeOrderingFile(nodeOrderingFile)
+		var contractedGraph graph.Graph
+		var shortcuts []p.Shortcut
+		var nodeOrdering [][]graph.NodeId
 
-		dijkstra := p.NewUniversalDijkstra(contractedAag)
-		dijkstra.SetStallOnDemand(2)
+		wg.Add(3)
+		go func() {
+			contractedGraph = graph.NewAdjacencyArrayFromFmiFile(contractedGraphFile)
+			wg.Done()
+		}()
+		go func() {
+			shortcuts = p.ReadShortcutFile(shortcutFile)
+			wg.Done()
+		}()
+		go func() {
+			nodeOrdering = p.ReadNodeOrderingFile(nodeOrderingFile)
+			wg.Done()
+		}()
+		wg.Wait()
 
-		ch := p.NewContractionHierarchiesInitialized(contractedAag, dijkstra, shortcuts, nodeOrdering, false)
+		dijkstra := p.NewUniversalDijkstra(contractedGraph)
+		ch := p.NewContractionHierarchiesInitialized(contractedGraph, dijkstra, shortcuts, nodeOrdering, chPathFindingOptions)
 		return ch, referenceDijkstra
 	}
 
@@ -179,15 +218,81 @@ func writeTargets(targets [][4]int, targetFile string) {
 func benchmark(navigator p.Navigator, targets [][4]int, referenceDijkstra *p.Dijkstra) {
 	var runtime time.Duration = 0
 	var runtimeWithPathExtraction time.Duration = 0
+	completed := 0
 
 	pqPops := 0
 	pqUpdates := 0
+	stalledNodes := 0
+	unstalledNodes := 0
 	edgeRelaxations := 0
 	relaxationAttempts := 0
 
-	invalidLengths := make([][2]int, 0)
+	invalidLengths := make([][3]int, 0)
 	invalidResults := make([]int, 0)
 	invalidHops := make([][3]int, 0)
+
+	// get the active arcs from the graph
+	activeArcsCount := func(g graph.Graph) int {
+		counter := 0
+		for i := range g.GetNodes() {
+			arcs := g.GetArcsFrom(i)
+			for j := range arcs {
+				arc := &arcs[j]
+				if arc.ArcFlag() {
+					counter++
+				}
+			}
+		}
+		return counter
+	}
+
+	activeArcs := activeArcsCount(navigator.GetGraph())
+	activeArcsReference := activeArcsCount(referenceDijkstra.GetGraph())
+
+	if activeArcsReference != referenceDijkstra.GetGraph().ArcCount() {
+		panic("Active reference arcs are weird")
+	}
+
+	showResults := func() {
+		fmt.Printf("Average runtime: %.3fms, %.3fms\n", float64(int(runtime.Nanoseconds())/completed)/1000000, float64(int(runtimeWithPathExtraction.Nanoseconds())/completed)/1000000)
+		fmt.Printf("Average pq pops: %d\n", pqPops/completed)
+		fmt.Printf("Average pq updates: %d\n", pqUpdates/completed)
+		fmt.Printf("Average stalled nodes: %d\n", stalledNodes/completed)
+		fmt.Printf("Average unstalled nodes: %d\n", unstalledNodes/completed)
+		fmt.Printf("Average relaxations attempts: %d\n", relaxationAttempts/completed)
+		fmt.Printf("Average edge relaxations: %d\n", edgeRelaxations/completed)
+		fmt.Printf("Active arcs: %v, Active arcs (reference): %v\n", activeArcs, activeArcsReference)
+
+		fmt.Printf("%v/%v invalid Result (source/target).\n", len(invalidResults), completed)
+		for i, result := range invalidResults {
+			fmt.Printf("%v: Case %v (%v -> %v) has invalid result\n", i, result, targets[result][0], targets[result][1])
+		}
+
+		fmt.Printf("%v/%v invalid path lengths.\n", len(invalidLengths), completed)
+		for i, lengths := range invalidLengths {
+			testcase := lengths[0]
+			actualLength := lengths[1]
+			referenceLength := lengths[2]
+			fmt.Printf("%v: Case %v (%v -> %v) has invalid length. Has: %v, Reference: %v, Difference: %v\n", i, testcase, targets[testcase][0], targets[testcase][1], actualLength, referenceLength, actualLength-referenceLength)
+		}
+
+		fmt.Printf("%v/%v invalid hops number.\n", len(invalidHops), completed)
+		for i, hops := range invalidHops {
+			testcase := hops[0]
+			actualHops := hops[1]
+			referenceHops := hops[2]
+			fmt.Printf("%v: Case %v (%v -> %v) has invalid #hops. Has: %v, reference: %v, difference: %v\n", i, testcase, targets[testcase][0], targets[testcase][1], actualHops, referenceHops, actualHops-referenceHops)
+		}
+	}
+
+	// catch interrupt to still show already calculated results
+	c := make(chan os.Signal)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-c
+		showResults()
+		os.Exit(0)
+	}()
 
 	for i, target := range targets {
 		origin := target[0]
@@ -201,16 +306,18 @@ func benchmark(navigator p.Navigator, targets [][4]int, referenceDijkstra *p.Dij
 
 		pqPops += navigator.GetPqPops()
 		pqUpdates += navigator.GetPqUpdates()
+		stalledNodes += navigator.GetStalledNodesCount()
+		unstalledNodes += navigator.GetUnstalledNodesCount()
 		edgeRelaxations += navigator.GetEdgeRelaxations()
 		relaxationAttempts += navigator.GetRelaxationAttempts()
 
 		path := navigator.GetPath(origin, destination)
 		elapsedPath := time.Since(start)
 
-		fmt.Printf("[%3v TIME-Navigate, TIME-Path, PQ Pops, PQ Updates, relaxed Edges, relax attepmts] = %12s, %12s, %7d, %7d, %7d, %7d\n", i, elapsed, elapsedPath, navigator.GetPqPops(), navigator.GetPqUpdates(), navigator.GetEdgeRelaxations(), navigator.GetRelaxationAttempts())
+		fmt.Printf("[%3v TIME-Navigate, TIME-Path, PQ Pops, PQ Updates, relaxed Edges, relax attempts] = %12s, %12s, %7d, %7d, %7d, %7d\n", i, elapsed, elapsedPath, navigator.GetPqPops(), navigator.GetPqUpdates(), navigator.GetEdgeRelaxations(), navigator.GetRelaxationAttempts())
 
 		if length != referenceLength {
-			invalidLengths = append(invalidLengths, [2]int{i, length - referenceLength})
+			invalidLengths = append(invalidLengths, [3]int{i, length, referenceLength})
 		}
 		if length > -1 && (path[0] != origin || path[len(path)-1] != destination) {
 			invalidResults = append(invalidResults, i)
@@ -222,26 +329,8 @@ func benchmark(navigator p.Navigator, targets [][4]int, referenceDijkstra *p.Dij
 
 		runtime += elapsed
 		runtimeWithPathExtraction += elapsedPath
+		completed++
 	}
-
-	fmt.Printf("Average runtime: %.3fms, %.3fms\n", float64(int(runtime.Nanoseconds())/len(targets))/1000000, float64(int(runtimeWithPathExtraction.Nanoseconds())/len(targets))/1000000)
-	fmt.Printf("Average pq pops: %d\n", pqPops/len(targets))
-	fmt.Printf("Average pq updates: %d\n", pqUpdates/len(targets))
-	fmt.Printf("Average relaxations attempts: %d\n", relaxationAttempts/len(targets))
-	fmt.Printf("Average edge relaxations: %d\n", edgeRelaxations/len(targets))
-	fmt.Printf("%v/%v invalid path lengths.\n", len(invalidLengths), len(targets))
-	for i, testCase := range invalidLengths {
-		fmt.Printf("%v: Case %v (%v -> %v) has invalid length. Difference: %v\n", i, testCase[0], targets[testCase[0]][0], targets[testCase[0]][1], testCase[1])
-	}
-	fmt.Printf("%v/%v invalid Result (source/target).\n", len(invalidResults), len(targets))
-	for i, result := range invalidResults {
-		fmt.Printf("%v: Case %v (%v -> %v) has invalid result\n", i, result, targets[result][0], targets[result][1])
-	}
-	fmt.Printf("%v/%v invalid hops number.\n", len(invalidHops), len(targets))
-	for i, hops := range invalidHops {
-		testcase := hops[0]
-		actualHops := hops[1]
-		referenceHops := hops[2]
-		fmt.Printf("%v: Case %v (%v -> %v) has invalid #hops. Has: %v, reference: %v, difference: %v\n", i, testcase, targets[testcase][0], targets[testcase][1], actualHops, referenceHops, actualHops-referenceHops)
-	}
+	// normal termination, show results
+	showResults()
 }

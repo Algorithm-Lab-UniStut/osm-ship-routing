@@ -70,7 +70,7 @@ const cuttableGraph = `13
 func TestGivenNodeOrdering(t *testing.T) {
 	alg := graph.NewAdjacencyListFromFmiString(cuttableGraph)
 	dijkstra := NewUniversalDijkstra(alg)
-	ch := NewContractionHierarchies(alg, dijkstra)
+	ch := NewContractionHierarchies(alg, dijkstra, MakeDefaultContractionOptions())
 	nodeOrdering := []int{0, 1, 10, 12, 7, 4, 9, 3, 6, 5, 8, 11, 2}
 	//ch.SetDebugLevel(1)
 	ch.Precompute(nodeOrdering, MakeOrderOptions())
@@ -92,7 +92,7 @@ func TestContractGraph(t *testing.T) {
 	alg := graph.NewAdjacencyListFromFmiString(cuttableGraph)
 	dijkstra := NewUniversalDijkstra(alg)
 	dijkstra.SetDebugLevel(1)
-	ch := NewContractionHierarchies(alg, dijkstra)
+	ch := NewContractionHierarchies(alg, dijkstra, MakeDefaultContractionOptions())
 	ch.SetDebugLevel(1)
 	nodeOrdering := []int{0, 1, 10, 12, 7, 4, 9, 3, 6, 5, 8, 11, 2}
 	ch.Precompute(nodeOrdering, MakeOrderOptions())
@@ -108,11 +108,14 @@ func TestContractGraph(t *testing.T) {
 	if len(ch.GetShortcuts())/2 != 2 {
 		t.Errorf("wrong number of nodes shortcuttet.\n")
 	}
-	zeroShortcuts, ok := ch.addedShortcuts[0]
-	if !ok || zeroShortcuts != 11 {
+	if len(ch.addedShortcuts) > 2 {
+		t.Errorf("wrong number of shortcuts.\n")
+	}
+	zeroShortcuts := ch.addedShortcuts[0]
+	if zeroShortcuts != 11 {
 		t.Errorf("wrong number of 0 shortcuts\n")
 	}
-	twoShortcuts, ok := ch.addedShortcuts[2]
+	twoShortcuts := ch.addedShortcuts[1]
 	if twoShortcuts != 2 {
 		t.Errorf("wrong number of 2 shortcuts\n")
 	}
@@ -127,9 +130,10 @@ func TestPathFinding(t *testing.T) {
 	source, target := 0, 12
 	l := dijkstra.ComputeShortestPath(source, target)
 	p := dijkstra.GetPath(source, target)
-	ch := NewContractionHierarchies(alg, dijkstra)
+	ch := NewContractionHierarchies(alg, dijkstra, MakeDefaultContractionOptions())
 	nodeOrdering := []int{0, 1, 10, 12, 7, 4, 9, 3, 6, 5, 8, 11, 2}
 	ch.Precompute(nodeOrdering, MakeOrderOptions())
+	ch.ShortestPathSetup(MakeDefaultPathFindingOptions())
 	length := ch.ComputeShortestPath(source, target)
 	if l != length {
 		t.Errorf("Length do not match")
@@ -141,23 +145,24 @@ func TestPathFinding(t *testing.T) {
 
 	alg = graph.NewAdjacencyListFromFmiString(cuttableGraph)
 	dijkstra = NewUniversalDijkstra(alg)
-	ch = NewContractionHierarchies(alg, dijkstra)
+	ch = NewContractionHierarchies(alg, dijkstra, MakeDefaultContractionOptions())
 	nodeOrdering = []int{1, 5, 9, 4, 3, 11, 10, 6, 8, 2, 7, 0, 12}
 	ch.Precompute(nodeOrdering, MakeOrderOptions())
+	ch.ShortestPathSetup(MakeDefaultPathFindingOptions())
 	length = ch.ComputeShortestPath(source, target)
 	if l != length {
 		t.Errorf("Length do not match")
 	}
 	path = ch.GetPath(source, target)
 	if len(p) != len(path) || p[0] != path[0] || p[len(p)-1] != path[len(path)-1] {
-		t.Errorf("computed SP do not match. Shortcuts: %v", ch.shortcuts)
+		t.Errorf("computed SP do not match. Shortcuts: %v", ch.GetShortcuts())
 	}
 }
 
 func TestPrecompute(t *testing.T) {
 	alg := graph.NewAdjacencyListFromFmiString(cuttableGraph)
 	dijkstra := NewUniversalDijkstra(alg)
-	ch := NewContractionHierarchies(alg, dijkstra)
+	ch := NewContractionHierarchies(alg, dijkstra, MakeDefaultContractionOptions())
 	ch.SetDebugLevel(3)
 	ch.Precompute(nil, MakeOrderOptions().SetLazyUpdate(false).SetEdgeDifference(true).SetProcessedNeighbors(true).SetUpdateNeighbors(true))
 }
@@ -169,9 +174,10 @@ func TestContractionHierarchies(t *testing.T) {
 	l := dijkstra.ComputeShortestPath(source, target)
 	p := dijkstra.GetPath(source, target)
 	dijkstra.SetDebugLevel(1)
-	ch := NewContractionHierarchies(alg, dijkstra)
+	ch := NewContractionHierarchies(alg, dijkstra, MakeDefaultContractionOptions())
 	ch.SetDebugLevel(2)
 	ch.Precompute(nil, MakeOrderOptions().SetLazyUpdate(false).SetEdgeDifference(true).SetProcessedNeighbors(true).SetUpdateNeighbors(true))
+	ch.ShortestPathSetup(MakeDefaultPathFindingOptions())
 	length := ch.ComputeShortestPath(source, target)
 	if length != l {
 		t.Errorf("Length does not match")
@@ -186,24 +192,26 @@ func TestContractionHierarchies(t *testing.T) {
 }
 
 func TestRandomContraction(t *testing.T) {
-	alg := graph.NewAdjacencyListFromFmiString(cuttableGraph)
-	dijkstra := NewUniversalDijkstra(alg)
+	referenceAlg := graph.NewAdjacencyListFromFmiString(cuttableGraph)
+	referenceDijkstra := NewUniversalDijkstra(referenceAlg)
 	source, target := 0, 12
-	l := dijkstra.ComputeShortestPath(source, target)
-	p := dijkstra.GetPath(source, target)
+	l := referenceDijkstra.ComputeShortestPath(source, target)
+	p := referenceDijkstra.GetPath(source, target)
 	for i := 0; i < 100; i++ {
-		alg = graph.NewAdjacencyListFromFmiString(cuttableGraph)
-		dijkstra = NewUniversalDijkstra(alg)
-		ch := NewContractionHierarchies(alg, dijkstra)
-		//ch.SetDebugLevel(2)
+		alg := graph.NewAdjacencyListFromFmiString(cuttableGraph)
+		dijkstra := NewUniversalDijkstra(alg)
+		//dijkstra.SetDebugLevel(3)
+		ch := NewContractionHierarchies(alg, dijkstra, MakeDefaultContractionOptions())
+		//ch.SetDebugLevel(3)
 		ch.Precompute(nil, MakeOrderOptions().SetLazyUpdate(false).SetRandom(true))
+		ch.ShortestPathSetup(MakeDefaultPathFindingOptions())
 		length := ch.ComputeShortestPath(source, target)
 		if length != l {
 			t.Errorf("Length does not match - Is: %v. Should: %v", length, l)
 		}
 		path := ch.GetPath(source, target)
 		if len(p) != len(path) || p[0] != path[0] || p[len(p)-1] != path[len(path)-1] {
-			t.Errorf("computed SP do not match. Shortcuts: %v", ch.shortcuts)
+			t.Errorf("computed SP do not match. Shortcuts: %v", ch.GetShortcuts())
 		}
 	}
 }
