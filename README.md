@@ -56,27 +56,27 @@ The output (i.e. the list of polygons) is either written to the GeoJSON file or 
 ./graph-builder [-gridgraph [-grid-type TYPE] [-nTarget N] [-neighbors N]] [-contract graphFile [contraction-limit LIMIT] [-contraction-workers WORKERS] [-bidirectional] [-use-heuristic] [-use-cache] [-cold-start] [-max-settled-nodes] [-no-lazy-update] [-no-edge-difference] [-no-processed-neighbors] [-periodic] [-update-neighbors] [-dijkstra-debug] [-ch-debug]]
 ```
 
-| Option                  | Value   | Information                                                                                                                          |
-| ----------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| -gridgraph              | boolean | Build a gridgraph. See below for more information.                                                                                   |
-| -contract               | string  | Contract the given graph. The file must be available at the `graphs` directory                                                       |
-| -grid-type              | string  | (-gridgraph only) Define the type of the grid. Either "simple-sphere" or "equi-sphere" (default)                                     |
-| -nTarget                | int     | (-gridgraph only) Define the density/number of targets for the grid. Typical values: 1e6 (equi-sphere, default), 710 (simple-sphere) |
-| -neighbors              | int     | (-gridgraph only) Define the number of neighbors on the grid (only equi-sphere). Either 4 (default) or 6                             |
-| -contraction-limit      | float   | (-contract only) limit the contraction up to a certain level (this specifies the percentage)                                         |
-| -contraction-workers    | int     | (-contract only) specify how many workers can work in parallel on the contraction                                                    |
-| -bidirectional          | boolean | (-contract only) Compute the contraction bidirectional                                                                               |
-| -use-heuristic          | boolean | (-contract only) Use A\* search for contraction                                                                                      |
-| -use-cache              | boolean | (-contract only) Cache the contraction results                                                                                       |
-| -cold-start             | boolean | (-contract only) explicitely do a cold start (not hot start) when computing contraction                                              |
-| -max-settled-nodes      | boolean | (-contract only) Set the number of max allowed settled nodes for each contraction                                                    |
-| -no-lazy-update         | boolean | (-contract only) Disable lazy update for ch                                                                                          |
-| -no-edge-difference     | boolean | (-contract only) Disable edge difference for ch                                                                                      |
-| -no-processed-neighbors | boolean | (-contract only) Disable processed neighbors for ch                                                                                  |
-| -periodic               | boolean | (-contract only) recompute contraction priority periodically for ch                                                                  |
-| -update-neighbors       | boolean | (-contract only) update neighbors (priority) of contracted nodes for ch                                                              |
-| -dijkstra-debug         | int     | (-contract only) Set the debug level for dijkstra                                                                                    |
-| -ch-debug               | int     | (-contract only) Set the debug level for ch                                                                                          |
+| Option                               | Value   | Information                                                                                                                          |
+| ------------------------------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| <nobr>-gridgraph</nobr>              | boolean | Build a gridgraph. See below for more information.                                                                                   |
+| <nobr>-contract</nobr>               | string  | Contract the given graph. The file must be available at the `graphs` directory                                                       |
+| <nobr>-grid-type</nobr>              | string  | (-gridgraph only) Define the type of the grid. Either "simple-sphere" or "equi-sphere" (default)                                     |
+| <nobr>-nTarget</nobr>                | int     | (-gridgraph only) Define the density/number of targets for the grid. Typical values: 1e6 (equi-sphere, default), 710 (simple-sphere) |
+| <nobr>-neighbors</nobr>              | int     | (-gridgraph only) Define the number of neighbors on the grid (only equi-sphere). Either 4 (default) or 6                             |
+| <nobr>-contraction-limit</nobr>      | float   | (-contract only) limit the contraction up to a certain level (this specifies the percentage)                                         |
+| <nobr>-contraction-workers</nobr>    | int     | (-contract only) specify how many workers can work in parallel on the contraction                                                    |
+| <nobr>-bidirectional</nobr>          | boolean | (-contract only) Compute the contraction bidirectional                                                                               |
+| <nobr>-use-heuristic</nobr>          | boolean | (-contract only) Use A\* search for contraction                                                                                      |
+| <nobr>-use-cache</nobr>              | boolean | (-contract only) Cache the contraction results                                                                                       |
+| <nobr>-cold-start</nobr>             | boolean | (-contract only) explicitely do a cold start (not hot start) when computing contraction                                              |
+| <nobr>-max-settled-nodes</nobr>      | boolean | (-contract only) Set the number of max allowed settled nodes for each contraction                                                    |
+| <nobr>-no-lazy-update</nobr>         | boolean | (-contract only) Disable lazy update for ch                                                                                          |
+| <nobr>-no-edge-difference</nobr>     | boolean | (-contract only) Disable edge difference for ch                                                                                      |
+| <nobr>-no-processed-neighbors</nobr> | boolean | (-contract only) Disable processed neighbors for ch                                                                                  |
+| <nobr>-periodic</nobr>               | boolean | (-contract only) recompute contraction priority periodically for ch                                                                  |
+| <nobr>-update-neighbors</nobr>       | boolean | (-contract only) update neighbors (priority) of contracted nodes for ch                                                              |
+| <nobr>-dijkstra-debug</nobr>         | int     | (-contract only) Set the debug level for dijkstra                                                                                    |
+| <nobr>-ch-debug</nobr>               | int     | (-contract only) Set the debug level for ch                                                                                          |
 
 #### Build the basic grid graph
 
@@ -116,18 +116,18 @@ The output is written to a file in the `fmi` format.
 
 Runs a benchmark with the given parameters.
 
-| Option              | Value  | Information                                                                                                                                                                                                                                                                                                                                  |
-| ------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| -random             | bool   | If set, random targets will be created                                                                                                                                                                                                                                                                                                       |
-| -n                  | int    | specify how many benchmarks are performed                                                                                                                                                                                                                                                                                                    |
-| -store              | bool   | If set, the created benchmarks (targets) will be stored                                                                                                                                                                                                                                                                                      |
-| -search             | string | Select the algorithm which performs the search. Available options are: `dijkstra` (common Dijkstra algorithm), `reference` (reference dijkstra with almost no configurability), `astar` (A\* search), `bidijkstra` (Bidirectional Dijkstra), `ch` (Contraction Hierarchies). The default is `dijkstra`                                       |
-| -graph              | string | Specify the graph on which the benchmark is performed. This has to be a folder in the `graphs` directory. It should contain 4 files: `plain_graph.fmi` (the plain graph), `contracted_graph.fmi` (the contracted graph), `shortcuts.txt` (the shortcut list for the contraction), `node_ordering.txt` (the node ordering of the contraction) |
-| -cpu                | bool   | if set, a cpu profile is created during the benchmarking                                                                                                                                                                                                                                                                                     |
-| -ch-stall-on-demand | int    | (only if "-search ch" is used) Set the stall on demand level. 0 = no stalling, 1 = only stall current node, 2 = stall node preemtpive, 3 = stall current node and possible successors, 4 = stall node preemptive and possible successors                                                                                                     |
-| -ch-heuristic       | bool   | (only if "-search ch" is used) use astar search in ch                                                                                                                                                                                                                                                                                        |
-| -ch-manual          | bool   | (only if "-search ch" is used) Use manual (not bidirectional) search of dijkstra                                                                                                                                                                                                                                                             |
-| -ch-sort-arcs       | bool   | (only if "-search ch" is used) Sort the arcs according if they are active or not for each node                                                                                                                                                                                                                                               |
+| Option                           | Value  | Information                                                                                                                                                                                                                                                                                                                                  |
+| -------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| <nobr>-random </nobr>            | bool   | If set, random targets will be created                                                                                                                                                                                                                                                                                                       |
+| <nobr>-n </nobr>                 | int    | specify how many benchmarks are performed                                                                                                                                                                                                                                                                                                    |
+| <nobr>-store </nobr>             | bool   | If set, the created benchmarks (targets) will be stored                                                                                                                                                                                                                                                                                      |
+| <nobr>-search </nobr>            | string | Select the algorithm which performs the search. Available options are: `dijkstra` (common Dijkstra algorithm), `reference` (reference dijkstra with almost no configurability), `astar` (A\* search), `bidijkstra` (Bidirectional Dijkstra), `ch` (Contraction Hierarchies). The default is `dijkstra`                                       |
+| <nobr>-graph </nobr>             | string | Specify the graph on which the benchmark is performed. This has to be a folder in the `graphs` directory. It should contain 4 files: `plain_graph.fmi` (the plain graph), `contracted_graph.fmi` (the contracted graph), `shortcuts.txt` (the shortcut list for the contraction), `node_ordering.txt` (the node ordering of the contraction) |
+| <nobr>-cpu </nobr>               | bool   | if set, a cpu profile is created during the benchmarking                                                                                                                                                                                                                                                                                     |
+| <nobr>-ch-stall-on-demand</nobr> | int    | (only if "-search ch" is used) Set the stall on demand level. 0 = no stalling, 1 = only stall current node, 2 = stall node preemtpive, 3 = stall current node and possible successors, 4 = stall node preemptive and possible successors                                                                                                     |
+| <nobr>-ch-heuristic </nobr>      | bool   | (only if "-search ch" is used) use astar search in ch                                                                                                                                                                                                                                                                                        |
+| <nobr>-ch-manual </nobr>         | bool   | (only if "-search ch" is used) Use manual (not bidirectional) search of dijkstra                                                                                                                                                                                                                                                             |
+| <nobr>-ch-sort-arcs </nobr>      | bool   | (only if "-search ch" is used) Sort the arcs according if they are active or not for each node                                                                                                                                                                                                                                               |
 
 ### OSM-Server
 
@@ -139,10 +139,10 @@ Runs a benchmark with the given parameters.
 
 Starts a HTTP server at port 8081.
 
-| Option     | Value  | Information                                                                                                                                                                                                                                                                                                 |
-| ---------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| -graph     | string | Specify the used graph. This must be a directory in the `graphs` folder. It should contain 4 files: `plain_graph.fmi` (the plain graph), `contracted_graph.fmi` (the contracted graph), `shortcuts.txt` (the shortcut list for the contraction), `node_ordering.txt` (the node ordering of the contraction) |
-| -navigator | string | Set the search algorithm. Available options are:Available options are: `dijkstra` (common dijkstra algorithm), `astar` (A\* search), `bidirectional-dijkstra` (Bidirectional Dijkstra), `contraction-hierarchies` (Contraction Hierarchies). The default is `contraction-hierarchies`                       |
+| Option                  | Value  | Information                                                                                                                                                                                                                                                                                                 |
+| ----------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| <nobr>-graph </nobr>    | string | Specify the used graph. This must be a directory in the `graphs` folder. It should contain 4 files: `plain_graph.fmi` (the plain graph), `contracted_graph.fmi` (the contracted graph), `shortcuts.txt` (the shortcut list for the contraction), `node_ordering.txt` (the node ordering of the contraction) |
+| <nobr>-navigator</nobr> | string | Set the search algorithm. Available options are:Available options are: `dijkstra` (common dijkstra algorithm), `astar` (A\* search), `bidirectional-dijkstra` (Bidirectional Dijkstra), `contraction-hierarchies` (Contraction Hierarchies). The default is `contraction-hierarchies`                       |
 
 #### Change search algorithm
 
@@ -231,7 +231,7 @@ Graph Contraction: Lazy update, parallel processing (with independent set) - bas
 Search: "preemptive" stall-on-demand, early termination (when best connection is found) - basically default parameters
 
 ```.bash
-/benchmark -graph big_lazy_parallel -n 1000 -search ch
+./benchmark -graph big_lazy_parallel -n 1000 -search ch
 ```
 
 | Details (for 1000 runs)                |          |
