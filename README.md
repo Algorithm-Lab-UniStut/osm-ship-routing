@@ -39,7 +39,7 @@ If you want to contract a graph, you need an plain fmi-graph directly in the `gr
 2. Run `go mod download`
 3. Run `go build [-o <BINARY>] <PATH_TO_MAIN.GO>` to build a binary for a specified go file.
 
-The main files are stored at `cmd/<BINARY>`.
+The main files are stored at `./cmd/<BINARY>`.
 
 ### Merge Coastlines
 
