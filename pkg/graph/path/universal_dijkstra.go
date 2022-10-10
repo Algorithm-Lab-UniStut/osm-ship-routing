@@ -64,7 +64,7 @@ type SearchOptions struct {
 // Implements the Navigator Interface.
 type UniversalDijkstra struct {
 	g       graph.Graph
-	minHeap *queue.MinHeap[*DijkstraItem] // priority queue to find the shortest path
+	minHeap queue.MinHeap[*DijkstraItem] // priority queue to find the shortest path
 
 	origin      graph.NodeId // the origin of the current search
 	destination graph.NodeId // the distination of the current search
@@ -429,7 +429,7 @@ func (d *UniversalDijkstra) initializeSearch(origin, destination graph.NodeId) {
 	// Initialize priority queue
 	heuristic := heuristicValue(d.searchOptions.useHeuristic, d.g, d.origin, d.destination)
 	originItem := NewDijkstraItem(d.origin, 0, -1, heuristic, FORWARD)
-	d.minHeap = queue.NewMinHeap[*DijkstraItem](nil)
+	d.minHeap = *queue.NewMinHeap[*DijkstraItem](nil)
 	d.minHeap.Push(originItem)
 	d.settleNode(originItem)
 
