@@ -121,7 +121,7 @@ Runs a benchmark with the given parameters.
 | -random             | bool   | If set, random targets will be created                                                                                                                                                                                                                                                                                                       |
 | -n                  | int    | specify how many benchmarks are performed                                                                                                                                                                                                                                                                                                    |
 | -store              | bool   | If set, the created benchmarks (targets) will be stored                                                                                                                                                                                                                                                                                      |
-| -search             | string | Select the algorithm which performs the search. Available options are: `dijkstra` (common dijsktra algorithm), `reference` (reference dijkstra with almost no configurability), `astar` (A\* search), `bidijkstra` (Bidirectional Dijkstra), `ch` (Contraction Hierarchies). The default is `dijkstra`                                       |
+| -search             | string | Select the algorithm which performs the search. Available options are: `dijkstra` (common Dijkstra algorithm), `reference` (reference dijkstra with almost no configurability), `astar` (A\* search), `bidijkstra` (Bidirectional Dijkstra), `ch` (Contraction Hierarchies). The default is `dijkstra`                                       |
 | -graph              | string | Specify the graph on which the benchmark is performed. This has to be a folder in the `graphs` directory. It should contain 4 files: `plain_graph.fmi` (the plain graph), `contracted_graph.fmi` (the contracted graph), `shortcuts.txt` (the shortcut list for the contraction), `node_ordering.txt` (the node ordering of the contraction) |
 | -cpu                | bool   | if set, a cpu profile is created during the benchmarking                                                                                                                                                                                                                                                                                     |
 | -ch-stall-on-demand | int    | (only if "-search ch" is used) Set the stall on demand level. 0 = no stalling, 1 = only stall current node, 2 = stall node preemtpive, 3 = stall current node and possible successors, 4 = stall node preemptive and possible successors                                                                                                     |
@@ -142,7 +142,7 @@ Starts a HTTP server at port 8081.
 | Option     | Value  | Information                                                                                                                                                                                                                                                                                                 |
 | ---------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | -graph     | string | Specify the used graph. This must be a directory in the `graphs` folder. It should contain 4 files: `plain_graph.fmi` (the plain graph), `contracted_graph.fmi` (the contracted graph), `shortcuts.txt` (the shortcut list for the contraction), `node_ordering.txt` (the node ordering of the contraction) |
-| -navigator | string | Set the search algorithm. Available options are:Available options are: `dijkstra` (common dijsktra algorithm), `astar` (A\* search), `bidirectional-dijkstra` (Bidirectional Dijkstra), `contraction-hierarchies` (Contraction Hierarchies). The default is `contraction-hierarchies`                       |
+| -navigator | string | Set the search algorithm. Available options are:Available options are: `dijkstra` (common dijkstra algorithm), `astar` (A\* search), `bidirectional-dijkstra` (Bidirectional Dijkstra), `contraction-hierarchies` (Contraction Hierarchies). The default is `contraction-hierarchies`                       |
 
 #### Change search algorithm
 
@@ -165,17 +165,19 @@ This sets the search algorithm to `dijkstra`. If the request is sucessful, a str
 | Bidirectional Dijkstra     | 74.518ms |      76,05% |                       74.598ms |      76,07% |  237588 |      70,90% |
 | A\*                        | 44.494ms |      45,41% |                       44.555ms |      45,43% |   96834 |      28,90% |
 | Contraction Hierarchies    | 17.274ms |      17,63% |                       18.184ms |      18,54% |    3587 |       1,07% |
-| Plain Dijsktra (Reference) | 68.848ms |      70,26% |                       69.040ms |      70,40% |  335123 |     100,00% |
+| Plain Dijkstra (Reference) | 68.848ms |      70,26% |                       69.040ms |      70,40% |  335123 |     100,00% |
 
 The benchmark was run on a graph with 2806858 edges (and xxx active activated edges in the contraction)
 
-### Plain Dijsktra
+### Plain Dijkstra
 
 No special settings for plain Dijkstra.
 
 Note: This algorithm is slower than the reference. Most likely, this happens due to several if conditions how this algorithm can get parameterized.
 
-`./benchmark -graph big_lazy_parallel -n 1000 -search dijkstra`
+```bash
+./benchmark -graph big_lazy_parallel -n 1000 -search dijkstra
+```
 
 | Details (for 1000 runs)                |          |
 | -------------------------------------- | -------: |
@@ -186,11 +188,13 @@ Note: This algorithm is slower than the reference. Most likely, this happens due
 | Average Edge relaxations               |  1331144 |
 | Average relaxation attempts            |  1331144 |
 
-### Bidirectional Dijsktra
+### Bidirectional Dijkstra
 
 No special settigns for bidirectional Dijstra.
 
-`./benchmark -graph big_lazy_parallel -n 1000 -search bidirectional`
+```bash
+./benchmark -graph big_lazy_parallel -n 1000 -search bidirectional
+```
 
 | Details (for 1000 runs)                |          |
 | -------------------------------------- | -------: |
@@ -205,7 +209,9 @@ No special settigns for bidirectional Dijstra.
 
 No special settings for A\*.
 
-`./benchmark -graph big_lazy_parallel -n 1000 -search astar`
+```bash
+./benchmark -graph big_lazy_parallel -n 1000 -search astar
+```
 
 | Details (for 1000 runs)                |          |
 | -------------------------------------- | -------: |
@@ -224,7 +230,9 @@ Graph Contraction: Lazy update, parallel processing (with independent set) - bas
 
 Search: "preemptive" stall-on-demand, early termination (when best connection is found) - basically default parameters
 
-`./benchmark -graph big_lazy_parallel -n 1000 -search ch`
+```.bash
+/benchmark -graph big_lazy_parallel -n 1000 -search ch
+```
 
 | Details (for 1000 runs)                |          |
 | -------------------------------------- | -------: |
@@ -239,13 +247,15 @@ Search: "preemptive" stall-on-demand, early termination (when best connection is
 
 _There may be different result with other settings or graphs, which may get reported later. E.g. using reursive stall-on-demand increases drastically the seach runtime._
 
-### Plain Dijsktra (Reference)
+### Plain Dijkstra (Reference)
 
-This is just a simple Dijsktra algorithm, which is used as a reference.
+This is just a simple Dijkstra algorithm, which is used as a reference.
 It just used a priority queue to maintain its items.
 No additional checks or other stuff is added here.
 
-`./benchmark -graph big_lazy_parallel -n 1000 -search reference`
+```bash
+./benchmark -graph big_lazy_parallel -n 1000 -search reference
+```
 
 | Details (for 1000 runs)                |          |
 | -------------------------------------- | -------: |
