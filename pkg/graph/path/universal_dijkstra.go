@@ -68,24 +68,21 @@ type BidirectionalConnection struct {
 
 // Reset the search stats
 func (stats *SearchStats) Reset(size int, stallLevel int) {
-	stats.visitedNodes = make([]bool, size)
-	stats.searchSpace = make([]*DijkstraItem, size)
-	/*
-		if stats.visitedNodes == nil {
-			stats.visitedNodes = make([]bool, size)
-		} else {
-			for i := range stats.visitedNodes {
-				stats.visitedNodes[i] = false
-			}
+	if stats.visitedNodes == nil {
+		stats.visitedNodes = make([]bool, size)
+	} else {
+		for i := range stats.visitedNodes {
+			stats.visitedNodes[i] = false
 		}
-		if stats.searchSpace == nil {
-			stats.searchSpace = make([]*DijkstraItem, size)
-		} else {
-			for i := range stats.searchSpace {
-				stats.searchSpace[i] = nil
-			}
+	}
+	if stats.searchSpace == nil {
+		stats.searchSpace = make([]*DijkstraItem, size)
+	} else {
+		for i := range stats.searchSpace {
+			stats.searchSpace[i] = nil
 		}
-	*/
+	}
+
 	if stallLevel > 0 {
 		stats.stalledNodes = make([]bool, size)
 		stats.stallingDistance = make([]int, size)
@@ -612,7 +609,8 @@ func (d *UniversalDijkstra) stallNode(node *DijkstraItem, stallingDistance int) 
 	var stallNodes []graph.NodeId
 	if d.searchOptions.stallOnDemand <= 2 {
 		// just stall the current node
-		stallNodes = bfs(node.NodeId(), stallingDistance, searchSpace, stalledNodes, stallingDistances, 1)
+		stallingDistances[node.NodeId()] = stallingDistance
+		stallNodes = []graph.NodeId{node.NodeId()}
 	} else if d.searchOptions.stallOnDemand >= 3 {
 		// stall recursively
 		// however, this takes very long time (even for very few hops)
