@@ -16,16 +16,6 @@ type SearchStats struct {
 	stallingDistance []int           // stalling distance for node (index=id)
 }
 
-// Reset the search stats
-func (stats *SearchStats) Reset(size int, stallLevel int) {
-	stats.visitedNodes = make([]bool, size)
-	stats.searchSpace = make([]*DijkstraItem, size)
-	if stallLevel > 0 {
-		stats.stalledNodes = make([]bool, size)
-		stats.stallingDistance = make([]int, size)
-	}
-}
-
 type SearchKPIs struct {
 	pqPops             int // store the amount of Pops which were performed on the priority queue for the computed search
 	pqUpdates          int // store each update or push to the priority queue
@@ -34,17 +24,6 @@ type SearchKPIs struct {
 	numSettledNodes    int // number of settled nodes
 	stalledNodes       int // number of stalled nodes (invocations)
 	unstalledNodes     int // number of unstalled nodes (invocations)
-}
-
-// Reset the kpi
-func (kpi *SearchKPIs) Reset() {
-	kpi.pqPops = 0
-	kpi.pqUpdates = 0
-	kpi.relaxationAttempts = 0
-	kpi.relaxedEdges = 0
-	kpi.numSettledNodes = 0
-	kpi.stalledNodes = 0
-	kpi.unstalledNodes = 0
 }
 
 type SearchOptions struct {
@@ -87,6 +66,27 @@ type BidirectionalConnection struct {
 	distance    int          // the whole distance (in both directions)
 }
 
+// Reset the search stats
+func (stats *SearchStats) Reset(size int, stallLevel int) {
+	stats.visitedNodes = make([]bool, size)
+	stats.searchSpace = make([]*DijkstraItem, size)
+	if stallLevel > 0 {
+		stats.stalledNodes = make([]bool, size)
+		stats.stallingDistance = make([]int, size)
+	}
+}
+
+// Reset the kpi
+func (kpi *SearchKPIs) Reset() {
+	kpi.pqPops = 0
+	kpi.pqUpdates = 0
+	kpi.relaxationAttempts = 0
+	kpi.relaxedEdges = 0
+	kpi.numSettledNodes = 0
+	kpi.stalledNodes = 0
+	kpi.unstalledNodes = 0
+}
+
 // Reset/invalidate the connection
 func (con *BidirectionalConnection) Reset() {
 	con.nodeId = -1
@@ -96,27 +96,6 @@ func (con *BidirectionalConnection) Reset() {
 func NewUniversalDijkstra(g graph.Graph) *UniversalDijkstra {
 	options := SearchOptions{costUpperBound: math.MaxInt, maxNumSettledNodes: math.MaxInt, ignoreNodes: make([]bool, g.NodeCount())}
 	return &UniversalDijkstra{g: g, searchOptions: options, origin: -1, destination: -1}
-}
-
-// helper function to align the given items a,b with the search direction.
-// if FORWARD, a and b don't change
-// if BACKWARD, a and b are swapped
-func alignWithSearchDirection[T any](searchDirection Direction, a, b T) (T, T) {
-	if searchDirection == FORWARD {
-		return a, b
-	} else if searchDirection == BACKWARD {
-		return b, a
-	}
-	panic("Search direction not supported")
-}
-
-// hepler function for AStar to calculate the heuristic value from origin to destination
-// Returns 0 if useHeuristic is false
-func heuristicValue(useHeuristic bool, g graph.Graph, origin, destination graph.NodeId) int {
-	if useHeuristic {
-		return int(0.99 * float64(g.GetNode(origin).IntHaversine(g.GetNode(destination))))
-	}
-	return 0
 }
 
 // Compute the shortest path from the origin to the destination.
@@ -726,4 +705,25 @@ func (d *UniversalDijkstra) GetGraph() graph.Graph { return d.g }
 // If it is 0, no debug messages are printed
 func (d *UniversalDijkstra) SetDebugLevel(level int) {
 	d.debugLevel = level
+}
+
+// helper function to align the given items a,b with the search direction.
+// if FORWARD, a and b don't change
+// if BACKWARD, a and b are swapped
+func alignWithSearchDirection[T any](searchDirection Direction, a, b T) (T, T) {
+	if searchDirection == FORWARD {
+		return a, b
+	} else if searchDirection == BACKWARD {
+		return b, a
+	}
+	panic("Search direction not supported")
+}
+
+// helper function for AStar to calculate the heuristic value from origin to destination
+// Returns 0 if useHeuristic is false
+func heuristicValue(useHeuristic bool, g graph.Graph, origin, destination graph.NodeId) int {
+	if useHeuristic {
+		return int(0.99 * float64(g.GetNode(origin).IntHaversine(g.GetNode(destination))))
+	}
+	return 0
 }
