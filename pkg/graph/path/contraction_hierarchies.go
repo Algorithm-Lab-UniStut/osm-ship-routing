@@ -784,7 +784,7 @@ func (ch *ContractionHierarchies) contractNodes(minHeap *queue.MinHeap[*OrderIte
 		}
 
 		// update all nodes or neighbors (if required)
-		if oo.IsPeriodic() && level%100 == 0 {
+		if oo.IsPeriodic() && (level%1000 == 0 || intermediateUpdates > 100) {
 			remainingNodes := func() []graph.NodeId {
 				remainingNodes := make([]graph.NodeId, minHeap.Len())
 				for i := 0; i < minHeap.Len(); i++ {
@@ -794,6 +794,7 @@ func (ch *ContractionHierarchies) contractNodes(minHeap *queue.MinHeap[*OrderIte
 				return remainingNodes
 			}()
 			ch.updateOrderForNodes(minHeap, remainingNodes, oo)
+			intermediateUpdates = 0
 		} else if oo.UpdateNeighbors() {
 			uniqueNeighbors := func() []graph.NodeId {
 				uniqueNodes := make([]graph.NodeId, 0)
