@@ -37,12 +37,14 @@ If you want to contract a graph, you need an plain fmi-graph directly in the `gr
 
 1. Clone the repository
 2. Run `go mod download`
-3. Run `go build -o <BINARY> <PATH_TO_MAIN.GO>` to build a binary for a specified go file.
+3. Run `go build [-o <BINARY>] <PATH_TO_MAIN.GO>` to build a binary for a specified go file.
+
+The main files are stored at `cmd/<BINARY>`.
 
 ### Merge Coastlines
 
 ```bash
-go run cmd/merger/main.go
+./merger
 ```
 
 Extracts coastline segments from a `.pbf` file and merges them to closed coastlines.
@@ -51,20 +53,35 @@ The output (i.e. the list of polygons) is either written to the GeoJSON file or 
 ### Graph Builder
 
 ```bash
-go run cmd/graph-builder/main.go [-gridgraph] [-contract graphFile] [contraction-limit limit] [-contraction-workers workers]
+./graph-builder [-gridgraph [-grid-type TYPE] [-nTarget N] [-neighbors N]] [-contract graphFile [contraction-limit LIMIT] [-contraction-workers WORKERS] [-bidirectional] [-use-heuristic] [-use-cache] [-cold-start] [-max-settled-nodes] [-no-lazy-update] [-no-edge-difference] [-no-processed-neighbors] [-periodic] [-update-neighbors] [-dijkstra-debug] [-ch-debug]]
 ```
 
-| Option               | Value   | Information                                                                    |
-| -------------------- | ------- | ------------------------------------------------------------------------------ |
-| -gridgraph           | boolean | Build a gridgraph. See below for more information.                             |
-| -contract            | string  | Contract the given graph. The file must be available at the `graphs` directory |
-| -contraction-limit   | float   | limit the contraction up to a certain level (this specifies the percentage)    |
-| -contraction-workers | int     | specify how many workers can work in parallel on the contraction               |
+| Option                  | Value   | Information                                                                                                                          |
+| ----------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| -gridgraph              | boolean | Build a gridgraph. See below for more information.                                                                                   |
+| -contract               | string  | Contract the given graph. The file must be available at the `graphs` directory                                                       |
+| -grid-type              | string  | (-gridgraph only) Define the type of the grid. Either "simple-sphere" or "equi-sphere" (default)                                     |
+| -nTarget                | int     | (-gridgraph only) Define the density/number of targets for the grid. Typical values: 1e6 (equi-sphere, default), 710 (simple-sphere) |
+| -neighbors              | int     | (-gridgraph only) Define the number of neighbors on the grid (only equi-sphere). Either 4 (default) or 6                             |
+| -contraction-limit      | float   | (-contract only) limit the contraction up to a certain level (this specifies the percentage)                                         |
+| -contraction-workers    | int     | (-contract only) specify how many workers can work in parallel on the contraction                                                    |
+| -bidirectional          | boolean | (-contract only) Compute the contraction bidirectional                                                                               |
+| -use-heuristic          | boolean | (-contract only) Use A\* search for contraction                                                                                      |
+| -use-cache              | boolean | (-contract only) Cache the contraction results                                                                                       |
+| -cold-start             | boolean | (-contract only) explicitely do a cold start (not hot start) when computing contraction                                              |
+| -max-settled-nodes      | boolean | (-contract only) Set the number of max allowed settled nodes for each contraction                                                    |
+| -no-lazy-update         | boolean | (-contract only) Disable lazy update for ch                                                                                          |
+| -no-edge-difference     | boolean | (-contract only) Disable edge difference for ch                                                                                      |
+| -no-processed-neighbors | boolean | (-contract only) Disable processed neighbors for ch                                                                                  |
+| -periodic               | boolean | (-contract only) recompute contraction priority periodically for ch                                                                  |
+| -update-neighbors       | boolean | (-contract only) update neighbors (priority) of contracted nodes for ch                                                              |
+| -dijkstra-debug         | int     | (-contract only) Set the debug level for dijkstra                                                                                    |
+| -ch-debug               | int     | (-contract only) Set the debug level for ch                                                                                          |
 
 #### Build the basic grid graph
 
 ```bash
-go run cmd/graph-builder/main.go -gridgraph
+./graph-builder -gridgraph
 ```
 
 Builds a spherical grid graph and implements the point-in-polygon test to check which grid points are in the ocean and will thus become nodes in the graph.
@@ -76,7 +93,7 @@ Distributes nodes equally along the latidue and longitude axis.
 
 Available Parameters:
 
--   density: The overall number of grid points will be $2*density^2$.
+-   nTargets: The overall number of grid points will be $2*nTargets^2$. This is a density value
 
 ##### Equidistributed Grid
 
@@ -94,28 +111,30 @@ The output is written to a file in the `fmi` format.
 ### Run Dijkstra Benchmarks
 
 ```bash
-go run cmd/benchmark/main.go [-random] [-n amount] [-store] [-search algorithm] [-cpu] [-graph]
+./benchmark [-random] [-n AMOUNT] [-store] [-search ALGORITHM  [-ch-stall-on-demand LEVEL] [-ch-heuristic] [-ch-manual] [-ch-sort-args]] [-cpu] [-graph FOLDER]
 ```
 
 Runs a benchmark with the given parameters.
 
-| Option  | Value  | Information                                                                                                                                                                                                                                                                                                                                  |
-| ------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| -random | bool   | If set, random targets will be created                                                                                                                                                                                                                                                                                                       |
-| -n      | int    | specify how many benchmarks are performed                                                                                                                                                                                                                                                                                                    |
-| -store  | bool   | If set, the created benchmarks (targets) will be stored                                                                                                                                                                                                                                                                                      |
-| -search | string | Select the algorithm which performs the search. Available options are: `dijkstra` (common dijsktra algorithm), `reference_dijkstra` (reference dijkstra with almost no configurability), `astar` (A\* search), `bidijkstra` (Bidirectional Dijkstra), `ch` (Contraction Hierarchies). The default is `dijkstra`                              |
-| -cpu    | bool   | if set, a cpu profile is created during the benchmarking                                                                                                                                                                                                                                                                                     |
-| -graph  | string | Specify the graph on which the benchmark is performed. This has to be a folder in the `graphs` directory. It should contain 4 files: `plain_graph.fmi` (the plain graph), `contracted_graph.fmi` (the contracted graph), `shortcuts.txt` (the shortcut list for the contraction), `node_ordering.txt` (the node ordering of the contraction) |
-
-Note: The are also other options, which can be controlled in the code.
+| Option              | Value  | Information                                                                                                                                                                                                                                                                                                                                  |
+| ------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| -random             | bool   | If set, random targets will be created                                                                                                                                                                                                                                                                                                       |
+| -n                  | int    | specify how many benchmarks are performed                                                                                                                                                                                                                                                                                                    |
+| -store              | bool   | If set, the created benchmarks (targets) will be stored                                                                                                                                                                                                                                                                                      |
+| -search             | string | Select the algorithm which performs the search. Available options are: `dijkstra` (common dijsktra algorithm), `reference` (reference dijkstra with almost no configurability), `astar` (A\* search), `bidijkstra` (Bidirectional Dijkstra), `ch` (Contraction Hierarchies). The default is `dijkstra`                                       |
+| -graph              | string | Specify the graph on which the benchmark is performed. This has to be a folder in the `graphs` directory. It should contain 4 files: `plain_graph.fmi` (the plain graph), `contracted_graph.fmi` (the contracted graph), `shortcuts.txt` (the shortcut list for the contraction), `node_ordering.txt` (the node ordering of the contraction) |
+| -cpu                | bool   | if set, a cpu profile is created during the benchmarking                                                                                                                                                                                                                                                                                     |
+| -ch-stall-on-demand | int    | (only if "-search ch" is used) Set the stall on demand level. 0 = no stalling, 1 = only stall current node, 2 = stall node preemtpive, 3 = stall current node and possible successors, 4 = stall node preemptive and possible successors                                                                                                     |
+| -ch-heuristic       | bool   | (only if "-search ch" is used) use astar search in ch                                                                                                                                                                                                                                                                                        |
+| -ch-manual          | bool   | (only if "-search ch" is used) Use manual (not bidirectional) search of dijkstra                                                                                                                                                                                                                                                             |
+| -ch-sort-arcs       | bool   | (only if "-search ch" is used) Sort the arcs according if they are active or not for each node                                                                                                                                                                                                                                               |
 
 ### OSM-Server
 
 #### Startup
 
 ```bash
-go run cmd/server/main.go [-graph graph] [-navigator algorithm]
+./server [-graph graph] [-navigator algorithm]
 ```
 
 Starts a HTTP server at port 8081.
@@ -140,36 +159,99 @@ This sets the search algorithm to `dijkstra`. If the request is sucessful, a str
 
 ## Results
 
-| Algorithm               | Runtime   | Performance | Runtime (with path extraction) | Performance | PQ Pops | Performance |
-| ----------------------- | --------- | ----------- | ------------------------------ | ----------- | ------- | ----------- |
-| Reference Dijsktra      | 109.037ms | 100%        | 109.385ms                      | 100%        | 351427  | 100%        |
-| Dijkstra                | 123.508ms | 113,55%     | 123.603ms                      | 113%        | 351427  | 100%        |
-| Bidirectional Dijkstra  | 103.076ms | 94,53%      | 103.167ms                      | 94,31%      | 250515  | 71,29%      |
-| A\*                     | 55.665ms  | 51,05%      | 55.729ms                       | 50,95%      | 101073  | 28,76%      |
-| Contraction Hierarchies | 49.948ms  | 45,80%      | 51.483ms                       | 47,07%      | 3638    | 1,04%       |
+| Algorithm                  |  Runtime | Performance | Runtime (with path extraction) | Performance | PQ Pops | Performance |
+| -------------------------- | -------: | ----------: | -----------------------------: | ----------: | ------: | ----------: |
+| Dijkstra                   | 97.984ms |     100,00% |                       98.071ms |     100,00% |  335123 |     100,00% |
+| Bidirectional Dijkstra     | 74.518ms |      76,05% |                       74.598ms |      76,07% |  237588 |      70,90% |
+| A\*                        | 44.494ms |      45,41% |                       44.555ms |      45,43% |   96834 |      28,90% |
+| Contraction Hierarchies    | 17.274ms |      17,63% |                       18.184ms |      18,54% |    3587 |       1,07% |
+| Plain Dijsktra (Reference) | 68.848ms |      70,26% |                       69.040ms |      70,40% |  335123 |     100,00% |
+
+The benchmark was run on a graph with 2806858 edges (and xxx active activated edges in the contraction)
 
 ### Plain Dijsktra
 
 No special settings for plain Dijkstra.
 
-Note: This algoirthm is slower than the reference. Most likely, this happens due to several if conditions how this algorithm can get parameterized.
+Note: This algorithm is slower than the reference. Most likely, this happens due to several if conditions how this algorithm can get parameterized.
+
+`./benchmark -graph big_lazy_parallel -n 1000 -search dijkstra`
+
+| Details (for 1000 runs)                |          |
+| -------------------------------------- | -------: |
+| Average runtime                        | 97.984ms |
+| Average runtime (with path extraction) | 98.071ms |
+| Average PQ Pops                        |   335123 |
+| Average PQ Updates                     |   404737 |
+| Average Edge relaxations               |  1331144 |
+| Average relaxation attempts            |  1331144 |
 
 ### Bidirectional Dijsktra
 
 No special settigns for bidirectional Dijstra.
 
+`./benchmark -graph big_lazy_parallel -n 1000 -search bidirectional`
+
+| Details (for 1000 runs)                |          |
+| -------------------------------------- | -------: |
+| Average runtime                        | 74.518ms |
+| Average runtime (with path extraction) | 74.598ms |
+| Average PQ Pops                        |   237588 |
+| Average PQ Updates                     |   291170 |
+| Average Edge relaxations               |   944132 |
+| Average relaxation attempts            |   944132 |
+
 ### AStar
 
 No special settings for A\*.
+
+`./benchmark -graph big_lazy_parallel -n 1000 -search astar`
+
+| Details (for 1000 runs)                |          |
+| -------------------------------------- | -------: |
+| Average runtime                        | 44.494ms |
+| Average runtime (with path extraction) | 44.555ms |
+| Average PQ Pops                        |    96834 |
+| Average PQ Updates                     |   150640 |
+| Average Edge relaxations               |   384865 |
+| Average relaxation attempts            |   384865 |
 
 ### Contraction Hierarchies
 
 **These results were achieved with following settings:**
 
-Graph: Lazy update, parallel processing (with independent set) (graph "big_lazy_parallel")
+Graph Contraction: Lazy update, parallel processing (with independent set) - basically default parameters
 
-Stall on demand: "preemptive"
+Search: "preemptive" stall-on-demand, early termination (when best connection is found) - basically default parameters
 
-Search: Bidirectional Dijkstra, stop when best connection is known
+`./benchmark -graph big_lazy_parallel -n 1000 -search ch`
+
+| Details (for 1000 runs)                |          |
+| -------------------------------------- | -------: |
+| Average runtime                        | 17.274ms |
+| Average runtime (with path extraction) | 18.184ms |
+| Average PQ Pops                        |     3587 |
+| Average PQ Updates                     |    18928 |
+| Average Edge relaxations               |    24415 |
+| Average relaxation attempts            |   923624 |
+| Average stalled nodes                  |    30011 |
+| Average unstalled nodes                |     1974 |
 
 _There may be different result with other settings or graphs, which may get reported later. E.g. using reursive stall-on-demand increases drastically the seach runtime._
+
+### Plain Dijsktra (Reference)
+
+This is just a simple Dijsktra algorithm, which is used as a reference.
+It just used a priority queue to maintain its items.
+No additional checks or other stuff is added here.
+
+`./benchmark -graph big_lazy_parallel -n 1000 -search reference`
+
+| Details (for 1000 runs)                |          |
+| -------------------------------------- | -------: |
+| Average runtime                        | 68.848ms |
+| Average runtime (with path extraction) | 69.040ms |
+| Average PQ Pops                        |   335123 |
+| Average PQ Updates                     |   404737 |
+| Average Edge relaxations               |  1331144 |
+| Average relaxation attempts            |  1331144 |
