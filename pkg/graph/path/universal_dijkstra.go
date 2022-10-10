@@ -546,7 +546,7 @@ func (d *UniversalDijkstra) stallNode(node *DijkstraItem, stallingDistance int) 
 			nodeId := queue[0]
 			queue = queue[1:]
 			hops++
-			if hops > maxHops {
+			if hops >= maxHops {
 				break
 			}
 
