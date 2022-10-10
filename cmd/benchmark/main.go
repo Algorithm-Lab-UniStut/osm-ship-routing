@@ -107,10 +107,7 @@ func getNavigator(algorithm, graphDirectory string, chPathFindingOptions p.PathF
 		d := p.NewUniversalDijkstra(aag)
 		//d.SetHotStart(true)
 		return d, referenceDijkstra
-	} else if algorithm == "dijkstra" {
-		wg.Wait()
-		return p.NewUniversalDijkstra(aag), referenceDijkstra
-	} else if algorithm == "reference_dijkstra" {
+	} else if algorithm == "reference" {
 		wg.Wait()
 		return p.NewDijkstra(aag), referenceDijkstra
 	} else if algorithm == "astar" {
