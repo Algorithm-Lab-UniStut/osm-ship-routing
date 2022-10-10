@@ -103,7 +103,7 @@ func getNavigator(algorithm, graphDirectory string, chPathFindingOptions p.PathF
 	}()
 
 	targetNavigator := func() p.Navigator {
-		if slice.Contains([]string{"default", "dijsktra"}, algorithm) {
+		if slice.Contains([]string{"default", "dijkstra"}, algorithm) {
 			wg.Wait()
 			d := p.NewUniversalDijkstra(aag)
 			//d.SetHotStart(true)
@@ -184,7 +184,8 @@ func readTargets(filename string) [][4]int {
 func createTargets(n int, referenceNavigator *p.Dijkstra, filename string) [][4]int {
 	// targets: origin, destination, length, #hops (nodes from source to target)
 	targets := make([][4]int, n)
-	seed := rand.NewSource(time.Now().UnixNano())
+	//seed := rand.NewSource(time.Now().UnixNano())
+	seed := rand.NewSource(0)
 	rng := rand.New(seed)
 	// reference algorithm to compute path
 	for i := 0; i < n; i++ {

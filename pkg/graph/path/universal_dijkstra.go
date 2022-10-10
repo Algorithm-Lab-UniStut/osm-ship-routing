@@ -70,6 +70,22 @@ type BidirectionalConnection struct {
 func (stats *SearchStats) Reset(size int, stallLevel int) {
 	stats.visitedNodes = make([]bool, size)
 	stats.searchSpace = make([]*DijkstraItem, size)
+	/*
+		if stats.visitedNodes == nil {
+			stats.visitedNodes = make([]bool, size)
+		} else {
+			for i := range stats.visitedNodes {
+				stats.visitedNodes[i] = false
+			}
+		}
+		if stats.searchSpace == nil {
+			stats.searchSpace = make([]*DijkstraItem, size)
+		} else {
+			for i := range stats.searchSpace {
+				stats.searchSpace[i] = nil
+			}
+		}
+	*/
 	if stallLevel > 0 {
 		stats.stalledNodes = make([]bool, size)
 		stats.stallingDistance = make([]int, size)
@@ -401,7 +417,6 @@ func (d *UniversalDijkstra) initializeSearch(origin, destination graph.NodeId) {
 	d.destination = destination
 
 	d.forwardSearch.Reset(d.g.NodeCount(), d.searchOptions.stallOnDemand)
-	d.backwardSearch.Reset(d.g.NodeCount(), d.searchOptions.stallOnDemand)
 	d.searchKPIs.Reset()
 	d.bidirectionalConnection.Reset()
 
@@ -414,6 +429,8 @@ func (d *UniversalDijkstra) initializeSearch(origin, destination graph.NodeId) {
 
 	// for bidirectional algorithm
 	if d.searchOptions.bidirectional {
+		d.backwardSearch.Reset(d.g.NodeCount(), d.searchOptions.stallOnDemand)
+
 		destinationItem := NewDijkstraItem(d.destination, 0, -1, 0, BACKWARD)
 		d.minHeap.Push(destinationItem)
 		d.settleNode(destinationItem)
