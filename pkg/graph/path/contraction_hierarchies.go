@@ -25,9 +25,9 @@ type ContractionHierarchies struct {
 	dijkstra           *UniversalDijkstra   // the dijkstra algorithm to perform the searches
 	contractionWorkers []*UniversalDijkstra // the elements/workers who perform the (potential parallel) contraction of nodes
 
-	nodeOrdering    [][]graph.NodeId // the node ordering (in which order the nodes were contracted)
-	orderOfNode     []int            // the order of the node ("reverse" node ordering). At which position the specified node was contracted
-	contractedNodes []graph.NodeId   // contains the IDs of the contracted nodes
+	nodeOrdering    [][]graph.NodeId     // the node ordering (in which order the nodes were contracted)
+	orderOfNode     []int                // the order of the node ("reverse" node ordering). At which position the specified node was contracted
+	contractedNodes slice.FixedSizeSlice // indicates if node (index = id) is contracted
 
 	contractionLevelLimit float64              // percentage, how many nodes should get contracted
 	contractionProgress   ContractionProgress  // for some debugging
@@ -151,9 +151,9 @@ func (ch *ContractionHierarchies) Precompute(givenNodeOrder []int, oo OrderOptio
 	ch.contractionProgress.initialTime = time.Now()
 
 	ch.addedShortcuts = make([]int, 0)
+	ch.contractedNodes = slice.MakeFixedSizeSlice(ch.g.NodeCount())
 	ch.nodeOrdering = make([][]int, 0)
 	ch.orderOfNode = make([]int, ch.g.NodeCount())
-	ch.contractedNodes = make([]graph.NodeId, 0, ch.g.NodeCount())
 	for i := range ch.orderOfNode {
 		ch.orderOfNode[i] = -1
 	}
@@ -567,15 +567,15 @@ func (ch *ContractionHierarchies) computeNodeContractionParallel(nodes []graph.N
 				}
 
 				// make a "hard" copy to handle different cases in the different goroutines
-				ignoreNodes := make([]graph.NodeId, len(ch.contractedNodes))
-				copy(ignoreNodes, ch.contractedNodes)
+				ignoreNodes := make([]bool, ch.g.NodeCount())
+				copy(ignoreNodes, ch.contractedNodes.Get())
 
-				if len(ignoreList) > 0 {
-					ignoreNodes = append(ignoreNodes, ignoreList...)
+				for _, node := range ignoreList {
+					ignoreNodes[node] = true
 				}
 
 				if ignoreCurrentNode {
-					ignoreNodes = append(ignoreNodes, nodeId)
+					ignoreNodes[nodeId] = true
 				}
 
 				// Recalculate shortcuts, incident edges and processed neighbors
@@ -619,10 +619,6 @@ func (ch *ContractionHierarchies) contractNodes(minHeap *queue.MinHeap[*OrderIte
 	shortcutCounter := 0
 	newShortcuts := 0
 
-	// helper function to get the current contraction level (in %)
-	contractionLevel := func() float64 {
-		return (float64(len(ch.contractedNodes)) / float64(ch.g.NodeCount())) * 100
-	}
 	// helper function to get the target nodes which should get contracted
 	getTargetNodes := func() []graph.NodeId {
 		if fixedOrder {
@@ -677,7 +673,7 @@ func (ch *ContractionHierarchies) contractNodes(minHeap *queue.MinHeap[*OrderIte
 	}
 
 	shortcuts := make([]Shortcut, 0)
-	for minHeap.Len() > 0 && contractionLevel() <= ch.contractionLevelLimit {
+	for minHeap.Len() > 0 && ch.contractedNodes.Ratio()*100 <= ch.contractionLevelLimit {
 		targetNodes := getTargetNodes()
 
 		if ch.debugLevel >= 2 {
@@ -758,7 +754,7 @@ func (ch *ContractionHierarchies) contractNodes(minHeap *queue.MinHeap[*OrderIte
 					}
 				}
 			}
-			ch.contractedNodes = append(ch.contractedNodes, contractNodes...)
+			ch.contractedNodes.Add(contractNodes...)
 			level++
 			intermediateUpdates = 0
 		}
@@ -777,9 +773,8 @@ func (ch *ContractionHierarchies) contractNodes(minHeap *queue.MinHeap[*OrderIte
 
 		nextMilestoneIndex := len(ch.contractionProgress.achievedMilestones)
 		shortcutCounter += newShortcuts
-		contractionProgress := float64(len(ch.contractedNodes)) / float64(len(ch.orderOfNode))
 
-		if storeContractionProgress && nextMilestoneIndex < len(ch.contractionProgress.milestones) && contractionProgress >= ch.contractionProgress.milestones[nextMilestoneIndex]/100 {
+		if storeContractionProgress && nextMilestoneIndex < len(ch.contractionProgress.milestones) && ch.contractedNodes.Ratio()*100 >= ch.contractionProgress.milestones[nextMilestoneIndex] {
 			ch.storeContractionProgressInfo(time.Since(ch.contractionProgress.initialTime), ch.contractionProgress.milestones[nextMilestoneIndex], shortcutCounter)
 		}
 
@@ -823,7 +818,7 @@ func (ch *ContractionHierarchies) liftUncontractedNodes() {
 
 // Compute a (virtual) contraction for the given node. Ignore the nodes given by ignoreNodes.
 // This returns the ContractionResult, containing the necessary shortcuts, incident arcs, and already contracted neighbors
-func (ch *ContractionHierarchies) computeNodeContraction(nodeId graph.NodeId, ignoreNodes []graph.NodeId, contractionWorker *UniversalDijkstra) *ContractionResult {
+func (ch *ContractionHierarchies) computeNodeContraction(nodeId graph.NodeId, ignoreNodes []bool, contractionWorker *UniversalDijkstra) *ContractionResult {
 	if ch.isNodeContracted(nodeId) {
 		panic("Node already contracted.")
 	}
