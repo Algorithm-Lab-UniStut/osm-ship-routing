@@ -1,5 +1,35 @@
 package slice
 
+type FixedSizeSlice struct {
+	slice        []bool
+	numSetValues int
+}
+
+func MakeFixedSizeSlice(length int) FixedSizeSlice {
+	return FixedSizeSlice{slice: make([]bool, length), numSetValues: 0}
+}
+func (s *FixedSizeSlice) Len() int { return s.numSetValues }
+func (s *FixedSizeSlice) Add(indices ...int) {
+	for _, index := range indices {
+		if !s.slice[index] {
+			s.slice[index] = true
+			s.numSetValues++
+		}
+	}
+}
+
+func (s *FixedSizeSlice) Remove(indices ...int) {
+	for _, index := range indices {
+		if s.slice[index] {
+			s.slice[index] = false
+			s.numSetValues--
+		}
+	}
+}
+
+func (s *FixedSizeSlice) Get() []bool    { return s.slice }
+func (s *FixedSizeSlice) Ratio() float64 { return float64(s.numSetValues) / float64(len(s.slice)) }
+
 func ReverseInPlace[T any](s []T) {
 	for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
 		s[i], s[j] = s[j], s[i]
