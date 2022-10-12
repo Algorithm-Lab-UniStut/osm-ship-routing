@@ -261,8 +261,10 @@ func (ch *ContractionHierarchies) ComputeShortestPath(origin, destination graph.
 	// hepler function to compute path from source to possible destinations and store searchKPIs
 	oneToManySearch := func(source graph.NodeId, searchStats *SearchStats, dijkstraSearchStats *SearchStats) {
 		ch.dijkstra.ComputeShortestPath(source, -1)
-		searchStats.visitedNodes = dijkstraSearchStats.visitedNodes
-		searchStats.searchSpace = dijkstraSearchStats.searchSpace
+		searchStats.visitedNodes = make([]bool, ch.g.NodeCount())
+		copy(searchStats.visitedNodes, dijkstraSearchStats.visitedNodes)
+		searchStats.searchSpace = make([]*DijkstraItem, ch.g.NodeCount())
+		copy(searchStats.searchSpace, dijkstraSearchStats.searchSpace)
 		ch.searchKPIs.pqPops += ch.dijkstra.GetPqPops()
 		ch.searchKPIs.pqUpdates += ch.dijkstra.GetPqUpdates()
 		ch.searchKPIs.stalledNodes += ch.dijkstra.GetStalledNodesCount()
@@ -272,7 +274,7 @@ func (ch *ContractionHierarchies) ComputeShortestPath(origin, destination graph.
 	}
 
 	oneToManySearch(origin, &ch.forwardSearch, &ch.dijkstra.forwardSearch)
-	oneToManySearch(destination, &ch.backwardSearch, &ch.dijkstra.backwardSearch)
+	oneToManySearch(destination, &ch.backwardSearch, &ch.dijkstra.forwardSearch)
 
 	// Find the best connection
 	ch.connection = -1
