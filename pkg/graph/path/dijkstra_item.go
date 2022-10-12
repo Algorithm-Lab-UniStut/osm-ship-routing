@@ -6,11 +6,11 @@ import (
 	"github.com/natevvv/osm-ship-routing/pkg/graph"
 )
 
-type Direction int
+type Direction bool
 
 const (
-	FORWARD  Direction = iota
-	BACKWARD Direction = iota
+	FORWARD  Direction = false
+	BACKWARD Direction = true
 )
 
 func (d Direction) String() string {
@@ -34,9 +34,6 @@ type DijkstraItem struct {
 }
 
 func NewDijkstraItem(nodeId graph.NodeId, distance int, predecessor graph.NodeId, heuristic int, searchDirection Direction) *DijkstraItem {
-	if searchDirection != BACKWARD && searchDirection != FORWARD {
-		panic("bad direction")
-	}
 	return &DijkstraItem{nodeId: nodeId, distance: distance, predecessor: predecessor, index: -1, heuristic: heuristic, searchDirection: searchDirection}
 }
 
