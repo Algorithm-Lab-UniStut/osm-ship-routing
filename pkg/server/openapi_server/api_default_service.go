@@ -5,6 +5,7 @@ package openapi_server
 import (
 	"context"
 	"net/http"
+	"sync"
 
 	"github.com/natevvv/osm-ship-routing/pkg/geometry"
 	"github.com/natevvv/osm-ship-routing/pkg/graph"
@@ -21,10 +22,31 @@ type DefaultApiService struct {
 
 // NewDefaultApiService creates a default api service
 func NewDefaultApiService(graphFile, contractedGraphFile, shortcutFile, nodeOrderingFile string, navigator *string) DefaultApiServicer {
-	g := graph.NewAdjacencyArrayFromFmiFile(graphFile)
-	contractedGraph := graph.NewAdjacencyArrayFromFmiFile(contractedGraphFile)
-	shortcuts := path.ReadShortcutFile(shortcutFile)
-	nodeOrdering := path.ReadNodeOrderingFile(nodeOrderingFile)
+	var g graph.Graph
+	var contractedGraph graph.Graph
+	var shortcuts []path.Shortcut
+	var nodeOrdering [][]int
+
+	var wg sync.WaitGroup
+	wg.Add(4)
+	go func() {
+		g = graph.NewAdjacencyArrayFromFmiFile(graphFile)
+		wg.Done()
+	}()
+	go func() {
+		contractedGraph = graph.NewAdjacencyArrayFromFmiFile(contractedGraphFile)
+		wg.Done()
+	}()
+	go func() {
+		shortcuts = path.ReadShortcutFile(shortcutFile)
+		wg.Done()
+	}()
+	go func() {
+		nodeOrdering = path.ReadNodeOrderingFile(nodeOrderingFile)
+		wg.Done()
+	}()
+	wg.Wait()
+
 	sr := routing.NewShipRouter(g, contractedGraph, shortcuts, nodeOrdering, navigator)
 	return &DefaultApiService{shipRouter: sr}
 }
