@@ -46,6 +46,10 @@ func main() {
 
 	flag.Parse()
 
+	if *useCache {
+		panic("Caching doesn't work, yet.")
+	}
+
 	if *buildGridGraph != "" {
 		// possible graphFile: "antarctica.poly.json", "planet-coastlines.poly.json"
 		graphFile := *buildGridGraph

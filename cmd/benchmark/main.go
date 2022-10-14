@@ -35,6 +35,10 @@ func main() {
 	sortArcs := flag.Bool("ch-sort-arcs", false, "Sort the arcs according if they are active or not for each node")
 	flag.Parse()
 
+	if *useHeuristic {
+		panic("AStar doesn't work yet for COntraction Hierarchies")
+	}
+
 	_, filename, _, ok := runtime.Caller(0)
 	if !ok {
 		log.Fatal("Error")
@@ -184,8 +188,8 @@ func readTargets(filename string) [][4]int {
 func createTargets(n int, referenceNavigator *p.Dijkstra, filename string) [][4]int {
 	// targets: origin, destination, length, #hops (nodes from source to target)
 	targets := make([][4]int, n)
-	//seed := rand.NewSource(time.Now().UnixNano())
-	seed := rand.NewSource(0)
+	seed := rand.NewSource(time.Now().UnixNano())
+	//seed := rand.NewSource(0)
 	rng := rand.New(seed)
 	// reference algorithm to compute path
 	for i := 0; i < n; i++ {
