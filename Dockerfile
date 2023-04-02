@@ -1,4 +1,4 @@
-FROM golang:1.18-alpine
+FROM golang:1.19-alpine AS build
 
 WORKDIR /app
 
@@ -15,6 +15,19 @@ COPY . .
 # Build server
 RUN go build -o osm-server cmd/server/main.go
 
+RUN adduser -D nonroot
+
+
+FROM alpine:latest
+
+WORKDIR /
+
+COPY --from=build /etc/passwd /etc/passwd
+
+COPY --from=build /app/osm-server /app/osm-server
+
+USER nonroot
+
 EXPOSE 8081
 
-CMD ["./osm-server"]
+CMD ["/app/osm-server"]
